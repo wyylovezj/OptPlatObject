@@ -7,7 +7,9 @@ const handleClose = (key, keyPath) => {
   console.log(key, keyPath)
 }
 
-// function createElement {}
+function createElement {
+
+}
 </script>
 
 <template>
