@@ -1,9 +1,12 @@
 <script setup>
 import IndexPage from '@/components/IndexPage.vue'
+import { useAuthStore } from '@/stores/auth.js'
+const authStore = useAuthStore()
 </script>
 
 <template>
-  <IndexPage></IndexPage>
+  <router-view v-if="!authStore.checkAuth()" name="LoginPage"></router-view>
+  <IndexPage v-else></IndexPage>
 </template>
 
 <style>

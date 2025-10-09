@@ -1,15 +1,18 @@
 <script setup>
 import '@/iconfonts/iconfont.js'
+import { useRouter } from 'vue-router'
+
 const handleOpen = (key, keyPath) => {
   console.log(key, keyPath)
 }
 const handleClose = (key, keyPath) => {
   console.log(key, keyPath)
 }
-
-function createElement {
-
+const router = useRouter()
+function routeTo() {
+  router.push('/alarmManagement/alarmItem')
 }
+
 </script>
 
 <template>
@@ -35,8 +38,7 @@ function createElement {
             </el-icon>
             <span>告警管理</span>
           </template>
-          <el-menu-item @click="createElement" index="1-1">云上告警</el-menu-item>
-          <el-menu-item index="1-2">云下告警</el-menu-item>
+          <el-menu-item @click="routeTo" index="1-1">告警</el-menu-item>
         </el-sub-menu>
         <el-divider></el-divider>
         <el-sub-menu index="2">
@@ -48,8 +50,7 @@ function createElement {
             </el-icon>
             <span>事件管理</span>
           </template>
-          <el-menu-item index="2-1">云上事件</el-menu-item>
-          <el-menu-item index="2-2">云下事件</el-menu-item>
+          <el-menu-item @click="routeTo" index="2-1">事件</el-menu-item>
         </el-sub-menu>
         <el-divider></el-divider>
         <el-sub-menu index="3">
@@ -61,8 +62,7 @@ function createElement {
             </el-icon>
             <span>系统管理</span>
           </template>
-          <el-menu-item index="3-1">云上事件</el-menu-item>
-          <el-menu-item index="3-2">云下事件</el-menu-item>
+          <el-menu-item @click="routeTo" index="3-1">参数配置</el-menu-item>
         </el-sub-menu>
         <el-divider></el-divider>
       </el-menu>

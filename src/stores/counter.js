@@ -10,11 +10,4 @@ export const useCounterStore = defineStore('counter', () => {
 
   return { count, doubleCount, increment }
 })
-export const useCurrentDomStore = defineStore('currentDom', () =>{
-  const currentDom =ref(null)
-  function setCurrentDom(refDom) {
-    currentDom.value = refDom.value
-  }
 
-  return {currentDom,setCurrentDom}
-})
