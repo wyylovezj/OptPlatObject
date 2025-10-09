@@ -14,7 +14,6 @@ html, body {
   padding: 0;
   font-family: 'Helvetica Neue', Arial, sans-serif;
   box-sizing: border-box;
-  font-size: 14px;
 }
 #app {
   height: 100%;
