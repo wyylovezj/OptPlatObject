@@ -1,5 +1,6 @@
 import AlarmPage from '@/components/AlarmPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
+import NotFound from '@/components/NotFound.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 
@@ -49,8 +50,13 @@ const router = createRouter({
           breadcrumb: '告警'
         }
       }]
+    },
+    // 404路由配置
+    {
+      path: '/:pathMatch(.*)*', // 使用自定义的regexp来匹配所有路径
+      name: 'NotFound',
+      component: NotFound
     }
-
   ]
 })
 // 全局前置守卫
@@ -60,7 +66,10 @@ router.beforeEach(async (to, from, next) => {
   console.log(localStorage.getItem('user'))
   console.log(localStorage.getItem('token'))
   // 检查目标路由是否需要认证
-  if (to.meta.requiresAuth) {
+  if (to.matched.length === 0) {
+    // 可以重定向到404页面
+    next({ name: 'NotFound' })
+  } else if (to.meta.requiresAuth) {
     // 如果用户已认证，允许访问
     console.log(to.meta.requiresAuth)
     if (authStore.isAuthenticated) {
