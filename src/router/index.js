@@ -68,7 +68,7 @@ router.beforeEach(async (to, from, next) => {
     } else {
       // 未认证用户重定向到登录页
       next({
-        name: 'Login',
+        name: 'LoginPage',
         // 保存重定向路径
         query: { redirect: to.fullPath }
       })
