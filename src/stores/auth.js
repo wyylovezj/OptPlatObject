@@ -8,7 +8,6 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null)
   // 是否已登录
   const isAuthenticated = ref(false)
-
   // 初始化时检查本地存储
   if (token.value) {
     isAuthenticated.value = true
@@ -33,11 +32,14 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated.value = false
 
     // 清除本地存储
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    if (localStorage.getItem('user')) {
+      localStorage.removeItem('user')
+    }
+    if (localStorage.getItem('token')) {
+      localStorage.removeItem('token')
+    }
     console.log("退出登录")
   }
-
   // 检查是否已登录
   const checkAuth = () => {
     return isAuthenticated.value

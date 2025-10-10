@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth.js'
 const authStore = useAuthStore()
-const userData = JSON.parse(localStorage.getItem('user'))
+const userData = JSON.parse(localStorage.getItem('user')|| '{}')
 const name = ref(null)
-name.value = userData.username
+if (userData && userData.username) {
+  name.value = userData.username
+}
 // 顶部个人信息菜单后面的上下箭头翻转标志
 const direction = ref(false)
 // 面包屑过滤

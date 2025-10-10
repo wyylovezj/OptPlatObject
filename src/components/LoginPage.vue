@@ -65,6 +65,7 @@ const handleLogin = async () => {
           v-model="loginForm.username"
           prefix-icon="el-icon-user"
           placeholder="用户名"
+          @keyup.enter="$event.target.blur()"
         />
       </el-form-item>
 
@@ -75,6 +76,7 @@ const handleLogin = async () => {
           type="password"
           placeholder="密码"
           show-password
+          @keyup.enter="handleLogin"
         />
       </el-form-item>
 
