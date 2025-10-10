@@ -58,7 +58,7 @@ const handleLogin = async () => {
 <template>
   <div class="login-container">
     <el-form ref="loginForm" :model="loginForm" :rules="loginRules" class="login-form">
-      <h2 class="title">告警平台登录</h2>
+      <h2 class="title">请登录</h2>
 
       <el-form-item prop="username">
         <el-input
