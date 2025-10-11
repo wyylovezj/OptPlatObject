@@ -3,10 +3,10 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-
 const loginForm = ref({
   username: '',
   password: ''
@@ -14,10 +14,12 @@ const loginForm = ref({
 
 const loginRules = ref({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: '请输入用户名' },
+    { pattern: /^[a-zA-Z0-9]+$/, message: '用户名只能包含英文字母和数字' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' }
+    { required: true, message: '请输入密码'},
+    { pattern: /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/, message: '密码只能包含英文字母、数字和特殊字符' }
   ]
 })
 
@@ -27,20 +29,27 @@ const handleLogin = async () => {
   loading.value = true
 
   try {
-    // 模拟登录请求
-    // 实际项目中替换为真实的API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    // 模拟登录成功响应
-    const userData = {
-      id: 1,
-      username: loginForm.value.username,
-      name: '管理员',
-      roles: ['admin']
+    const response = await fetch('http://127.0.0.1:8000/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: loginForm.value.username,
+        password: loginForm.value.password
+      })
+    })
+    if (!response.ok) {
+      throw new Error("登录失败")
     }
+    const userData = await response.json()
 
+    // 保存用户名到历史记录
+    saveUsernameToHistory(loginForm.value.username)
+    console.log(userData.username)
+    console.log(userData.status)
     // 存储登录状态
-    authStore.login(userData, 'mock-auth-token')
+    authStore.login(userData.username, userData.status)
 
     // 登录成功后重定向
     const redirect = router.currentRoute.value.query.redirect || '/'
@@ -53,30 +62,68 @@ const handleLogin = async () => {
     loading.value = false
   }
 }
+// 保存用户名到历史记录
+const recentUsernames = ref(JSON.parse(localStorage.getItem('recentUsernames') || '[]'))
+
+const saveUsernameToHistory = (username) => {
+  const usernames = recentUsernames.value
+  if (!usernames.includes(username)) {
+    usernames.unshift(username)
+    if (usernames.length > 1) {
+      usernames.pop()
+    }
+    recentUsernames.value = usernames
+    console.log("11111")
+    localStorage.setItem('recentUsernames', JSON.stringify(usernames))
+  }
+}
+
+const querySearch = (queryString, cb) => {
+  const results = queryString
+    ? recentUsernames.value.filter(createFilter(queryString))
+    : recentUsernames.value
+  cb(results.map(item => ({ value: item })))
+}
+
+const createFilter = (queryString) => {
+  return (username) => {
+    return username.toLowerCase().indexOf(queryString.toLowerCase()) === 0
+  }
+}
+
+const handleSelect = (item) => {
+  loginForm.value.username = item.value
+}
+
 </script>
 
 <template>
   <div class="login-container">
-    <el-form ref="loginForm" :model="loginForm" :rules="loginRules" class="login-form">
-      <h2 class="title">请登录</h2>
+    <el-form :model="loginForm" :rules="loginRules" class="login-form" @keyup.enter="handleLogin">
+      <h2 class="title">告警管理平台</h2>
 
       <el-form-item prop="username">
-        <el-input
+        <el-autocomplete
           v-model="loginForm.username"
-          prefix-icon="el-icon-user"
+          :fetch-suggestions="querySearch"
+          :prefix-icon="User"
           placeholder="用户名"
-          @keyup.enter="$event.target.blur()"
+          autocomplete="on"
+          @select="handleSelect"
+          clearable
+          @input="loginForm.username = loginForm.username.replace(/\s/g, '')"
         />
       </el-form-item>
 
       <el-form-item prop="password">
         <el-input
           v-model="loginForm.password"
-          prefix-icon="el-icon-lock"
           type="password"
           placeholder="密码"
           show-password
-          @keyup.enter="handleLogin"
+          :prefix-icon="Lock"
+          clearable
+          @input="loginForm.password = loginForm.password.replace(/\s/g, '')"
         />
       </el-form-item>
 
@@ -87,7 +134,7 @@ const handleLogin = async () => {
           :loading="loading"
           @click="handleLogin"
         >
-          登录
+          登 录
         </el-button>
       </el-form-item>
     </el-form>
@@ -95,6 +142,9 @@ const handleLogin = async () => {
 </template>
 
 <style scoped>
+* {
+  user-select: none;
+}
 .login-container {
   display: flex;
   justify-content: center;

@@ -20,10 +20,10 @@ function routeTo() {
     <el-col>
       <el-menu
         active-text-color="#ffd04b"
-        background-color="rgb(121, 187, 255)"
+        background-color="linear-gradient(180deg, #1e3c72 0%, #2a5298 100%)"
         class="el-menu-vertical"
         default-active="2"
-        text-color="#fff"
+        text-color="rgba(0, 0, 0, 0.9)"
         @open="handleOpen"
         @close="handleClose"
         @collapse="false"
@@ -76,6 +76,12 @@ function routeTo() {
 }
 .el-menu-vertical {
   border-right: none !important;
+}
+.el-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+.el-sub-menu__title:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 .el-divider {
   margin: 0;

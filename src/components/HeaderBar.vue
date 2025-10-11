@@ -4,10 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth.js'
 const authStore = useAuthStore()
-const userData = JSON.parse(localStorage.getItem('user')|| '{}')
+const user = sessionStorage.getItem('user')
 const name = ref(null)
-if (userData && userData.username) {
-  name.value = userData.username
+if (user) {
+  name.value = user
 }
 // 顶部个人信息菜单后面的上下箭头翻转标志
 const direction = ref(false)
@@ -96,7 +96,7 @@ function logout() {
 
 <style scoped>
 * {
-  color: white;
+  color: rgba(0, 0, 0, 0.9);
   user-select: none;
 }
 .bread-crumb {
@@ -133,20 +133,24 @@ function logout() {
 /* 面包屑组件样式 */
 /* 不被选中时的颜色 */
 .el-breadcrumb :deep(.el-breadcrumb__inner)  {
-  color: #606868 !important;
+  color: rgba(0, 0, 0, 0.9) !important;
+  font-size: 15px;
   font-weight:400 !important;
 }
 .el-breadcrumb__item:hover :deep(.el-breadcrumb__inner)  {
-  color: white !important;
+  color: orange !important;
+  font-size: 15px;
   font-weight:400 !important;
 }
 /* 被选中时的颜色 */
 .el-breadcrumb__item:last-child :deep(.el-breadcrumb__inner) {
-  color: #606868 !important;
+  color: rgba(0, 0, 0, 0.9) !important;
+  font-size: 15px;
   font-weight:400 !important;
 }
 .el-breadcrumb__item :deep(.el-breadcrumb__separator) {
-  color: white !important;
+  color: rgba(0, 0, 0, 0.9) !important;
+  font-size: 15px;
   font-weight:400 !important;
 }
 /* 面包屑组件样式 */
