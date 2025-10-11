@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth.js'
 const authStore = useAuthStore()
-const userData = JSON.parse(localStorage.getItem('user')|| '{}')
+const userData = JSON.parse(sessionStorage.getItem('user')|| '{}')
 const name = ref(null)
 if (userData && userData.username) {
   name.value = userData.username
