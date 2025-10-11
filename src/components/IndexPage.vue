@@ -41,12 +41,15 @@ import SideBar from '@/components/SideBar.vue'
   height: 100%;
 }
 .el-aside {
-  background: rgb(51, 126, 204);
+  background: #EBEEF5;
   height: 100%;
 }
 .el-header {
   height: 5%;
-  background: rgb(51, 126, 204);
+  background: rgba(64, 158, 255,0.8);
+}
+.el-main {
+  background-color: #D4D7DE;
 }
 .side-bar {
   position: relative;

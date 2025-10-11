@@ -19,11 +19,10 @@ function routeTo() {
   <el-row class="tac">
     <el-col>
       <el-menu
-        active-text-color="#ffd04b"
-        background-color="linear-gradient(180deg, #1e3c72 0%, #2a5298 100%)"
+        active-text-color=""
         class="el-menu-vertical"
         default-active="2"
-        text-color="rgba(0, 0, 0, 0.9)"
+        text-color=""
         @open="handleOpen"
         @close="handleClose"
         @collapse="false"
@@ -77,14 +76,17 @@ function routeTo() {
 .el-menu-vertical {
   border-right: none !important;
 }
-.el-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+:deep(.el-menu-item:hover) {
+  background-color: rgba(42, 82, 152, 0.3) !important;
 }
-.el-sub-menu__title:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+:deep(.el-sub-menu__title:hover) {
+  background-color: rgba(42, 82, 152, 0.3) !important;
 }
 .el-divider {
   margin: 0;
+}
+:deep(.el-menu) {
+  background-color: transparent !important;
 }
 .icon {
   width: 1em;
@@ -92,5 +94,8 @@ function routeTo() {
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
+}
+:deep(.el-menu-item) {
+  padding-left: 50px !important;
 }
 </style>

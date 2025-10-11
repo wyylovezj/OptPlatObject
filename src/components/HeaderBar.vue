@@ -153,5 +153,8 @@ function logout() {
   font-size: 15px;
   font-weight:400 !important;
 }
+:deep(.el-dropdown-link:hover) {
+  background-color: rgba(42, 82, 152, 0.3) !important;
+}
 /* 面包屑组件样式 */
 </style>
