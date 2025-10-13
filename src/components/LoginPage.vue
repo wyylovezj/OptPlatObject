@@ -12,7 +12,7 @@ const loginForm = ref({
   username: '',
   password: ''
 })
-
+// 输入验证规则
 const loginRules = ref({
   username: [
     { required: true, message: '请输入用户名' },

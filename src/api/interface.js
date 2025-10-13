@@ -15,6 +15,9 @@ export const loginAuthentication = async (username, password) => {
   }
 }
 
+//数据查询接口
+
+
 // 关闭告警接口
 export const closeAlert = async (alertId, handleOpinion) => {
   try {
