@@ -1,6 +1,6 @@
 <script setup>
 import IndexPage from '@/components/IndexPage.vue'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/authInfoStore.js'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 const route = useRoute()

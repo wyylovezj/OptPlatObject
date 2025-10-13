@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/authInfoStore.js'
 const authStore = useAuthStore()
 const user = sessionStorage.getItem('user')
 const name = ref(null)
@@ -23,7 +23,7 @@ function changeDirection(isVisible) {
   direction.value = isVisible
 }
 function logout() {
-  authStore.logout()
+  authStore.logoutInfoClear()
   router.push('/login')
 }
 </script>

@@ -49,7 +49,7 @@ import SideBar from '@/components/SideBar.vue'
   background: rgba(64, 158, 255,0.8);
 }
 .el-main {
-  background-color: #D4D7DE;
+  background-color: #F2F3F5;
 }
 .side-bar {
   position: relative;

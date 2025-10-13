@@ -1,7 +1,8 @@
 <script setup>
+import { loginAuthentication } from '@/api/interface.js'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/authInfoStore.js'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 
@@ -22,38 +23,24 @@ const loginRules = ref({
     { pattern: /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/, message: '密码只能包含英文字母、数字和特殊字符' }
   ]
 })
-
+// 登录加载界面标识符
 const loading = ref(false)
 
 const handleLogin = async () => {
   loading.value = true
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        username: loginForm.value.username,
-        password: loginForm.value.password
-      })
-    })
-    if (!response.ok) {
-      throw new Error("登录失败")
-    }
-    const userData = await response.json()
-
+    const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
     // 保存用户名到历史记录
     saveUsernameToHistory(loginForm.value.username)
     console.log(userData.username)
     console.log(userData.status)
     // 存储登录状态
-    authStore.login(userData.username, userData.status)
+    authStore.loginInfoStorage(userData.username, userData.status)
 
     // 登录成功后重定向
     const redirect = router.currentRoute.value.query.redirect || '/'
-    router.push(redirect)
+    await router.push(redirect)
 
     ElMessage.success('登录成功')
   } catch (error) {
@@ -73,7 +60,6 @@ const saveUsernameToHistory = (username) => {
       usernames.pop()
     }
     recentUsernames.value = usernames
-    console.log("11111")
     localStorage.setItem('recentUsernames', JSON.stringify(usernames))
   }
 }

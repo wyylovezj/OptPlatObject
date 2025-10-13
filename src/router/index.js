@@ -2,7 +2,7 @@ import AlarmPage from '@/components/AlarmPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import NotFound from '@/components/NotFound.vue'
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/authInfoStore.js'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -74,7 +74,7 @@ router.beforeEach(async (to, from, next) => {
       next()
     } else {
       // 清除登录信息
-      authStore.logout()
+      authStore.logoutInfoClear()
       // 未认证用户重定向到登录页
       next({
         name: 'LoginPage',

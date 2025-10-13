@@ -14,8 +14,8 @@ export const useAuthStore = defineStore('auth', () => {
     // 这里可以添加从本地存储加载用户信息的逻辑
   }
 
-  // 登录方法
-  const login = (username, status) => {
+  // 登录时存储登录信息
+  const loginInfoStorage = (username, status) => {
     user.value = username
     console.log(username)
 
@@ -31,8 +31,8 @@ export const useAuthStore = defineStore('auth', () => {
     console.log(sessionStorage.getItem('status') )
   }
 
-  // 退出登录方法
-  const logout = () => {
+  // 退出登录时清除登录信息
+  const logoutInfoClear = () => {
     user.value = null
     state.value = null
     isAuthenticated.value = false
@@ -47,7 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
     console.log("退出登录")
   }
   // 检查是否已登录
-  const checkAuth = () => {
+  const checkIsAuth = () => {
     return isAuthenticated.value
   }
 
@@ -55,8 +55,8 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     state,
     isAuthenticated,
-    login,
-    logout,
-    checkAuth
+    loginInfoStorage,
+    logoutInfoClear,
+    checkIsAuth
   }
 })
