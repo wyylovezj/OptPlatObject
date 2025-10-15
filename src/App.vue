@@ -6,7 +6,6 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-console.log(isAuthenticated.value)
 </script>
 
 <template>

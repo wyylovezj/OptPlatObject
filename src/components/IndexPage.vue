@@ -42,10 +42,11 @@ import SideBar from '@/components/SideBar.vue'
 }
 .el-aside {
   background: #EBEEF5;
+  width: 200px  !important;
   height: 100%;
 }
 .el-header {
-  height: 5%;
+  height: 40px;
   background: rgba(64, 158, 255,0.8);
 }
 .el-main {

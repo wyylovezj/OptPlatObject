@@ -24,17 +24,15 @@ const loginRules = ref({
   ]
 })
 // 登录加载界面标识符
-const loading = ref(false)
+const tools = ref(false)
 
 const handleLogin = async () => {
-  loading.value = true
+  tools.value = true
 
   try {
     const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
     // 保存用户名到历史记录
     saveUsernameToHistory(loginForm.value.username)
-    console.log(userData.username)
-    console.log(userData.status)
     // 存储登录状态
     authStore.loginInfoStorage(userData.username, userData.status)
 
@@ -46,7 +44,7 @@ const handleLogin = async () => {
   } catch (error) {
     ElMessage.error('登录失败: ' + error.message)
   } finally {
-    loading.value = false
+    tools.value = false
   }
 }
 // 保存用户名到历史记录

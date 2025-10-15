@@ -1,4 +1,3 @@
-// src/api/auth.js
 import axios from 'axios'
 
 
@@ -16,14 +15,24 @@ export const loginAuthentication = async (username, password) => {
 }
 
 //数据查询接口
-
+export const searchData = async (searchQuery) => {
+  try {
+    searchQuery.state = searchQuery.state === '' ? '未处理': searchQuery.state
+    const response = await axios.post('http://127.0.0.1:8000/searchData', {
+      searchQuery
+    })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '查询失败')
+  }
+}
 
 // 关闭告警接口
-export const closeAlert = async (alertId, handleOpinion) => {
+export const closeAlert = async (selectedEventIds, handleOpinion) => {
   try {
-    console.log(alertId)
+    console.log('111')
     const response = await axios.post('http://127.0.0.1:8000/closeAlarm', {
-      alertId,
+      selectedEventIds,
       handleOpinion
     })
     return response.data

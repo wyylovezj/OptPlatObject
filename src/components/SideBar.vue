@@ -26,6 +26,7 @@ function routeTo() {
         @open="handleOpen"
         @close="handleClose"
         @collapse="false"
+        :unique-opened="true"
       >
         <el-divider></el-divider>
         <el-sub-menu index="1">
