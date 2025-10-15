@@ -369,7 +369,7 @@ const closeCurrentAlert = async () => {
       <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false"/>
       <el-table-column prop="operation" label="操作" min-width="13%" :resizable="false">
         <template #default="scope">
-          <div class="operation-buttons" style="display: flex;justify-content: center;align-items: center">
+          <div class="operation-buttons" style="display: flex;justify-content: space-around;align-items: center">
             <el-button type="primary"  plain size="small" @click="handleView(scope.row)">查看</el-button>
             <el-button type="primary"  plain size="small" @click="handleClose(scope.row)">关闭</el-button>
             <el-button type="primary"  plain size="small" @click="handleCreateTicket(scope.row)">触发工单</el-button>
