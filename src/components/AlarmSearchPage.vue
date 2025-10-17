@@ -1,11 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { searchData } from '@/api/interface.js'
-import { loading, currentPage, Query, selectedRows, DialogVisibleClose } from '@/utils/tools.js'
+import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
 // 表单查询数据模型
-const searchQuery = ref(Query)
+const searchQuery = ref(JSON.parse(JSON.stringify(Query)))
 // 告警分类选择器
 const categoryOptions = [
   {
@@ -110,7 +110,7 @@ const handleTimeSelect = (value) => {
   }
 }
 
-// 监听日期变化，清空选择器
+// 监听日期变化，清空timeSelect选择器,因为该选择器没有绑定表单prop属性
 const handleDateChange = () => {
   // 当日期被手动修改时，清空时间选择器的值
   if (searchQuery.value.timeSelect) {
@@ -124,6 +124,7 @@ const formSearch = ref(null)
 const clearSearch = () => {
   if (formSearch.value) {
     formSearch.value.resetFields()
+    console.log(searchQuery.value)
     handleDateChange()
   }
 }
@@ -132,7 +133,7 @@ const refresh = async () => {
   loading.value = true
   try {
     clearSearch()
-    await searchData(searchQuery.value)
+    tableData.value = await searchData(searchQuery.value)
     currentPage.value = 1
   } finally {
     setTimeout(() => {
@@ -144,7 +145,7 @@ const refresh = async () => {
 const search = async () => {
   loading.value = true
   try {
-    await searchData(searchQuery.value)
+    tableData.value = await searchData(searchQuery.value)
     currentPage.value = 1
   } finally {
     setTimeout(() => {

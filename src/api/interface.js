@@ -30,7 +30,6 @@ export const searchData = async (searchQuery) => {
 // 关闭告警接口
 export const closeAlert = async (selectedEventIds, handleOpinion) => {
   try {
-    console.log('111')
     const response = await axios.post('http://127.0.0.1:8000/closeAlarm', {
       selectedEventIds,
       handleOpinion

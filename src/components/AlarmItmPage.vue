@@ -2,9 +2,8 @@
 import { closeAlert, searchData } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref } from 'vue'
-import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibleClose } from '@/utils/tools.js'
-// 表格数据源
-const tableData = ref([])
+import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibleClose, handleOpinion, tableData } from '@/utils/publicData.js'
+
 
 
 // 初始化表格数据
@@ -78,8 +77,7 @@ const dialogVisibleView = ref(false)
 // 《查看》模态框中当前表格行变量
 const currentRow = ref({})
 
-// 《关闭》按钮模态框处理意见输入值
-const handleOpinion = ref('')
+
 
 // 表格《告警级别》列排序规则回调函数
 const sortSeverity = (a, b) => {

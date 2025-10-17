@@ -1,5 +1,8 @@
 import { ref, computed } from 'vue'
 
+
+// 表格数据源
+export const tableData = ref([])
 // 刷新按钮加载状态标志
 export const loading = ref(false)
 
@@ -29,3 +32,5 @@ export const selectedEventIds = computed(() => {
 
 // 《关闭》按钮模态框显示标识符
 export const DialogVisibleClose = ref(false)
+// 《关闭》按钮模态框处理意见输入值
+export const handleOpinion = ref('')
