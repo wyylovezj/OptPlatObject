@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { searchData } from '@/api/interface.js'
-import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData } from '@/utils/publicData.js'
+import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, debounce, throttle } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
 // 表单查询数据模型
@@ -19,14 +19,17 @@ const severityOptions = [
   {
     value: 3,
     label: '一般',
+    color: '#52c41a',
   },
   {
     value: 2,
     label: '重要',
+    color: '#fa8c16',
   },
   {
     value: 1,
     label: '严重',
+    color: '#ff4d4f',
   },
 ]
 const system_nameOptions = [
@@ -124,49 +127,59 @@ const formSearch = ref(null)
 const clearSearch = () => {
   if (formSearch.value) {
     formSearch.value.resetFields()
-    console.log(searchQuery.value)
     handleDateChange()
   }
 }
-// 刷新按钮查询数据
-const refresh = async () => {
+// 刷新按钮查询数据,增加了防抖控制
+const refresh = throttle(debounce(async () => {
   loading.value = true
   try {
-    clearSearch()
     tableData.value = await searchData(searchQuery.value)
     currentPage.value = 1
   } finally {
-    setTimeout(() => {
       loading.value = false
-    }, 1000)
   }
-}
+}, 1000) , 1000)
 // 搜索按钮查询数据
-const search = async () => {
-  loading.value = true
-  try {
-    tableData.value = await searchData(searchQuery.value)
-    currentPage.value = 1
-  } finally {
-    setTimeout(() => {
-      loading.value = false
-    }, 1000)
-  }
-}
+const search = throttle(
+  debounce(async () => {
+    loading.value = true
+    try {
+      tableData.value = await searchData(searchQuery.value)
+      currentPage.value = 1
+    } finally {
+        loading.value = false
+    }
+  }, 1000), 1000)
 // 批量关闭功能
-const batchClose = () => {
+// 存储当前显示的提示框实例
+let messageInstance = null
+const batchClose = async () => {
   if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择要关闭的数据')
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 使用setTimeout给DOM更新留出时间
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance = ElMessage.warning({
+      message: '请先选择要关闭的数据',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance = null
+      }
+    })
     return
   }
   DialogVisibleClose.value = true
 }
-
 </script>
 
 <template>
-  <div style="margin-bottom: 10px;margin-top: 10px;user-select: none">
-    <el-form ref="formSearch" :inline="true" :model="searchQuery" class="demo-form-inline">
+  <div style="margin-top: 10px;user-select: none">
+    <el-form ref="formSearch" :inline="true" :model="searchQuery">
       <el-form-item label="告警分类：" prop="category">
         <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px">
           <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -174,7 +187,12 @@ const batchClose = () => {
       </el-form-item>
       <el-form-item label="告警级别：" prop="severity">
         <el-select v-model="searchQuery.severity" clearable placeholder="请选择" style="width: 150px">
-          <el-option v-for="item in severityOptions" :key="item.value" :label="item.label" :value="item.value" />
+          <el-option v-for="item in severityOptions" :key="item.value" :label="item.label" :value="item.value">
+            <div class="flex items-center">
+              <el-tag :color="item.color" style="margin-right: 8px" size="small" />
+              <span :style="{ color: item.color }">{{ item.label }}</span>
+            </div>
+          </el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="IP地址：" prop="ip">
@@ -227,44 +245,17 @@ const batchClose = () => {
           <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
-      <el-form-item style="margin-left: 50px">
-        <el-button
-          type="primary"
-          class="login-btn"
-          @click="clearSearch"
-        >
-          重置
-        </el-button>
-      </el-form-item>
       <el-form-item>
-        <el-button
-          type="primary"
-          class="login-btn"
-          @click="refresh"
-        >
-          刷新
-        </el-button>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          class="login-btn"
-          @click="search"
-        >
-          搜索
-        </el-button>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          class="login-btn"
-          @click="batchClose"
-        >
-          批量关闭
-        </el-button>
+        <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;position: fixed;right: 2%;z-index: 999;">
+          <el-button type="primary" @click="clearSearch">重置</el-button>
+          <el-button type="primary" @click="refresh">刷新</el-button>
+          <el-button type="primary" @click="search">搜索</el-button>
+          <el-button type="primary" @click="batchClose">批量关闭</el-button>
+        </div>
       </el-form-item>
     </el-form>
   </div>
+
 </template>
 
 <style scoped>
@@ -274,5 +265,16 @@ const batchClose = () => {
 }
 .center-placeholder :deep(.el-input__inner)::placeholder {
   text-align: center;
+}
+.el-tag {
+
+  border: none;
+  aspect-ratio: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
 }
 </style>

@@ -26,4 +26,12 @@ html, body {
 #app {
   height: 100%;
 }
+/* ElMessage字体大小样式 */
+.el-message {
+  font-size: 16px !important;
+}
+
+.el-message__content {
+  font-size: 16px !important;
+}
 </style>

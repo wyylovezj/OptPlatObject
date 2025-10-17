@@ -59,7 +59,7 @@ const tableRef = ref(null)
 const handleSelectionChange = (selection) => {
   selectedRows.value = selection
 }
-// 配合reserve-selection，实现在数据刷新后之前选中的行仍然选中
+// DOM更新后执行的操作：配合reserve-selection，实现在数据刷新后之前选中的行仍然选中
 nextTick(() => {
   if (selectedRows.value.length > 0) {
     selectedRows.value.forEach((row) => {
@@ -106,16 +106,26 @@ const handleView = (row) => {
   // 这里可以添加查看详情的逻辑，比如打开对话框或跳转页面
 }
 // 表格中《操作》中关闭列按钮回调函数
-const handleClose = (row) => {
+const handleClose = async () => {
   if (selectedRows.value.length > 0) {
-    ElMessage.warning('已勾选数据，请点击批量关闭')
+    if (messageInstance) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 使用setTimeout给DOM更新留出时间
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance = ElMessage.warning({
+      message: '已勾选数据，请点击批量关闭',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance = null
+      }
+    })
     return
   }
-  // 单行关闭时将当前行加入到接口保存要关闭的event_id的selectedRows数组中
-  selectedRows.value = [row]
-  currentRow.value = row
+  // 打开查看模态框
   DialogVisibleClose.value = true
-  // 这里可以添加关闭告警的逻辑
 }
 
 const handleCreateTicket = (row) => {
@@ -128,10 +138,15 @@ const handleForward = (row) => {
   // 这里可以添加转发告警的逻辑
 }
 
-// 《关闭》模态框中《确认》按钮回调函数andleOpinion.value)
+// 《关闭》模态框中《确认》按钮回调函数
+// 存储当前显示的提示框实例
+let messageInstance = null
 // 批量删除选中的行
 const closeCurrentAlert = async () => {
   try {
+    // 单行关闭时将当前行加入到接口保存要关闭的event_id的selectedRows数组中
+    selectedRows.value.push(currentRow.value)
+    // 调用关闭告警接口
     await closeAlert(selectedEventIds.value, handleOpinion.value)
     selectedEventIds.value.forEach(id => {
       const index = tableData.value.findIndex((item) => String(item.event_id) === String(id))
@@ -145,11 +160,33 @@ const closeCurrentAlert = async () => {
     DialogVisibleClose.value = false
     // 重置处理意见
     handleOpinion.value = ''
-    ElMessage.success('告警关闭成功')
-    // 这里可以添加成功提示
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 使用setTimeout给DOM更新留出时间
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+    }
+    messageInstance = ElMessage.success({
+      message: '告警关闭成功',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance = null
+      }
+    })
+    // 错误提示
   } catch (error) {
-    // 这里可以添加错误提示
-    ElMessage.error(error.message)
+    messageInstance = ElMessage.error({
+      message: error.message,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance = null
+      }
+    })
+
   }
 }
 </script>
@@ -161,7 +198,7 @@ const closeCurrentAlert = async () => {
     <el-button type="primary" @click="handleReverseSelection">反选</el-button>
   </div>
   <!-- 上方分页：每页条数选择 -->
-  <div style="display: flex; align-items: flex-start; margin-bottom: 20px; margin-top: 20px">
+  <div style="display: flex; align-items: flex-start; margin-bottom: 20px; margin-top: 10px;user-select: none">
     <span style="line-height: 30px">显示</span>
     <el-select v-model="pageSize" style="width: 70px; margin: 0 10px" @change="handleSizeChange">
       <el-option v-for="item in pageSizeOptions" :key="item" :label="item" :value="item" />

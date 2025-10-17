@@ -1,6 +1,7 @@
 <script setup>
 import '@/iconfonts/iconfont.js'
 import { useRouter } from 'vue-router'
+import { isCollapse } from '@/utils/publicData.js'
 
 const handleOpen = (key, keyPath) => {
   console.log(key, keyPath)
@@ -27,6 +28,8 @@ function routeTo() {
         @close="handleClose"
         @collapse="false"
         :unique-opened="true"
+        :collapse="isCollapse"
+        :collapse-transition="false"
       >
         <el-divider></el-divider>
         <el-sub-menu index="1">
@@ -88,15 +91,18 @@ function routeTo() {
 }
 :deep(.el-menu) {
   background-color: transparent !important;
+  transition: all 0.3s ease;
 }
+:deep(.el-menu-item) {
+  padding-left: 50px !important;
+}
+
 .icon {
   width: 1em;
   height: 1em;
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
-}
-:deep(.el-menu-item) {
-  padding-left: 50px !important;
+  color: #67C23A;
 }
 </style>
