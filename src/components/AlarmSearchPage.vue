@@ -19,7 +19,7 @@ const severityOptions = [
   {
     value: 3,
     label: '一般',
-    color: '#52c41a',
+    color: '#ffd100',
   },
   {
     value: 2,

@@ -94,7 +94,7 @@ const getSeverityColor = (severity) => {
   const colorMap = {
     "严重": '#ff4d4f',
     "重要": '#fa8c16',
-    "一般": '#52c41a',
+    "一般": '#ffd100',
   }
   return colorMap[severity] || '#d9d9d9'
 }
@@ -395,4 +395,9 @@ const closeCurrentAlert = async () => {
 :deep(.el-table__header-wrapper th) {
   user-select: none;
 }
+/* 设置表头字体颜色为黑色 */
+:deep(.el-table__header-wrapper th .cell) {
+  color: black !important;
+}
+
 </style>
