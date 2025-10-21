@@ -268,7 +268,7 @@ const closeCurrentAlert = async () => {
       </div>
     </div>
     <!--    查看按钮模态框  -->
-    <el-dialog v-model="dialogVisibleView" title="告警详情" width="80%" :center="true">
+    <el-dialog v-model="dialogVisibleView" top="15%" title="告警详情" width="80%" :center="true">
       <el-table
         :data="[currentRow]"
         border
@@ -296,7 +296,7 @@ const closeCurrentAlert = async () => {
       </el-table>
     </el-dialog>
     <!-- 关闭按钮模态框 -->
-    <el-dialog v-model="DialogVisibleClose" title="关闭告警" width="40%" :center="true" :show-close="false">
+    <el-dialog v-model="DialogVisibleClose" top="10%" title="关闭告警" width="40%" :center="true" :show-close="false">
       <div style="font-size: 20px; color: #606266; user-select: none">处理意见：</div>
       <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
         <el-input
