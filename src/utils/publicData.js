@@ -5,11 +5,14 @@ import { ref, computed } from 'vue'
 export const isCollapse = ref(false)
 // 表格数据源
 export const tableData = ref([])
-// 刷新按钮加载状态标志
+// 加载状态标志
 export const loading = ref(false)
 
 // 表格当前页
 export const currentPage = ref(1)
+
+// 存储当前显示的提示框实例
+export const messageInstance = ref(null)
 
 // 初始化查询参数模型
 export const Query = {

@@ -2,7 +2,7 @@
 import { closeAlert, searchData } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref } from 'vue'
-import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibleClose, handleOpinion, tableData } from '@/utils/publicData.js'
+import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibleClose, handleOpinion, tableData, messageInstance } from '@/utils/publicData.js'
 
 
 
@@ -108,18 +108,18 @@ const handleView = (row) => {
 // 表格中《操作》中关闭列按钮回调函数
 const handleClose = async () => {
   if (selectedRows.value.length > 0) {
-    if (messageInstance) {
+    if (messageInstance.value) {
       // 关闭所有消息
       ElMessage.closeAll()
-      // 使用setTimeout给DOM更新留出时间
+      // 等待消息关闭动画完成
       await new Promise(resolve => setTimeout(resolve, 0));
     }
-    messageInstance = ElMessage.warning({
+    messageInstance.value = ElMessage.warning({
       message: '已勾选数据，请点击批量关闭',
       duration: 1000,
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
-        messageInstance = null
+        messageInstance.value = null
       }
     })
     return
@@ -139,8 +139,7 @@ const handleForward = (row) => {
 }
 
 // 《关闭》模态框中《确认》按钮回调函数
-// 存储当前显示的提示框实例
-let messageInstance = null
+
 // 批量删除选中的行
 const closeCurrentAlert = async () => {
   try {
@@ -161,32 +160,37 @@ const closeCurrentAlert = async () => {
     // 重置处理意见
     handleOpinion.value = ''
     // 如果已有提示框在显示，先关闭它
-    if (messageInstance) {
+    if (messageInstance.value) {
       // 关闭所有消息
       ElMessage.closeAll()
-      // 使用setTimeout给DOM更新留出时间
+      // 等待消息关闭动画完成
       await new Promise(resolve => setTimeout(resolve, 0));
 
     }
-    messageInstance = ElMessage.success({
+    messageInstance.value = ElMessage.success({
       message: '告警关闭成功',
       duration: 1000,
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
-        messageInstance = null
+        messageInstance.value = null
       }
     })
     // 错误提示
   } catch (error) {
-    messageInstance = ElMessage.error({
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance.value = ElMessage.error({
       message: error.message,
       duration: 1000,
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
-        messageInstance = null
+        messageInstance.value = null
       }
     })
-
   }
 }
 </script>
@@ -268,7 +272,7 @@ const closeCurrentAlert = async () => {
       </div>
     </div>
     <!--    查看按钮模态框  -->
-    <el-dialog v-model="dialogVisibleView" title="告警详情" width="80%" :center="true">
+    <el-dialog v-model="dialogVisibleView" top="15%" title="告警详情" width="80%" :center="true">
       <el-table
         :data="[currentRow]"
         border
@@ -296,7 +300,7 @@ const closeCurrentAlert = async () => {
       </el-table>
     </el-dialog>
     <!-- 关闭按钮模态框 -->
-    <el-dialog v-model="DialogVisibleClose" title="关闭告警" width="40%" :center="true" :show-close="false">
+    <el-dialog v-model="DialogVisibleClose" top="10%" title="关闭告警" width="40%" :center="true" :show-close="false">
       <div style="font-size: 20px; color: #606266; user-select: none">处理意见：</div>
       <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
         <el-input

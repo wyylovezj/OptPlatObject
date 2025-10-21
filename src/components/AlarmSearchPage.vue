@@ -132,25 +132,29 @@ const clearSearch = () => {
 }
 // 刷新按钮查询数据,增加了防抖控制
 const refresh = throttle(debounce(async () => {
+  // 设置加载标志为true,控制表格加载动画
   loading.value = true
   try {
     tableData.value = await searchData(searchQuery.value)
     currentPage.value = 1
-  } finally {
-      loading.value = false
+  }
+  finally {
+    loading.value = false
   }
 }, 1000) , 1000)
 // 搜索按钮查询数据
-const search = throttle(
-  debounce(async () => {
+const search = throttle(  debounce(async () => {
+    // 设置加载标志为true,控制表格加载动画
     loading.value = true
     try {
       tableData.value = await searchData(searchQuery.value)
       currentPage.value = 1
-    } finally {
-        loading.value = false
+    }
+    finally {
+      loading.value = false
     }
   }, 1000), 1000)
+
 // 批量关闭功能
 // 存储当前显示的提示框实例
 let messageInstance = null

@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
+import { messageInstance, loading } from '@/utils/publicData.js'
+
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -23,28 +25,54 @@ const loginRules = ref({
     { pattern: /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/, message: '密码只能包含英文字母、数字和特殊字符' }
   ]
 })
-// 登录加载界面标识符
-const tools = ref(false)
 
+// 登录回调函数
 const handleLogin = async () => {
-  tools.value = true
-
+  // 置加载标志位true，按钮显示加载动画
+  loading.value = true
   try {
+    // 调用登录接口进行登录验证
     const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
     // 保存用户名到历史记录
     saveUsernameToHistory(loginForm.value.username)
-    // 存储登录状态
+    // 存储登录状态到 pinia 仓库
     authStore.loginInfoStorage(userData.username, userData.status)
 
-    // 登录成功后重定向
+    // 登录成功后重定向到所输入的url
     const redirect = router.currentRoute.value.query.redirect || '/'
     await router.push(redirect)
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
 
-    ElMessage.success('登录成功')
+    }
+    messageInstance.value = ElMessage.success({
+      message: '登录成功',
+      duration: 1000,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
   } catch (error) {
-    ElMessage.error('登录失败: ' + error.message)
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance.value = ElMessage.error({
+      message: '登录失败: ' + error.message,
+      duration: 1000,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
   } finally {
-    tools.value = false
+    loading.value = false
   }
 }
 // 保存用户名到历史记录
@@ -85,7 +113,6 @@ const handleSelect = (item) => {
   <div class="login-container">
     <el-form :model="loginForm" :rules="loginRules" class="login-form" @keyup.enter="handleLogin">
       <h2 class="title">告警管理平台</h2>
-
       <el-form-item prop="username">
         <el-autocomplete
           v-model="loginForm.username"

@@ -2,7 +2,10 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
+import { messageInstance } from '@/utils/publicData.js'
+
 const authStore = useAuthStore()
 const user = sessionStorage.getItem('user')
 const name = ref(null)
@@ -19,12 +22,27 @@ const breadcrumbList = computed(() => {
   return route.matched.filter(item => item.meta && item.meta.breadcrumb)
 })
 
-function changeDirection(isVisible) {
+const changeDirection = (isVisible) => {
   direction.value = isVisible
 }
-function logout() {
+const logout = async () =>{
   authStore.logoutInfoClear()
   router.push('/login')
+  // 如果已有提示框在显示，先关闭它
+  if (messageInstance.value) {
+    // 关闭所有消息
+    ElMessage.closeAll()
+    // 等待消息关闭动画完成
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+  }
+  messageInstance.value = ElMessage.success({
+    message: '退出登录',
+    duration: 1000,
+    onClose: () => {
+      messageInstance.value = null
+    }
+  })
 }
 </script>
 

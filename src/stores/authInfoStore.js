@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+
+// 本地存储用户验证信息
 export const useAuthStore = defineStore('auth', () => {
   // 用户信息
   const user = ref(null)
