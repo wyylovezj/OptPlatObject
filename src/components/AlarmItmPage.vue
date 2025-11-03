@@ -55,7 +55,7 @@ const handleSizeChange = (size) => {
 // 表格实例引用
 const tableRef = ref(null)
 
-// 处理选择变化事件的回调函数
+// 处理选择变化事件的回调函数，用于多行关闭时获取当前选中行
 const handleSelectionChange = (selection) => {
   selectedRows.value = selection
 }
@@ -106,7 +106,7 @@ const handleView = (row) => {
   // 这里可以添加查看详情的逻辑，比如打开对话框或跳转页面
 }
 // 表格中《操作》中关闭列按钮回调函数
-const handleClose = async () => {
+const handleClose = async (row) => {
   if (selectedRows.value.length > 0) {
     if (messageInstance.value) {
       // 关闭所有消息
@@ -124,6 +124,8 @@ const handleClose = async () => {
     })
     return
   }
+  // 将当前行数据保存在currentRow中
+  currentRow.value = row
   // 打开查看模态框
   DialogVisibleClose.value = true
 }
@@ -143,7 +145,7 @@ const handleForward = (row) => {
 // 批量删除选中的行
 const closeCurrentAlert = async () => {
   try {
-    // 单行关闭时将当前行加入到接口保存要关闭的event_id的selectedRows数组中
+    // 单行关闭时将当前行加入到接口保存要关闭的event_id的selectedRows数组中，多行关闭时直接通过表格的selected属性获取选中行。
     selectedRows.value.push(currentRow.value)
     // 调用关闭告警接口
     await closeAlert(selectedEventIds.value, handleOpinion.value)
@@ -155,6 +157,9 @@ const closeCurrentAlert = async () => {
     })
     // 清空选中行
     selectedRows.value = []
+    // // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
+    tableRef.value?.clearSelection()
+    console.log(selectedRows.value)
     // 重置模态框状态
     DialogVisibleClose.value = false
     // 重置处理意见

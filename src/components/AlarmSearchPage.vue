@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { searchData } from '@/api/interface.js'
-import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, debounce, throttle } from '@/utils/publicData.js'
+import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
 // 表单查询数据模型
@@ -130,30 +130,26 @@ const clearSearch = () => {
     handleDateChange()
   }
 }
-// 刷新按钮查询数据,增加了防抖控制
-const refresh = throttle(debounce(async () => {
+// 搜索按钮、刷新按钮查询数据,增加了节流控制
+const refresh = throttle(async () => {
   // 设置加载标志为true,控制表格加载动画
   loading.value = true
+  // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
+  const minDelay = new Promise(resolve => setTimeout(resolve, 300))
   try {
-    tableData.value = await searchData(searchQuery.value)
+    // 将Promise数组中第一个promise执行结果复制给data
+    const [data] = await Promise.all([
+      searchData(searchQuery.value),
+      minDelay
+    ])
+    // 请求结果赋值给表格
+    tableData.value = data
     currentPage.value = 1
   }
   finally {
     loading.value = false
   }
-}, 1000) , 1000)
-// 搜索按钮查询数据
-const search = throttle(  debounce(async () => {
-    // 设置加载标志为true,控制表格加载动画
-    loading.value = true
-    try {
-      tableData.value = await searchData(searchQuery.value)
-      currentPage.value = 1
-    }
-    finally {
-      loading.value = false
-    }
-  }, 1000), 1000)
+}, 300)
 
 // 批量关闭功能
 // 存储当前显示的提示框实例
@@ -182,8 +178,8 @@ const batchClose = async () => {
 </script>
 
 <template>
-  <div style="margin-top: 10px;user-select: none">
-    <el-form ref="formSearch" :inline="true" :model="searchQuery">
+  <div style="margin-top: 10px;user-select: none;">
+    <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
       <el-form-item label="告警分类：" prop="category">
         <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px">
           <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -249,11 +245,11 @@ const batchClose = async () => {
           <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
-      <el-form-item>
-        <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;position: fixed;right: 2%;z-index: 999;">
+      <el-form-item style="flex: none;margin-left: auto;">
+        <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
           <el-button type="primary" @click="clearSearch">重置</el-button>
           <el-button type="primary" @click="refresh">刷新</el-button>
-          <el-button type="primary" @click="search">搜索</el-button>
+          <el-button type="primary" @click="refresh">搜索</el-button>
           <el-button type="primary" @click="batchClose">批量关闭</el-button>
         </div>
       </el-form-item>
