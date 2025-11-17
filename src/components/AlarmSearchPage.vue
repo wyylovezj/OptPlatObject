@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { searchData } from '@/api/interface.js'
-import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle } from '@/utils/publicData.js'
+import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle ,blinkTrigger } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
 // 表单查询数据模型
@@ -134,6 +134,8 @@ const clearSearch = () => {
 const refresh = throttle(async () => {
   // 设置加载标志为true,控制表格加载动画
   loading.value = true
+  // 关闭告警图形动画
+  blinkTrigger.value = false
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
   const minDelay = new Promise(resolve => setTimeout(resolve, 300))
   try {
@@ -144,6 +146,8 @@ const refresh = throttle(async () => {
     ])
     // 请求结果赋值给表格
     tableData.value = data
+    // 重新开启动画，确保动画开始时间相同，频率一致
+    blinkTrigger.value = true
     currentPage.value = 1
   }
   finally {
@@ -178,7 +182,7 @@ const batchClose = async () => {
 </script>
 
 <template>
-  <div style="margin-top: 10px;user-select: none;">
+  <div class="search-page-container">
     <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
       <el-form-item label="告警分类：" prop="category">
         <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px">
@@ -259,6 +263,15 @@ const batchClose = async () => {
 </template>
 
 <style scoped>
+/* 查询界面容器样式 */
+.search-page-container {
+  margin-top: 10px;
+  user-select: none;
+  height: 15%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: fit-content;
+}
 /*输入框内容居中显示*/
 .center-placeholder :deep(.el-input__inner) {
   text-align: center;
@@ -267,7 +280,6 @@ const batchClose = async () => {
   text-align: center;
 }
 .el-tag {
-
   border: none;
   aspect-ratio: 1;
   width: 16px;
