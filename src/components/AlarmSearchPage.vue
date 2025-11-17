@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { searchData } from '@/api/interface.js'
-import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle } from '@/utils/publicData.js'
+import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle ,blinkTrigger } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
 // 表单查询数据模型
@@ -134,6 +134,8 @@ const clearSearch = () => {
 const refresh = throttle(async () => {
   // 设置加载标志为true,控制表格加载动画
   loading.value = true
+  // 关闭告警图形动画
+  blinkTrigger.value = false
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
   const minDelay = new Promise(resolve => setTimeout(resolve, 300))
   try {
@@ -144,6 +146,8 @@ const refresh = throttle(async () => {
     ])
     // 请求结果赋值给表格
     tableData.value = data
+    // 重新开启动画，确保动画开始时间相同，频率一致
+    blinkTrigger.value = true
     currentPage.value = 1
   }
   finally {

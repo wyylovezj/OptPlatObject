@@ -2,19 +2,20 @@
 import { closeAlert, searchData } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref } from 'vue'
-import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibleClose, handleOpinion, tableData, messageInstance } from '@/utils/publicData.js'
+import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibleClose, handleOpinion, tableData, messageInstance ,blinkTrigger } from '@/utils/publicData.js'
 
 
 
 // 初始化表格数据
 const initTableData = async () => {
   try {
+    // 先关闭动画
     tableData.value = await searchData(Query)
+
   } catch (error) {
     ElMessage.error(error.message)
   }
 }
-// 组件挂载时获取初始数据
 initTableData()
 
 // 全选功能
@@ -237,7 +238,7 @@ const closeCurrentAlert = async () => {
         <template #default="scope">
           <span
             class="severity-indicator"
-            :class="{ 'severity-blink': scope.row.severity === '严重' }"
+            :class="{ 'severity-blink': blinkTrigger && scope.row.severity === '严重' }"
             :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
           ></span>
         </template>
