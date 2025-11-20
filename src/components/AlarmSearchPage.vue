@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { searchData } from '@/api/interface.js'
 import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle ,blinkTrigger } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
