@@ -249,7 +249,7 @@ const batchClose = async () => {
           <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
-      <el-form-item style="flex: none;margin-left: auto;">
+      <el-form-item style="flex: none;margin-left: auto;margin-right: 5px;">
         <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
           <el-button type="primary" @click="clearSearch">重置</el-button>
           <el-button type="primary" @click="refresh">刷新</el-button>
@@ -270,6 +270,7 @@ const batchClose = async () => {
   height: 15%;
   flex-shrink: 0;
   box-sizing: border-box;
+  min-width: fit-content;
   min-height: fit-content;
 }
 /*输入框内容居中显示*/

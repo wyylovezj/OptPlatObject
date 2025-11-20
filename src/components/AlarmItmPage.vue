@@ -33,7 +33,7 @@ const handleReverseSelection = () => {
 
 // 分页相关变量
 const pageSize = ref(10)
-const pageSizeOptions = [5, 10, 20, 50, 100]
+const pageSizeOptions = [1,5, 10, 20, 50, 100]
 
 // 计算当前页显示的数据
 const currentPageData = computed(() => {
@@ -223,7 +223,6 @@ const closeCurrentAlert = async () => {
         :data="currentPageData"
         border
         stripe
-        height="100%"
         style="width: 100%"
         :cell-style="{ textAlign: 'center' }"
         :header-cell-style="{ textAlign: 'center' }"
@@ -264,11 +263,11 @@ const closeCurrentAlert = async () => {
         </el-table-column>
       </el-table>
       <!-- 下方分页：显示总数和页码导航 -->
-      <div style="display: flex; justify-content: space-between; align-items: center;user-select:none;">
-        <div style="display: flex; align-items: center; margin-top: 20px">
+      <div style="display: flex; justify-content: space-between; align-items: center;user-select:none;margin-top: 20px">
+        <div style="display: flex; align-items: center;">
           <span style="line-height: 20px">共 {{ tableData.length }} 条</span>
         </div>
-        <div style="display: flex; align-items: center; margin-top: 20px">
+        <div style="display: flex; align-items: center;">
           <el-pagination
             v-model:current-page="currentPage"
             :page-size="pageSize"
@@ -340,14 +339,11 @@ const closeCurrentAlert = async () => {
 <style scoped>
 /* 表格容器父容器样式 */
 .item-page-container {
-  flex: 1;
   display: flex;
   height: 85%;
   padding-bottom: 10px;
   flex-direction: column;
   box-sizing: border-box;
-  flex-shrink: 0;
-  flex-wrap: nowrap;
 }
 /* 表格容器样式：防止表格行多时溢出 */
 .table-container {
@@ -355,8 +351,6 @@ const closeCurrentAlert = async () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
 }
 
 /* 告警图形样式 */

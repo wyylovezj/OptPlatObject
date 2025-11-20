@@ -19,8 +19,6 @@ import AlarmSearchPage from '@/components/AlarmSearchPage.vue'
   border: #DCDFE6 solid 1px;
   padding: 10px;
   height:calc(100% - 22px);
-  min-width: fit-content;
-  min-height: fit-content;
   box-sizing: border-box;
 }
 
