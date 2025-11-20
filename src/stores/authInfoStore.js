@@ -19,18 +19,14 @@ export const useAuthStore = defineStore('auth', () => {
   // 登录时存储登录信息
   const loginInfoStorage = (username, status) => {
     user.value = username
-    console.log(username)
 
     state.value = status
-    console.log(status)
 
     isAuthenticated.value = true
 
     // 存储到本地存储
     sessionStorage.setItem('user', user.value)
     sessionStorage.setItem('status', state.value)
-    console.log(sessionStorage.getItem('user') )
-    console.log(sessionStorage.getItem('status') )
   }
 
   // 退出登录时清除登录信息
@@ -46,7 +42,6 @@ export const useAuthStore = defineStore('auth', () => {
     if (sessionStorage.getItem('status')) {
       sessionStorage.removeItem('status')
     }
-    console.log("退出登录")
   }
   // 检查是否已登录
   const checkIsAuth = () => {

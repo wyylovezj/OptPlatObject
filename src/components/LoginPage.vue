@@ -33,6 +33,7 @@ const handleLogin = async () => {
   try {
     // 调用登录接口进行登录验证
     const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
+    console.log(userData)
     // 保存用户名到历史记录
     saveUsernameToHistory(loginForm.value.username)
     // 存储登录状态到 pinia 仓库

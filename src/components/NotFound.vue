@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const searchQuery = ref('')
 
 // 生成星星样式
 const stars = ref([])
@@ -36,19 +35,11 @@ const starStyle = (star) => {
 
 // 导航方法
 const goHome = () => {
-  router.push({ name: 'Home' })
+  router.push('/login')
 }
 
 const goBack = () => {
   router.go(-1)
-}
-
-const performSearch = () => {
-  if (searchQuery.value.trim()) {
-    // 在实际应用中，这里可以调用搜索API或导航到搜索结果页
-    alert(`搜索: ${searchQuery.value}`)
-    searchQuery.value = ''
-  }
 }
 
 // 初始化星星
@@ -92,20 +83,6 @@ onMounted(() => {
           返回上一页
         </button>
       </div>
-
-      <div class="search-box">
-        <input
-          type="text"
-          placeholder="搜索您需要的内容..."
-          v-model="searchQuery"
-          @keyup.enter="performSearch"
-        >
-        <button @click="performSearch">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-            <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clip-rule="evenodd" />
-          </svg>
-        </button>
-      </div>
     </div>
 
     <div class="astronaut">
@@ -130,7 +107,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  height: 100%;
   background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
   background-size: 400% 400%;
   animation: gradientBG 15s ease infinite;
@@ -138,6 +115,8 @@ onMounted(() => {
   padding: 2rem;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: white;
+  user-select: none;
+  box-sizing: border-box;
 }
 
 @keyframes gradientBG {

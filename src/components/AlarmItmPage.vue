@@ -231,7 +231,7 @@ const closeCurrentAlert = async () => {
         @selection-change="handleSelectionChange"
         v-loading="loading"
       >
-        <el-table-column type="selection" reserve-selection label="事件ID" min-width="3%" :resizable="false" />
+        <el-table-column type="selection" reserve-selection min-width="3%" :resizable="false" />
         <el-table-column label="序号" type="index" :index="(index) => (currentPage - 1) * pageSize + index + 1" min-width="4%" :resizable="false" />
         <el-table-column prop="event_id" label="事件ID" v-if="false" />
         <el-table-column prop="severity" sortable label="告警级别" :sort-method="sortSeverity" min-width="7%" :resizable="false">
@@ -244,13 +244,41 @@ const closeCurrentAlert = async () => {
           </template>
         </el-table-column>
         <el-table-column prop="state" label="状态" min-width="5%" :resizable="false" />
-        <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false" />
-        <el-table-column prop="category" label="告警分类" min-width="5%" :resizable="false" />
-        <el-table-column prop="object" label="主机" min-width="6%" :resizable="false" />
-        <el-table-column prop="ip" label="IP地址" min-width="7%" :resizable="false" />
-        <el-table-column prop="alarm_details" label="告警描述" show-overflow-tooltip min-width="20%" :resizable="false" />
-        <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false" />
-        <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false" />
+        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="10%" :resizable="false">
+        <template #default="{row}">
+          {{ row.system_name || '/' }}
+        </template>
+        </el-table-column>
+        <el-table-column prop="category" label="告警分类" min-width="5%" :resizable="false">
+          <template #default="{row}">
+            {{ row.category || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="object" label="主机" min-width="6%" :resizable="false">
+          <template #default="{row}">
+            {{ row.object || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="ip" label="IP地址" min-width="8%" :resizable="false">
+          <template #default="{row}">
+            {{ row.ip || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="alarm_details" label="告警描述" show-overflow-tooltip min-width="19%" :resizable="false">
+          <template #default="{row}">
+            {{ row.alarm_details || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.occurrenceTime || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.processingTime || '/' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="operation" label="操作" min-width="13%" :resizable="false">
           <template #default="scope">
             <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center">

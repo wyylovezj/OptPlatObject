@@ -8,6 +8,7 @@ export const loginAuthentication = async (username, password) => {
       username,
       password
     })
+    console.log(response)
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '登录失败')
