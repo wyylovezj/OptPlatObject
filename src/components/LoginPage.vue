@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
-import { messageInstance, loading } from '@/utils/publicData.js'
+import { messageInstance, loginLoading } from '@/utils/publicData.js'
 
 
 const router = useRouter()
@@ -29,7 +29,7 @@ const loginRules = ref({
 // 登录回调函数
 const handleLogin = async () => {
   // 置加载标志位true，按钮显示加载动画
-  loading.value = true
+  loginLoading.value = true
   try {
     // 调用登录接口进行登录验证
     const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
@@ -73,7 +73,7 @@ const handleLogin = async () => {
       }
     })
   } finally {
-    loading.value = false
+    loginLoading.value = false
   }
 }
 // 保存用户名到历史记录

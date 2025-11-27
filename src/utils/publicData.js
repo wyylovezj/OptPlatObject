@@ -8,6 +8,7 @@ export const tableData = ref([])
 // 加载状态标志
 export const loading = ref(false)
 
+export const loginLoading = ref(false)
 // 同步告警图形动画的标志
 export const blinkTrigger = ref(true)
 

@@ -9,7 +9,7 @@ import { loading,currentPage,Query, selectedRows, selectedEventIds, DialogVisibl
 // 初始化表格数据
 const initTableData = async () => {
   try {
-    // 先关闭动画
+    // 调用查询接口获取表格数据
     tableData.value = await searchData(Query)
 
   } catch (error) {
