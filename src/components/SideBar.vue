@@ -3,6 +3,7 @@ import '@/iconfonts/iconfont.js'
 import { useRouter } from 'vue-router'
 import { isCollapse } from '@/utils/publicData.js'
 
+
 const handleOpen = (key, keyPath) => {
   console.log(key, keyPath)
 }

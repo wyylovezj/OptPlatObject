@@ -11,15 +11,22 @@ const initTableData = async () => {
   try {
     // 调用查询接口获取表格数据
     tableData.value = await searchData(Query)
-
+  // 捕获异常
   } catch (error) {
+    // 显示捕获的错误信息
     ElMessage.error(error.message)
   }
 }
+// 在模版挂载前初始化表格数据，这样当模版挂载时数据就已经准备好
 initTableData()
+
+// 表格组件实例的引用
+const tableRef = ref(null)
 
 // 全选功能
 const handleSelectAll = () => {
+  // 调用表格的toggleAllSelection方法，全选当前页所有行
+  // ?是可选链操作符，防止 tableRef.value 为 null 或 undefined 时报错
   tableRef.value?.toggleAllSelection()
 }
 
@@ -35,10 +42,13 @@ const handleReverseSelection = () => {
 const pageSize = ref(10)
 const pageSizeOptions = [1,5, 10, 20, 50, 100]
 
-// 计算当前页显示的数据
+// 计算当前页显示的数据的索引范围
 const currentPageData = computed(() => {
+  // 计算当前页的起始数据的索引：索引从0开始计算
   const start = (currentPage.value - 1) * pageSize.value
+  // 计算当前页的结束数据的索引
   const end = start + pageSize.value
+  // 返回当前页的数据的切片
   return tableData.value.slice(start, end)
 })
 
@@ -53,8 +63,7 @@ const handleSizeChange = (size) => {
   currentPage.value = 1
 }
 
-// 表格实例引用
-const tableRef = ref(null)
+
 
 // 处理选择变化事件的回调函数，用于多行关闭时获取当前选中行
 const handleSelectionChange = (selection) => {
@@ -254,7 +263,7 @@ const closeCurrentAlert = async () => {
             {{ row.category || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="object" label="主机" min-width="6%" :resizable="false">
+        <el-table-column prop="object" label="主机名" min-width="6%" :resizable="false">
           <template #default="{row}">
             {{ row.object || '/' }}
           </template>
@@ -324,13 +333,41 @@ const closeCurrentAlert = async () => {
             </template>
           </el-table-column>
           <el-table-column prop="state" label="状态" min-width="50" :resizable="false" />
-          <el-table-column prop="system_name" label="业务系统" min-width="80" :resizable="false" />
-          <el-table-column prop="category" label="告警分类" min-width="50" :resizable="false" />
-          <el-table-column prop="object" label="主机" min-width="50" :resizable="false" />
-          <el-table-column prop="ip" label="IP地址" min-width="50" :resizable="false" />
-          <el-table-column prop="alarm_details" label="告警描述" min-width="150" :resizable="false" />
-          <el-table-column prop="occurrenceTime" label="发生时间" min-width="80" :resizable="false" />
-          <el-table-column prop="processingTime" label="处理时间" min-width="80" :resizable="false" />
+          <el-table-column prop="system_name" label="业务系统" min-width="80" :resizable="false">
+            <template #default="{row}">
+              {{ row.system_name || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="category" label="告警分类" min-width="50" :resizable="false">
+            <template #default="{row}">
+              {{ row.category || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="object" label="主机" min-width="50" :resizable="false">
+            <template #default="{row}">
+              {{ row.object || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="ip" label="IP地址" min-width="50" :resizable="false">
+            <template #default="{row}">
+              {{ row.ip || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="alarm_details" label="告警描述" min-width="150" :resizable="false">
+            <template #default="{row}">
+              {{ row.alarm_details || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="occurrenceTime" label="发生时间" min-width="80" :resizable="false">
+            <template #default="{row}">
+              {{ row.occurrenceTime || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="processingTime" label="处理时间" min-width="80" :resizable="false">
+            <template #default="{row}">
+              {{ row.processingTime || '/' }}
+            </template>
+          </el-table-column>
         </el-table>
       </el-dialog>
       <!-- 关闭按钮模态框 -->

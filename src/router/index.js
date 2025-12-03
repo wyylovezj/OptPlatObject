@@ -3,9 +3,19 @@ import LoginPage from '@/components/LoginPage.vue'
 import NotFound from '@/components/NotFound.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authInfoStore.js'
+
+
+// 创建路由实例
 const router = createRouter({
+  // 使用HTML5历史模式
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    /**
+     * 登录页面路由
+     * @path /login
+     * @name LoginPage
+     * @requiresAuth false - 不需要认证
+     */
     {
       path: '/login',
       name: 'LoginPage',
@@ -16,6 +26,13 @@ const router = createRouter({
         requiresAuth: false,
       },
     },
+    /**
+     * 根路径路由
+     * @path /
+     * @name IndexPage
+     * @redirect 重定向到告警管理页面
+     * @requiresAuth true - 需要认证
+     */
     {
       path: '/',
       name: 'IndexPage',
@@ -27,6 +44,15 @@ const router = createRouter({
         requiresAuth: true,
       },
     },
+    /**
+     * 告警管理模块路由
+     * @path /alarmManagement
+     * @name AlarmPage
+     * @redirect 重定向到告警项页面
+     * @requiresAuth true - 需要认证
+     * @title 告警管理
+     * @breadcrumb 告警管理
+     */
     {
       path: '/alarmManagement',
       name: 'AlarmPage',
@@ -40,6 +66,14 @@ const router = createRouter({
         breadcrumb: '告警管理',
       },
       children: [
+        /**
+         * 告警项页面路由
+         * @path alarmItem
+         * @name AlarmItemPage
+         * @requiresAuth true - 需要认证
+         * @title 告警
+         * @breadcrumb 告警
+         */
         {
           path: 'alarmItem',
           name: 'AlarmItemPage',
@@ -52,7 +86,11 @@ const router = createRouter({
         },
       ],
     },
-    // 404路由配置
+    /**
+     * 404页面路由
+     * @path /:pathMatch(.*)* - 匹配所有未定义的路径
+     * @name NotFound
+     */
     {
       path: '/:pathMatch(.*)*', // 使用自定义的regexp来匹配所有路径
       name: 'NotFound',
@@ -64,7 +102,11 @@ const router = createRouter({
   strict: true, // 开启严格模式
   sensitive: true, // 路由大小写敏感
 })
-// 全局前置守卫
+
+/**
+ * 全局前置守卫
+ * 用于处理路由访问权限控制
+ */
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   // 检查目标路由是否需要认证
@@ -88,4 +130,7 @@ router.beforeEach(async (to, from, next) => {
     next()
   }
 })
+// 导出默认路由配置
+// 使用 ES6 的 export default 语法导出 router 对象
+// 这样在其他文件中可以通过 import 语句引入这个路由配置
 export default router
