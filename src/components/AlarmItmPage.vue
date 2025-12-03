@@ -324,13 +324,41 @@ const closeCurrentAlert = async () => {
             </template>
           </el-table-column>
           <el-table-column prop="state" label="状态" min-width="50" :resizable="false" />
-          <el-table-column prop="system_name" label="业务系统" min-width="80" :resizable="false" />
-          <el-table-column prop="category" label="告警分类" min-width="50" :resizable="false" />
-          <el-table-column prop="object" label="主机" min-width="50" :resizable="false" />
-          <el-table-column prop="ip" label="IP地址" min-width="50" :resizable="false" />
-          <el-table-column prop="alarm_details" label="告警描述" min-width="150" :resizable="false" />
-          <el-table-column prop="occurrenceTime" label="发生时间" min-width="80" :resizable="false" />
-          <el-table-column prop="processingTime" label="处理时间" min-width="80" :resizable="false" />
+          <el-table-column prop="system_name" label="业务系统" min-width="80" :resizable="false">
+            <template #default="{row}">
+              {{ row.system_name || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="category" label="告警分类" min-width="50" :resizable="false">
+            <template #default="{row}">
+              {{ row.category || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="object" label="主机" min-width="50" :resizable="false">
+            <template #default="{row}">
+              {{ row.object || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="ip" label="IP地址" min-width="50" :resizable="false">
+            <template #default="{row}">
+              {{ row.ip || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="alarm_details" label="告警描述" min-width="150" :resizable="false">
+            <template #default="{row}">
+              {{ row.alarm_details || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="occurrenceTime" label="发生时间" min-width="80" :resizable="false">
+            <template #default="{row}">
+              {{ row.occurrenceTime || '/' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="processingTime" label="处理时间" min-width="80" :resizable="false">
+            <template #default="{row}">
+              {{ row.processingTime || '/' }}
+            </template>
+          </el-table-column>
         </el-table>
       </el-dialog>
       <!-- 关闭按钮模态框 -->
