@@ -1,5 +1,12 @@
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc： 调用后端接口的方法
+ * @date： 2025-12-05 16:14:57
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2025-12-05 16:14:57
+ */
 import axios from 'axios'
-
 
 /**
  * 登录认证函数
@@ -34,11 +41,11 @@ export const searchData = async (searchQuery) => {
   try {
     // 处理搜索参数，如果state为空字符串则设置为'未处理'
     const params = {
-      ...searchQuery,  // 展开搜索条件对象
-      state: searchQuery.state === '' ? '未处理': searchQuery.state  // 处理状态参数
+      ...searchQuery, // 展开搜索条件对象
+      state: searchQuery.state === '' ? '未处理' : searchQuery.state, // 处理状态参数
     }
     // 发送POST请求到后端API
-    const response = await axios.post('http://127.0.0.1:8000/searchData',params)
+    const response = await axios.post('http://127.0.0.1:8000/searchData', params)
     // 返回响应数据中的data字段
     return response.data.data
   } catch (error) {
@@ -59,7 +66,7 @@ export const closeAlert = async (selectedEventIds, handleOpinion) => {
     // 发送POST请求到后端API以关闭告警
     const response = await axios.post('http://127.0.0.1:8000/closeAlarm', {
       selectedEventIds, // 要关闭的事件ID数组
-      handleOpinion    // 处理意见
+      handleOpinion, // 处理意见
     })
     return response.data // 返回响应数据
   } catch (error) {

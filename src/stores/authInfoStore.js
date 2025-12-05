@@ -1,8 +1,18 @@
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc： 用户登录状态信息管理
+ * @date： 2025-12-05 16:39:53
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2025-12-05 16:39:53
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 
-// 用户登录状态信息管理
+/**
+ * @description： 用户登录状态信息管理
+ */
 export const useAuthStore = defineStore('auth', () => {
   // 用户名
   const user = ref(null)
@@ -10,7 +20,7 @@ export const useAuthStore = defineStore('auth', () => {
   const state = ref(sessionStorage.getItem('status')||null)
   // 登录标志：false 未登录，true 登录成功
   const isAuthenticated = ref(false)
-  // 检查用户登录状态
+  // 初始化检查用户登录状态
   if (state.value === 'success') {
     isAuthenticated.value = true
   }
