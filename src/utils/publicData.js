@@ -1,11 +1,12 @@
 import { ref, computed } from 'vue'
 
-
+// 表格组件实例的引用
+export const tableRef = ref(null)
 
 // 侧边栏折叠标志：false为展开，true为折叠
 export const isCollapse = ref(false)
 
-// 表格数据模型数组：用于获取表格
+// 表格数据模型数组：用于获取表格数据
 export const tableData = ref([])
 
 // 表格数据查询时加载图形状态标志：false为不显示，true为显示
@@ -17,7 +18,7 @@ export const loginLoading = ref(false)
 // 严重告警图形闪烁动画的标志：false为不闪烁，true为闪烁
 export const blinkTrigger = ref(true)
 
-// 表格当前页码：默认值为第一页
+// 分页组件当前页码：默认值为第一页
 export const currentPage = ref(1)
 
 // 当前显示的提示框实例对象：用于控制提示框的开启与关闭，限制整个项目中同一时刻最多仅有一个提示框显示
@@ -31,7 +32,7 @@ export const Query = {
   object: '',        // 主机名
   system_name: '',   // 业务系统
   occurrenceTime: [], // 发生时间
-  timeSelect: '',    // 快捷选择时间：今天，明天
+  // timeSelect: '',    // 快捷选择时间：今天，明天
   state:'',         // 告警状态
   source: ''         // 告警来源
 }
@@ -52,6 +53,57 @@ export const DialogVisibleClose = ref(false)
 
 // 《关闭》按钮模态框处理意见输入值：同步获取用户输入
 export const handleOpinion = ref('')
+
+/**
+ * 处理表格级别属性排序变化
+ * @param order - 表格传入的界别字段排序参数，ascending为升序，descending为降序
+ * @param param - 包含排序信息的对象
+ */
+export const handleSortChange = ({ order }) => {
+  if (!order) {
+    // 如果没有排序要求，恢复默认排序
+    tableData.value = tableData.value.sort(sortSeverity)
+  } else if (order === 'ascending') {
+    // 升序：按严重程度升序（一般->重要->严重），时间升序
+    tableData.value.sort((a, b) => {
+      const severityOrder = { "一般": 1, "重要": 2, "严重": 3 }
+      const severityDiff = severityOrder[a.severity] - severityOrder[b.severity]
+      if (severityDiff === 0) {
+        // 严重程度相同时，按时间升序排列（较早的时间在前）
+        return new Date(a.occurrenceTime) - new Date(b.occurrenceTime)
+      }
+      return severityDiff
+    })
+  } else if (order === 'descending') {
+    // 如果没有升序，恢复默认排序
+    tableData.value = tableData.value.sort(sortSeverity)
+  }
+  // 重置到第一页以显示排序后的结果
+  currentPage.value = 1
+}
+
+/**
+ * 根据《告警级别 + 发生时间》对表格数据进行排序
+ * @param a - 第一个比较对象，包含severity和occurrenceTime属性
+ * @param b -- 第二个比较对象，包含severity和occurrenceTime属性
+ * @returns {number}- 排序比较结果：
+ *                   负数表示a应该排在b前面，
+ *                   正数表示b应该排在a前面，
+ *                   0表示两者顺序不变
+ */
+export const sortSeverity = (a, b) => {
+  // 定义严重程度排序规则，数值越小表示优先级越高
+  const severityOrder = { "严重": 1, "重要": 2, "一般": 3 }
+  // 比较两个对象的严重程度（最严重的排在前面）
+  const severityDiff = severityOrder[a.severity] - severityOrder[b.severity]
+  // 如果严重程度相同，则按发生时间排序（时间最新的排在前面）
+  if (severityDiff === 0) {
+    // 将时间字符串转换为Date对象进行比较，b减去a实现降序排列（最新在前）
+    return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
+  }
+  // 当严重程度不同，返回严重程度的比较结果
+  return severityDiff
+}
 
 /**
  * 防抖函数

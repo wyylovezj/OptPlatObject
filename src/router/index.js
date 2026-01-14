@@ -1,9 +1,16 @@
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc： Router 路由配置
+ * @date： 2025-12-05 16:27:55
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2025-12-05 16:27:55
+ */
 import AlarmPage from '@/components/AlarmPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import NotFound from '@/components/NotFound.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-
 
 // 创建路由实例
 const router = createRouter({
@@ -106,6 +113,9 @@ const router = createRouter({
 /**
  * 全局前置守卫
  * 用于处理路由访问权限控制
+ * @param to - 目标路由
+ * @param from - 来源路由
+ * @param next - 下一步操作
  */
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
@@ -121,11 +131,10 @@ router.beforeEach(async (to, from, next) => {
       next({
         name: 'LoginPage',
         // 保存重定向路径
-        query: { redirect: to.fullPath }
+        query: { redirect: to.fullPath },
       })
     }
-  }
-  else {
+  } else {
     // 不需要认证的路由直接放行
     next()
   }
