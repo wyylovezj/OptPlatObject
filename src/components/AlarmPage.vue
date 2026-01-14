@@ -18,7 +18,8 @@ import AlarmSearchPage from '@/components/AlarmSearchPage.vue'
   flex-direction: column;
   border: #DCDFE6 solid 1px;
   padding: 10px;
-  height:calc(100% - 22px);
+/*  height:calc(100% - 22px);*/
+  height:calc(100% - 0px);
   box-sizing: border-box;
 }
 

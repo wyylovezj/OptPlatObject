@@ -1,3 +1,11 @@
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc： vue.js 入口文件
+ * @date： 2025-12-08 08:46:13
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2025-12-08 08:46:13
+ */
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

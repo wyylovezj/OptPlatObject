@@ -1,7 +1,7 @@
 /**
  * @author： 魏阳阳
  * @email： weiyangyang@cinda.com.cn
- * @desc： 路由配置
+ * @desc： Router 路由配置
  * @date： 2025-12-05 16:27:55
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2025-12-05 16:27:55

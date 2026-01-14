@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { searchData } from '@/api/interface.js'
-import { loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle ,blinkTrigger } from '@/utils/publicData.js'
+import { tableRef,loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle ,blinkTrigger, sortSeverity } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
 // 表单查询数据模型
@@ -32,17 +32,11 @@ const severityOptions = [
     color: '#ff4d4f',
   },
 ]
+
 const system_nameOptions = [
 
 ]
-const occurrenceTimeOptions = [
-  {
-    value: '今天',
-  },
-  {
-    value: '昨天',
-  },
-]
+
 const stateOptions = [
   {
     value: '未处理',
@@ -80,46 +74,73 @@ const handleHostInput = (value) => {
   searchQuery.value.object = value.replace(/[^a-zA-Z0-9]/g, '')
 }
 
-
-
-// 发生时间的选择器和日期选择器处理
-const handleTimeSelect = (value) => {
-  if (!value) {
-    searchQuery.value.occurrenceTime = []
-    return
-  }
-
-  const today = new Date()
-  const formatDate = (date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const seconds = String(date.getSeconds()).padStart(2, '0')
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-  }
-
-  if (value === '今天') {
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0)
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
-    searchQuery.value.occurrenceTime = [formatDate(startOfDay), formatDate(endOfDay)]
-  } else if (value === '昨天') {
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
-    const endOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
-    searchQuery.value.occurrenceTime = [formatDate(startOfYesterday), formatDate(endOfYesterday)]
-  }
-}
-
-// 监听日期变化，清空timeSelect选择器,因为该选择器没有绑定表单prop属性
-const handleDateChange = () => {
-  // 当日期被手动修改时，清空时间选择器的值
-  if (searchQuery.value.timeSelect) {
-    searchQuery.value.timeSelect = ''
-  }
-}
+// 日期选择器快捷选项
+const shortcuts = [
+  {
+    text: '今天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime())
+      return [start, end]
+    },
+  },
+  {
+    text: '昨天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24)
+      end.setTime(end.getTime() - 3600 * 1000 * 24)
+      return [start, end]
+    },
+  },
+  {
+    text: '7 天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 6)
+      return [start, end]
+    },
+  },
+  {
+    text: '30 天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 29)
+      return [start, end]
+    },
+  },
+  {
+    text: '90 天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 89)
+      return [start, end]
+    },
+  },
+  {
+    text: '180 天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 179)
+      return [start, end]
+    },
+  },
+  {
+    text: '365 天',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 364)
+      return [start, end]
+    },
+  },
+]
 
 // 重置按钮清空搜索数据
 const formSearch = ref(null)
@@ -127,7 +148,6 @@ const formSearch = ref(null)
 const clearSearch = () => {
   if (formSearch.value) {
     formSearch.value.resetFields()
-    handleDateChange()
   }
 }
 // 搜索按钮、刷新按钮查询数据,增加了节流控制
@@ -144,8 +164,12 @@ const refresh = throttle(async () => {
       searchData(searchQuery.value),
       minDelay
     ])
-    // 请求结果赋值给表格
-    tableData.value = data
+    // 对获取的数据进行排序后再赋值给tableData
+    tableData.value = data.sort(sortSeverity)
+    // 重置表格组件中级别列的排序图标为默认状态
+    if (tableRef.value) {
+      tableRef.value.clearSort()
+    }
     // 重新开启动画，确保动画开始时间相同，频率一致
     blinkTrigger.value = true
     currentPage.value = 1
@@ -227,16 +251,14 @@ const batchClose = async () => {
         </el-select>
       </el-form-item>
       <el-form-item label="发生时间：" prop="occurrenceTime">
-        <el-select v-model="searchQuery.timeSelect" clearable placeholder="请选择" style="width: 100px" @change="handleTimeSelect" @clear="() => searchQuery.occurrenceTime = []">
-          <el-option v-for="item in occurrenceTimeOptions" :key="item.value" :label="item.label" :value="item.value"/>
-        </el-select>
         <el-date-picker
           v-model="searchQuery.occurrenceTime"
           type="daterange"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
           value-format="YYYY-MM-DD HH:mm:ss"
-          @change="handleDateChange"
+          :shortcuts="shortcuts"
+          unlink-panels
         />
       </el-form-item>
       <el-form-item label="告警状态：" prop="state">
@@ -259,13 +281,12 @@ const batchClose = async () => {
       </el-form-item>
     </el-form>
   </div>
-
 </template>
 
 <style scoped>
 /* 查询界面容器样式 */
 .search-page-container {
-  margin-top: 10px;
+  padding-bottom: 20px;
   user-select: none;
   height: 15%;
   flex-shrink: 0;

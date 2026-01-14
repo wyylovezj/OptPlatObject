@@ -9,7 +9,7 @@
 import axios from 'axios'
 
 /**
- * 登录认证函数
+ * 登录认证函数：异步函数
  * 该函数用于向服务器发送登录请求，并处理响应和错误
  * @param {string} username - 用户名
  * @param {string} password - 密码
@@ -32,7 +32,7 @@ export const loginAuthentication = async (username, password) => {
 }
 
 /**
- * 根据搜索条件查询数据的异步函数
+ * 查询数据函数：异步函数
  * @param {Object} searchQuery - 搜索条件对象，包含各种查询参数
  * @returns {Promise} - 返回一个Promise，解析后为查询到的数据
  * @throws {Error} - 当查询失败时抛出错误
@@ -55,7 +55,7 @@ export const searchData = async (searchQuery) => {
 }
 
 /**
- * 关闭告警的异步函数
+ * 关闭告警函数：异步函数
  * @param {Array} selectedEventIds - 选中的事件ID数组
  * @param {Function} handleOpinion - 处理意见的回调函数
  * @returns {Promise} - 返回一个Promise，解析为响应数据

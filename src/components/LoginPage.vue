@@ -28,6 +28,20 @@ const loginRules = ref({
 
 // 登录回调函数
 const handleLogin = async () => {
+  // 当用户名和密码为空时
+  if (loginForm.value.username === '' || loginForm.value.password === '') {
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance.value= ElMessage.error({
+      message: '用户名或密码不能为空',
+    })
+    return
+  }
   // 置加载标志位true，按钮显示加载动画
   loginLoading.value = true
   try {
@@ -143,7 +157,7 @@ const handleSelect = (item) => {
         <el-button
           type="primary"
           class="login-btn"
-          :loading="loading"
+          :loading="loginLoading"
           @click="handleLogin"
         >
           登 录
