@@ -4,14 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { messageInstance } from '@/utils/publicData.js'
+import { messageInstance, stopSpeech, voiceStatus } from '@/utils/publicData.js'
 
 const authStore = useAuthStore()
 const user = sessionStorage.getItem('user')
-const name = ref(null)
-if (user) {
-  name.value = user
-}
+const name = ref(user)
+// 控制喇叭提示框的隐藏与显示
+const visible = ref(false)
 // 顶部个人信息菜单后面的上下箭头翻转标志
 const direction = ref(false)
 // 面包屑过滤
@@ -61,18 +60,30 @@ const logout = async () =>{
     <!-- 面包屑组件结束 -->
   </div>
   <div class="user">
-    <!-- 顶部个人信息下拉框组件开始 -->
+    <!--  告警喇叭图标  -->
+    <el-tooltip :visible="visible"
+      content="点击停止语音播报"
+    >
+      <el-icon class="speak" @click="stopSpeech" @mouseenter="visible = true" @mouseleave="visible = false">
+        <svg class="icon" aria-hidden="true" style="pointer-events: none">
+          <use v-show="voiceStatus===false" xlink:href="#icon-bobao-no"></use>
+          <use v-show="voiceStatus===true" xlink:href="#icon-bobao"></use>
+        </svg>
+      </el-icon>
+    </el-tooltip>
+    <!-- 用户图标 -->
     <el-icon style="font-size: 1.2em">
-      <svg class="icon icon-user" aria-hidden="true">
+      <svg class="icon" aria-hidden="true">
         <use xlink:href="#icon-yonghuguanli"></use>
       </svg>
     </el-icon>
+    <!-- 顶部个人信息下拉框组件开始 -->
     <el-dropdown  @visible-change="changeDirection" trigger="click">
       <span class="el-dropdown-link">
         <span class="user-name" style="font-size: 1em">
           {{name}}
         </span>
-        <el-icon  style="font-size: 0.9em">
+        <el-icon  style="font-size: 0.9em; color: rgba(255, 255, 255, 1);">
           <svg class="icon" aria-hidden="true">
             <use v-show="direction" xlink:href="#icon-xiajiantou"></use>
             <use v-show="!direction" xlink:href="#icon-shangjiantou"></use>
@@ -83,7 +94,7 @@ const logout = async () =>{
         <el-dropdown-menu>
           <el-dropdown-item>
             <el-icon>
-              <svg class="icon" aria-hidden="true" style="fill: rgb(121, 187, 255)">
+              <svg class="icon" aria-hidden="true" style="fill: rgb(0, 0, 0)">
                 <use xlink:href="#icon-gerenxinxi"></use>
               </svg>
             </el-icon>
@@ -91,7 +102,7 @@ const logout = async () =>{
           </el-dropdown-item>
           <el-dropdown-item>
             <el-icon>
-              <svg class="icon" aria-hidden="true" style="fill: rgb(121, 187, 255)">
+              <svg class="icon" aria-hidden="true" style="fill: rgb(0, 0, 0)">
                 <use xlink:href="#icon-xiugaimima"></use>
               </svg>
             </el-icon>
@@ -99,7 +110,7 @@ const logout = async () =>{
           </el-dropdown-item>
           <el-dropdown-item @click="logout">
             <el-icon>
-              <svg class="icon" aria-hidden="true" style="fill: rgb(121, 187, 255)">
+              <svg class="icon" aria-hidden="true" style="fill: rgb(0, 0, 0)">
                 <use xlink:href="#icon-tcdl"></use>
               </svg>
             </el-icon>
@@ -114,7 +125,6 @@ const logout = async () =>{
 
 <style scoped>
 * {
-  color: rgba(0, 0, 0, 0.9);
   user-select: none;
 }
 .bread-crumb {
@@ -142,37 +152,46 @@ const logout = async () =>{
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  color: rgba(207, 211, 217, 1);
 }
+.speak {
+  font-size: 1.2em;
+  cursor: pointer;
+  margin-right: 20px;
+}
+
 .user-name {
   font-size: 15px;
   margin-left: 8px;
   margin-right: 8px;
+  color: rgba(207, 211, 217, 1);
+}
+.user-name:hover {
+  color: rgba(255, 255, 255, 1);
 }
 /* 面包屑组件样式 */
-/* 不被选中时的颜色 */
+/* 可点击的上级面包屑 */
 .el-breadcrumb :deep(.el-breadcrumb__inner)  {
-  color: rgba(0, 0, 0, 0.9) !important;
+  color: rgba(207, 211, 217, 1) !important;
   font-size: 15px;
   font-weight:400 !important;
 }
 .el-breadcrumb__item:hover :deep(.el-breadcrumb__inner)  {
-  color: orange !important;
+  color: rgba(255, 255, 255, 1) !important;
   font-size: 15px;
   font-weight:400 !important;
 }
-/* 被选中时的颜色 */
+/* 不可点击的当前级面包屑 */
 .el-breadcrumb__item:last-child :deep(.el-breadcrumb__inner) {
-  color: rgba(0, 0, 0, 0.9) !important;
+  color: rgba(255, 255, 255, 1) !important;
   font-size: 15px;
   font-weight:400 !important;
 }
+/* 不可点击的面包屑分级符号 */
 .el-breadcrumb__item :deep(.el-breadcrumb__separator) {
-  color: rgba(0, 0, 0, 0.9) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
   font-size: 15px;
   font-weight:400 !important;
 }
-:deep(.el-dropdown-link:hover) {
-  background-color: rgba(42, 82, 152, 0.3) !important;
-}
-/* 面包屑组件样式 */
+
 </style>

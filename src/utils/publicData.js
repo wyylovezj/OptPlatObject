@@ -1,5 +1,6 @@
+import { searchData } from '@/api/interface.js'
 import { ref, computed } from 'vue'
-
+import { ElMessage } from 'element-plus'
 // 表格组件实例的引用
 export const tableRef = ref(null)
 
@@ -54,6 +55,79 @@ export const DialogVisibleClose = ref(false)
 // 《关闭》按钮模态框处理意见输入值：同步获取用户输入
 export const handleOpinion = ref('')
 
+// 定时器
+export const timer = ref(null)
+
+// 语音播报状态：用于喇叭状态
+export const voiceStatus = ref(false)
+
+/**
+ * 防抖函数
+ * @param {Function} fn - 需要防抖的函数
+ * @param {number} delay - 延迟时间，单位为毫秒
+ * @returns {Function} - 返回一个经过防抖处理的函数
+ */
+export const debounce = (fn, delay) => {
+  let timer = null // 用于存储定时器的变量
+  return function (...args) {
+    // 如果已经存在定时器，则清除之前的定时器
+    if (timer) clearTimeout(timer)
+    // 设置新的定时器，在指定的延迟时间后执行传入的函数
+    timer = setTimeout(() => {
+      // 使用apply调用原始函数，并传入正确的this上下文和参数
+      fn.apply(this, args)
+    }, delay)
+  }
+}
+
+/**
+ * 节流函数：确保函数在指定的时间间隔内最多执行一次
+ * @param {Function} fn - 需要被节流的函数
+ * @param {number} delay - 时间间隔，单位为毫秒
+ * @returns {Function} - 返回被节流处理后的函数
+ */
+export const throttle = (fn, delay) => {
+  let lastTime = 0  // 记录上次执行函数的时间戳
+  return function (...args) {
+    const now = Date.now()  // 获取当前时间戳
+    // 如果当前时间与上次执行时间的差值大于等于设定的延迟时间
+    if (now - lastTime >= delay) {
+      fn.apply(this, args)  // 执行原函数
+      lastTime = now  // 更新上次执行时间为当前时间
+    }
+  }
+}
+// 表单查询数据模型
+export const searchQuery = ref(JSON.parse(JSON.stringify(Query)))
+// 搜索按钮、刷新按钮查询数据,增加了节流控制
+export const refresh = throttle(async () => {
+  // 设置加载标志为true,控制表格加载动画
+  loading.value = true
+  // 关闭告警图形动画
+  blinkTrigger.value = false
+  // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
+  const minDelay = new Promise(resolve => setTimeout(resolve, 300))
+  try {
+    // 将Promise数组中第一个promise执行结果复制给data
+    const [data] = await Promise.all([
+      searchData(searchQuery.value),
+      minDelay
+    ])
+    // 对获取的数据进行排序后再赋值给tableData
+    tableData.value = data.sort(sortSeverity)
+    // 重置表格组件中级别列的排序图标为默认状态
+    if (tableRef.value) {
+      tableRef.value.clearSort()
+    }
+    // 重新开启动画，确保动画开始时间相同，频率一致
+    blinkTrigger.value = true
+    currentPage.value = 1
+  }
+  finally {
+    loading.value = false
+  }
+}, 300)
+
 /**
  * 处理表格级别属性排序变化
  * @param order - 表格传入的界别字段排序参数，ascending为升序，descending为降序
@@ -105,39 +179,93 @@ export const sortSeverity = (a, b) => {
   return severityDiff
 }
 
+
 /**
- * 防抖函数
- * @param {Function} fn - 需要防抖的函数
- * @param {number} delay - 延迟时间，单位为毫秒
- * @returns {Function} - 返回一个经过防抖处理的函数
+ * 语音播报告警描述
+ * @param {string} text - 要播报的文本内容
  */
-export const debounce = (fn, delay) => {
-  let timer = null // 用于存储定时器的变量
-  return function (...args) {
-    // 如果已经存在定时器，则清除之前的定时器
-    if (timer) clearTimeout(timer)
-    // 设置新的定时器，在指定的延迟时间后执行传入的函数
-    timer = setTimeout(() => {
-      // 使用apply调用原始函数，并传入正确的this上下文和参数
-      fn.apply(this, args)
-    }, delay)
+export const speakText = async (text) => {
+  // 检查浏览器是否支持语音合成API
+  if ('speechSynthesis' in window) {
+    // 未播报状态
+    // 取消之前的语音合成
+    window.speechSynthesis.cancel()
+
+    // 创建语音合成实例
+    const utterance = new SpeechSynthesisUtterance(text)
+
+    // 设置语音参数
+    utterance.rate = 1.0  // 语速
+    utterance.pitch = 1.0 // 音调
+    utterance.volume = 1  // 音量
+
+    // 添加语音开始事件监听
+    utterance.onstart = () => {
+      voiceStatus.value = true
+    }
+    // 添加语音结束事件监听
+    utterance.onend = () => {
+      voiceStatus.value = false
+    }
+    // 添加语音错误事件监听
+    utterance.onerror = () => {
+      voiceStatus.value = false
+    }
+    // 开始语音合成
+    window.speechSynthesis.speak(utterance)
+    // 未播报状态
+  } else {
+    // 如果存在消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      // 关闭所有显示的消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成，使用Promise确保时序
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    // 显示错误提示消息
+    messageInstance.value = ElMessage.warning({
+      message: '您的浏览器不支持语音合成功能',    // 错误信息内容
+      duration: 1000,        // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20,   // 垂直偏移量，使消息垂直居中
+      onClose: () => {       // 消息关闭时的回调
+        messageInstance.value = null    // 清空消息实例引用
+      }
+    })
   }
 }
 
 /**
- * 节流函数：确保函数在指定的时间间隔内最多执行一次
- * @param {Function} fn - 需要被节流的函数
- * @param {number} delay - 时间间隔，单位为毫秒
- * @returns {Function} - 返回被节流处理后的函数
+ * 表格中《操作》中播报按钮回调函数
+ * @param row - 要播报的行数据对象
  */
-export const throttle = (fn, delay) => {
-  let lastTime = 0  // 记录上次执行函数的时间戳
-  return function (...args) {
-    const now = Date.now()  // 获取当前时间戳
-    // 如果当前时间与上次执行时间的差值大于等于设定的延迟时间
-    if (now - lastTime >= delay) {
-      fn.apply(this, args)  // 执行原函数
-      lastTime = now  // 更新上次执行时间为当前时间
-    }
+export const handleSpeak = (row) => {
+  // 播报告警描述
+  const description = "你好" + row.alarm_details || '无告警描述'
+  speakText(description)
+}
+/**
+ * 暂停语音播报
+ */
+export const pauseSpeech = () => {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.pause()
+  }
+}
+
+/**
+ * 恢复语音播报
+ */
+export const resumeSpeech = () => {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.resume()
+  }
+}
+
+/**
+ * 停止语音播报
+ */
+export const stopSpeech = () => {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel()  // 使用cancel()完全停止所有语音
   }
 }

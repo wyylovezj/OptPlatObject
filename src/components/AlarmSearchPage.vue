@@ -1,11 +1,9 @@
 <script setup>
 import { ref } from 'vue'
-import { searchData } from '@/api/interface.js'
-import { tableRef,loading, currentPage, Query, selectedRows, DialogVisibleClose, tableData, throttle ,blinkTrigger, sortSeverity } from '@/utils/publicData.js'
+import { selectedRows, DialogVisibleClose, refresh, searchQuery } from '@/utils/publicData.js'
 import { ElMessage } from 'element-plus'
 
-// 表单查询数据模型
-const searchQuery = ref(JSON.parse(JSON.stringify(Query)))
+
 // 告警分类选择器
 const categoryOptions = [
   {
@@ -150,34 +148,6 @@ const clearSearch = () => {
     formSearch.value.resetFields()
   }
 }
-// 搜索按钮、刷新按钮查询数据,增加了节流控制
-const refresh = throttle(async () => {
-  // 设置加载标志为true,控制表格加载动画
-  loading.value = true
-  // 关闭告警图形动画
-  blinkTrigger.value = false
-  // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
-  const minDelay = new Promise(resolve => setTimeout(resolve, 300))
-  try {
-    // 将Promise数组中第一个promise执行结果复制给data
-    const [data] = await Promise.all([
-      searchData(searchQuery.value),
-      minDelay
-    ])
-    // 对获取的数据进行排序后再赋值给tableData
-    tableData.value = data.sort(sortSeverity)
-    // 重置表格组件中级别列的排序图标为默认状态
-    if (tableRef.value) {
-      tableRef.value.clearSort()
-    }
-    // 重新开启动画，确保动画开始时间相同，频率一致
-    blinkTrigger.value = true
-    currentPage.value = 1
-  }
-  finally {
-    loading.value = false
-  }
-}, 300)
 
 // 批量关闭功能
 // 存储当前显示的提示框实例

@@ -8,9 +8,9 @@
  * @lastModifiedTime： 2025-12-08 09:45:07
  */
 import { closeAlert, searchData } from '@/api/interface.js'
-import { Edit, More } from '@element-plus/icons-vue'
+import { Edit, } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, onMounted } from 'vue'
 import {
   tableRef,
   loading,
@@ -40,13 +40,30 @@ const initTableData = async () => {
     // 对所有数据进行排序
     tableData.value = allData.sort(sortSeverity)
   } catch (error) {
-    ElMessage.error(error.message)
+    // 如果存在消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      // 关闭所有显示的消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成，使用Promise确保时序
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    // 显示错误提示消息
+    messageInstance.value = ElMessage.error({
+      message: error.message,    // 错误信息内容
+      duration: 1000,        // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20,   // 垂直偏移量，使消息垂直居中
+      onClose: () => {       // 消息关闭时的回调
+        messageInstance.value = null    // 清空消息实例引用
+      }
+    })
   }
 }
+onMounted(async () => {
+  // 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
+  await initTableData()
+  }
+)
 
-
-// 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
-initTableData()
 
 
 
@@ -170,6 +187,20 @@ const getSeverityColor = (severity) => {
   // 返回匹配的颜色代码，如果没有匹配则返回默认灰色
   return colorMap[severity] || '#d9d9d9'
 }
+
+/**
+ * 表格《告警状态》列自定义内容：根据问题严重程度获取对应的颜色代码
+ * @param {string} state - 状态值
+ * @returns {string} - 对应的CSS类名
+ */
+const getStateClass = (state) => {
+  const classMap = {
+    '未处理': 'status-unprocessed',
+    '已处理': 'status-processed',
+  }
+  return classMap[state] || 'status-default'
+}
+
 
 /**
  * 表格中《操作》中查看按钮回调函数
@@ -326,7 +357,7 @@ const closeCurrentAlert = async () => {
         :data="currentPageData"
         border
         stripe
-        style="width: 100%; font-size: 14px;"
+        style="width: 100%; font-size: 13px;"
         :cell-style="{ textAlign: 'center' }"
         :header-cell-style="{ textAlign: 'center' }"
         row-key="event_id"
@@ -346,8 +377,12 @@ const closeCurrentAlert = async () => {
           ></span>
           </template>
         </el-table-column>
-        <el-table-column prop="state" label="状态" min-width="5%" :resizable="false" />
-        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="10%" :resizable="false">
+        <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
+          <template #default="{row}">
+            <span :class="getStateClass(row.state)">{{ row.state }}</span>
+          </template>
+        </el-table-column>>
+        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="11%" :resizable="false">
         <template #default="{row}">
           {{ row.system_name || '/' }}
         </template>
@@ -357,12 +392,12 @@ const closeCurrentAlert = async () => {
             {{ row.category || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="object" label="主机名" min-width="10%" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="object" label="主机名" min-width="15%" show-overflow-tooltip :resizable="false">
           <template #default="{row}">
-            {{ row.object || '/' }}
+            <el-button type="primary" plain @click="handleView(row)">{{ row.object || '/' }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="ip" label="IP地址" min-width="10%" :resizable="false">
+        <el-table-column prop="ip" label="IP地址" min-width="8%" :resizable="false">
           <template #default="{row}">
             {{ row.ip || '/' }}
           </template>
@@ -372,12 +407,12 @@ const closeCurrentAlert = async () => {
             {{ row.alarm_details || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="occurrenceTime" label="发生时间" min-width="12%" :resizable="false">
+        <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
           <template #default="{row}">
             {{ row.occurrenceTime || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="processingTime" label="处理时间" min-width="12%" :resizable="false">
+        <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
           <template #default="{row}">
             {{ row.processingTime || '/' }}
           </template>
@@ -400,7 +435,7 @@ const closeCurrentAlert = async () => {
           </template>
         </el-table-column>
       </el-table>
-      </div>
+    </div>
     <!-- 下方分页：显示总数、每页条数、页码导航 -->
     <div style="display: flex; justify-content: space-between; align-items: center;user-select:none;">
       <!--  显示总数  -->
@@ -427,89 +462,91 @@ const closeCurrentAlert = async () => {
           />
         </div>
       </div>
-      <!--    查看按钮模态框  -->
-      <el-dialog v-model="dialogVisibleView" top="15%" title="告警详情" width="80%" :center="true">
-        <el-table
-          :data="[currentRow]"
-          border
-          :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
-          :header-cell-style="{ textAlign: 'center' }"
-        >
-          <el-table-column prop="event_id" label="事件ID" v-if="true" />
-          <el-table-column prop="severity" label="告警级别" min-width="50" :resizable="false">
-            <template #default="scope">
+    </div>
+    <!--    查看按钮模态框  -->
+    <el-dialog v-model="dialogVisibleView" top="15%" title="告警详情" width="80%" :center="true" style="user-select: text" s>
+      <el-table
+        :data="[currentRow]"
+        border
+        :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
+        :header-cell-style="{ textAlign: 'center' }"
+      >
+        <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
+        <el-table-column prop="severity" label="级别" min-width="5%" :resizable="false">
+          <template #default="scope">
             <span
               class="severity-indicator"
               :class="{ 'severity-blink': scope.row.severity === '严重' }"
               :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
             ></span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="state" label="状态" min-width="50" :resizable="false" />
-          <el-table-column prop="system_name" label="业务系统" min-width="80" :resizable="false">
-            <template #default="{row}">
-              {{ row.system_name || '/' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="category" label="告警分类" min-width="50" :resizable="false">
-            <template #default="{row}">
-              {{ row.category || '/' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="object" label="主机" min-width="50" :resizable="false">
-            <template #default="{row}">
-              {{ row.object || '/' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="ip" label="IP地址" min-width="50" :resizable="false">
-            <template #default="{row}">
-              {{ row.ip || '/' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="alarm_details" label="告警描述" min-width="150" :resizable="false">
-            <template #default="{row}">
-              {{ row.alarm_details || '/' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="occurrenceTime" label="发生时间" min-width="80" :resizable="false">
-            <template #default="{row}">
-              {{ row.occurrenceTime || '/' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="processingTime" label="处理时间" min-width="80" :resizable="false">
-            <template #default="{row}">
-              {{ row.processingTime || '/' }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-dialog>
-      <!-- 关闭按钮模态框 -->
-      <el-dialog v-model="DialogVisibleClose" top="10%" title="关闭告警" width="40%" :center="true" :show-close="false">
-        <div style="font-size: 20px; color: #606266; user-select: none">处理意见：</div>
-        <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
-          <el-input
-            v-model="handleOpinion"
-            style="width: 100%; font-size: 16px"
-            type="textarea"
-            :autosize="{ maxRows: 15, minRows: 10 }"
-            resize="none"
-            placeholder="请输入……"
-          />
-        </div>
-        <div style="display: flex; align-items: center; justify-content: flex-end; margin-top: 10px">
-          <el-button type="primary" @click="handleOpinion = ''">清空</el-button>
-          <el-button type="primary" @click="closeCurrentAlert">确认</el-button>
-          <el-button
-            type="primary"
-            @click="
+          </template>
+        </el-table-column>
+        <el-table-column prop="state" label="状态" min-width="5%" :resizable="false" />
+        <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.system_name || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="category" label="分类" min-width="5%" :resizable="false">
+          <template #default="{row}">
+            {{ row.category || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="object" label="主机名" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.object || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="ip" label="IP地址" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.ip || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="alarm_details" label="告警描述" min-width="20%" :resizable="false">
+          <template #default="{row}">
+            {{ row.alarm_details || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.occurrenceTime || '/' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
+          <template #default="{row}">
+            {{ row.processingTime || '/' }}
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+    <!-- 关闭按钮模态框 -->
+    <el-dialog v-model="DialogVisibleClose" top="10%" title="关闭告警" width="40%" :center="true" :show-close="false">
+      <div style="font-size: 20px; color: #606266; user-select: none">处理意见：</div>
+      <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
+        <el-input
+          v-model="handleOpinion"
+          style="width: 100%; font-size: 16px"
+          type="textarea"
+          :autosize="{ maxRows: 15, minRows: 10 }"
+          resize="none"
+          placeholder="请输入……"
+          maxlength="100"
+          show-word-limit
+        />
+      </div>
+      <div style="display: flex; align-items: center; justify-content: flex-end; margin-top: 10px">
+        <el-button type="primary" @click="handleOpinion = ''">清空</el-button>
+        <el-button type="primary" @click="closeCurrentAlert">确认</el-button>
+        <el-button
+          type="primary"
+          @click="
             DialogVisibleClose = false;
             handleOpinion = ''
           "
-          >取消</el-button
-          >
-        </div>
-      </el-dialog>
-    </div>
+        >取消</el-button
+        >
+      </div>
+    </el-dialog>
   </div>
 
 </template>
@@ -529,7 +566,7 @@ const closeCurrentAlert = async () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 20px 0 20px 0;
+  padding: 20px 0;
 }
 
 /* 告警图形样式和闪烁动画 */
@@ -560,6 +597,14 @@ const closeCurrentAlert = async () => {
     transform: scale(1);
   }
 }
+/* 告警状态颜色 */
+.status-unprocessed {
+  color: #409EFF; /* 未处理 - 蓝色 */
+}
+.status-processed {
+  color: #67C23A; /* 已处理 - 绿色 */
+}
+
 /* 表格行hover样式 */
 :deep(.el-table__body tr:hover > td) {
   background-color: inherit !important;
@@ -604,7 +649,7 @@ const closeCurrentAlert = async () => {
 }
 /* 设置表头字体颜色为黑色 */
 :deep(.el-table__header-wrapper th .cell) {
-  font-size: 12px;
+  font-size: 13px;
   color: black !important;
 }
 

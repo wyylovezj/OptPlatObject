@@ -17,10 +17,11 @@ import AlarmSearchPage from '@/components/AlarmSearchPage.vue'
   display: flex;
   flex-direction: column;
   border: #DCDFE6 solid 1px;
-  padding: 10px;
-/*  height:calc(100% - 22px);*/
-  height:calc(100% - 0px);
+  padding: 15px 30px;
+  height: 100%;
   box-sizing: border-box;
+  background-color: #FFFFFF;
+  border-radius: 10px;
 }
 
 </style>
