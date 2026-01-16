@@ -2,6 +2,7 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import SideBar from '@/components/SideBar.vue'
 import { isCollapse } from '@/utils/publicData.js'
+import { Expand,Fold } from '@element-plus/icons-vue'
 
 // 侧边栏折叠标志
 const toggleCollapse = () => {
@@ -15,16 +16,11 @@ const toggleCollapse = () => {
       <!-- element 布局总容器开始 -->
       <el-container>
         <!-- 侧边栏开始 -->
-        <el-aside :width="isCollapse ? '64px' : '200px'">
+        <el-aside :width="isCollapse ? '64px' : '150px'">
           <div class="side-bar">
             <div style="height: 40px;width: 64px;display: flex;align-items: center;justify-content: center;">
-              <el-button type="primary" @click="toggleCollapse">
-                <el-icon>
-                  <svg class="icon" aria-hidden="true" height="30px" width="30px">
-                    <use xlink:href="#icon-menu-icon"></use>
-                  </svg>
-                </el-icon>
-              </el-button>
+              <el-button v-if="!isCollapse" style="font-size: 20px" type="primary"  color="rgba(15, 39, 68, 1)" :icon="Expand" @click="toggleCollapse"/>
+              <el-button v-if="isCollapse" style="font-size: 20px" type="primary"  color="rgba(15, 39, 68, 1)" :icon="Fold" @click="toggleCollapse"/>
             </div>
             <div class="side-menu">
               <SideBar></SideBar>
@@ -56,16 +52,16 @@ const toggleCollapse = () => {
   height: 100%;
 }
 .el-aside {
-  background: #EBEEF5;
+  background: rgba(15, 39, 68, 1);
   height: 100%;
   transition: width 0.4s ease;
 }
 .el-header {
   height: 40px;
-  background: rgba(64, 158, 255,0.8);
+  background: rgba(15, 39, 68, 1);
 }
 .el-main {
-  background-color: #F2F3F5;
+  background-color: #F0F1F5;
 }
 .side-bar {
   position: relative;
@@ -89,6 +85,5 @@ const toggleCollapse = () => {
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
-  color: greenyellow;
 }
 </style>

@@ -8,8 +8,6 @@
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-
-
 /**
  * @description： 用户登录状态信息管理
  */

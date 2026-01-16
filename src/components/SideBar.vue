@@ -2,12 +2,17 @@
 import '@/iconfonts/iconfont.js'
 import { useRouter } from 'vue-router'
 import { isCollapse } from '@/utils/publicData.js'
+import { ref } from 'vue'
 
+// 菜单展开状态
+const expandedMenus = ref({state: '', index: '', isOpen:false})
 
 const handleOpen = (key, keyPath) => {
+  expandedMenus.value = {state: '',index: key, isOpen:true}
   console.log(key, keyPath)
 }
 const handleClose = (key, keyPath) => {
+  expandedMenus.value = {state: '',index: key, isOpen:false}
   console.log(key, keyPath)
 }
 const router = useRouter()
@@ -19,12 +24,11 @@ function routeTo() {
 
 <template>
   <el-row class="tac">
-    <el-col>
+    <el-col :span="50">
       <el-menu
-        active-text-color=""
         class="el-menu-vertical"
-        default-active="2"
-        text-color=""
+        text-color="#fff"
+        active-text-color="#ffd04b"
         @open="handleOpen"
         @close="handleClose"
         @collapse="false"
@@ -32,7 +36,6 @@ function routeTo() {
         :collapse="isCollapse"
         :collapse-transition="false"
       >
-        <el-divider></el-divider>
         <el-sub-menu index="1">
           <template #title>
             <el-icon>
@@ -40,11 +43,10 @@ function routeTo() {
                 <use xlink:href="#icon-gaojingguanli"></use>
               </svg>
             </el-icon>
-            <span>告警管理</span>
+            <span class="menu">告警管理</span>
           </template>
           <el-menu-item @click="routeTo" index="1-1">告警</el-menu-item>
         </el-sub-menu>
-        <el-divider></el-divider>
         <el-sub-menu index="2">
           <template #title>
             <el-icon>
@@ -52,11 +54,10 @@ function routeTo() {
                 <use xlink:href="#icon-shijianguanli"></use>
               </svg>
             </el-icon>
-            <span>事件管理</span>
+            <span class="menu">事件管理</span>
           </template>
           <el-menu-item @click="routeTo" index="2-1">事件</el-menu-item>
         </el-sub-menu>
-        <el-divider></el-divider>
         <el-sub-menu index="3">
           <template #title>
             <el-icon>
@@ -64,11 +65,10 @@ function routeTo() {
                 <use xlink:href="#icon-xitongguanli"></use>
               </svg>
             </el-icon>
-            <span>系统管理</span>
+            <span class="menu">系统管理</span>
           </template>
           <el-menu-item @click="routeTo" index="3-1">参数配置</el-menu-item>
         </el-sub-menu>
-        <el-divider></el-divider>
       </el-menu>
     </el-col>
   </el-row>
@@ -81,9 +81,7 @@ function routeTo() {
 .el-menu-vertical {
   border-right: none !important;
 }
-:deep(.el-menu-item:hover) {
-  background-color: rgba(42, 82, 152, 0.3) !important;
-}
+
 :deep(.el-sub-menu__title:hover) {
   background-color: rgba(42, 82, 152, 0.3) !important;
 }
@@ -96,6 +94,21 @@ function routeTo() {
 }
 :deep(.el-menu-item) {
   padding-left: 50px !important;
+  color: rgba(207, 211, 217, 1)  !important;
+}
+:deep(.el-menu-item:hover) {
+  color: rgba(255, 255, 255, 1) !important;
+  background-color: rgba(42, 82, 152, 0.3) !important;
+}
+.menu {
+  font-size: 16px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 1);
+}
+/* 菜单箭头样式 */
+:deep(.el-sub-menu__icon-arrow) {
+  font-size: 16px !important;
+  margin-top: -8px !important;
 }
 
 .icon {
@@ -104,6 +117,6 @@ function routeTo() {
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
-  color: #67C23A;
+  color: rgba(255, 255, 255, 1);;
 }
 </style>

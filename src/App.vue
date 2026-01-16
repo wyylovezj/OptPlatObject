@@ -1,11 +1,46 @@
 <script setup>
 import IndexPage from '@/components/IndexPage.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { computed } from 'vue'
+import { computed,onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { refresh } from '@/utils/publicData.js'
+
+
 const route = useRoute()
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+
+// 全局定时器
+let searchTimer = null
+
+// 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
+onMounted(() => {
+  const unwatch = watch(
+    () => authStore.isAuthenticated,
+    (newValue) => {
+      if (newValue) {
+        console.log('刷新数据')
+        searchTimer = setInterval(() => {
+          refresh()
+        }, 5000) // 60秒刷新一次数据
+      } else {
+        if (searchTimer) {
+          clearInterval(searchTimer)
+          searchTimer = null
+        }
+      }
+    },
+    { immediate: true } //
+  )
+
+  // 在组件卸载时取消监听
+  onUnmounted(() => {
+    unwatch()
+    if (searchTimer) {
+      clearInterval(searchTimer)
+    }
+  })
+})
 </script>
 
 <template>
