@@ -183,6 +183,7 @@ const getSeverityColor = (severity) => {
     "严重": '#FF0000', // 红色，表示最高优先级
     "重要": '#fa8c16', // 橙色，表示中等优先级
     "一般": '#ffd100', // 黄色，表示较低优先级
+    "普通": '#6cbc45', // 黄色，表示较低优先级
   }
   // 返回匹配的颜色代码，如果没有匹配则返回默认灰色
   return colorMap[severity] || '#d9d9d9'
@@ -196,7 +197,7 @@ const getSeverityColor = (severity) => {
 const getStateClass = (state) => {
   const classMap = {
     '未处理': 'status-unprocessed',
-    '已处理': 'status-processed',
+    '已关闭': 'status-processed',
   }
   return classMap[state] || 'status-default'
 }
@@ -261,15 +262,6 @@ const handleCreateTicket = (row) => {
 }
 
 /**
- * 表格中《操作》中触发转发按钮回调函数
- * @param row
- */
-const handleForward = (row) => {
-  console.log('转发告警', row)
-  // 这里可以添加转发告警的逻辑
-}
-
-/**
  * 《关闭》模态框中《确认》按钮回调函数
  *  关闭当前告警的异步函数
  *  处理告警关闭的完整流程：
@@ -311,7 +303,6 @@ const closeCurrentAlert = async () => {
       ElMessage.closeAll()
       // 等待消息关闭动画完成
       await new Promise(resolve => setTimeout(resolve, 0));
-
     }
     // 显示成功提示
     messageInstance.value = ElMessage.success({
@@ -382,7 +373,7 @@ const closeCurrentAlert = async () => {
             <span :class="getStateClass(row.state)">{{ row.state }}</span>
           </template>
         </el-table-column>>
-        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="11%" :resizable="false">
+        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="12%" :resizable="false">
         <template #default="{row}">
           {{ row.system_name || '/' }}
         </template>
@@ -392,7 +383,7 @@ const closeCurrentAlert = async () => {
             {{ row.category || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="object" label="主机名" min-width="15%" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="object" label="主机名" min-width="14%" show-overflow-tooltip :resizable="false">
           <template #default="{row}">
             <el-button type="primary" plain @click="handleView(row)">{{ row.object || '/' }}</el-button>
           </template>
@@ -420,14 +411,13 @@ const closeCurrentAlert = async () => {
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
           <template #default="scope">
             <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">
-              <el-dropdown trigger="click">
+              <el-dropdown >
                 <el-button type="primary" :icon="Edit"></el-button>>
                 <template #dropdown>
                   <el-dropdown-menu style="user-select: none">
                     <el-dropdown-item @click="handleView(scope.row)">查看</el-dropdown-item>
                     <el-dropdown-item @click="handleClose(scope.row)">关闭</el-dropdown-item>
                     <el-dropdown-item @click="handleCreateTicket(scope.row)">触发工单</el-dropdown-item>
-                    <el-dropdown-item @click="handleForward(scope.row)">转发</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -599,7 +589,7 @@ const closeCurrentAlert = async () => {
 }
 /* 告警状态颜色 */
 .status-unprocessed {
-  color: #409EFF; /* 未处理 - 蓝色 */
+  color: #909399; /* 未处理 - 蓝色 */
 }
 .status-processed {
   color: #67C23A; /* 已处理 - 绿色 */

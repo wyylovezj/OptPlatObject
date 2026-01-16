@@ -21,7 +21,7 @@ import axios from 'axios'
 export const loginAuthentication = async (username, password) => {
   try {
     // 发送POST请求到登录接口
-    const response = await axios.post('http://0.0.0.0:8000/login', {
+    const response = await axios.post('http://96.17.64.1:9090/login', {
       username,
       password,
     })
@@ -47,7 +47,7 @@ export const searchData = async (searchQuery) => {
       state: searchQuery.state === '' ? '未处理' : searchQuery.state, // 处理状态参数
     }
     // 发送POST请求到后端API
-    const response = await axios.post('http://0.0.0.0:8000/searchData', params)
+    const response = await axios.post('http://96.17.64.1:9090/searchData', params)
     // 获取响应数据
     const data = response.data.data
 
@@ -98,7 +98,7 @@ export const searchData = async (searchQuery) => {
 export const closeAlert = async (selectedEventIds, handleOpinion) => {
   try {
     // 发送POST请求到后端API以关闭告警
-    const response = await axios.post('http://0.0.0.0:8000/closeAlarm', {
+    const response = await axios.post('http://96.17.64.1:9090/closeAlarm', {
       selectedEventIds, // 要关闭的事件ID数组
       handleOpinion, // 处理意见
     })
