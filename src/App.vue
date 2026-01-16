@@ -4,17 +4,31 @@ import { useAuthStore } from '@/stores/authInfoStore.js'
 import { computed,onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { refresh } from '@/utils/publicData.js'
+import { ElMessageBox } from 'element-plus'
 
 
 const route = useRoute()
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-
 // 全局定时器
 let searchTimer = null
 
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
-onMounted(() => {
+onMounted(async () => {
+  // 检测页面是否是通过刷新加载的
+  const navigationEntries = performance.getEntriesByType('navigation')
+  const isRefresh = navigationEntries.length > 0 && navigationEntries[0].type === 'reload'
+  if (isRefresh) {
+    ElMessageBox.confirm(
+      '页面刷新会终止语音播报，请点击确定开启语音播报！',
+      '提示',
+      {
+        showCancelButton: false,
+        confirmButtonText: '确定',
+        type: 'success',
+      }
+    )
+  }
   const unwatch = watch(
     () => authStore.isAuthenticated,
     (newValue) => {
@@ -22,13 +36,11 @@ onMounted(() => {
         console.log('刷新数据')
         searchTimer = setInterval(() => {
           refresh()
-        }, 5000) // 60秒刷新一次数据
-      } else {
-        if (searchTimer) {
+        }, 50000) // 60秒刷新一次数据
+      } else if (searchTimer) {
           clearInterval(searchTimer)
           searchTimer = null
         }
-      }
     },
     { immediate: true } //
   )

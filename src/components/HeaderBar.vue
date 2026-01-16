@@ -62,7 +62,7 @@ const logout = async () =>{
   <div class="user">
     <!--  告警喇叭图标  -->
     <el-tooltip :visible="visible"
-      content="点击停止语音播报"
+      content="停止语音播报"
     >
       <el-icon class="speak" @click="stopSpeech" @mouseenter="visible = true" @mouseleave="visible = false">
         <svg class="icon" aria-hidden="true" style="pointer-events: none">

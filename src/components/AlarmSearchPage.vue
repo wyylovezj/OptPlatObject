@@ -15,6 +15,11 @@ const categoryOptions = [
 ]
 const severityOptions = [
   {
+    value: 4,
+    label: '普通',
+    color: '#6cbc45',
+  },
+  {
     value: 3,
     label: '一般',
     color: '#ffd100',
@@ -27,7 +32,7 @@ const severityOptions = [
   {
     value: 1,
     label: '严重',
-    color: '#ff4d4f',
+    color: '#FF0000',
   },
 ]
 
@@ -38,12 +43,6 @@ const system_nameOptions = [
 const stateOptions = [
   {
     value: '未处理',
-  },
-  {
-    value: '已处理',
-  },
-  {
-    value: '已分派',
   },
   {
     value: '已关闭',

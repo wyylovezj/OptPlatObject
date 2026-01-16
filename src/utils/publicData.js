@@ -25,6 +25,7 @@ export const currentPage = ref(1)
 // 当前显示的提示框实例对象：用于控制提示框的开启与关闭，限制整个项目中同一时刻最多仅有一个提示框显示
 export const messageInstance = ref(null)
 
+
 // 数据查询参数的数据模型
 export const Query = {
   category: '',      // 告警分类
@@ -167,7 +168,7 @@ export const handleSortChange = ({ order }) => {
  */
 export const sortSeverity = (a, b) => {
   // 定义严重程度排序规则，数值越小表示优先级越高
-  const severityOrder = { "严重": 1, "重要": 2, "一般": 3 }
+  const severityOrder = { "严重": 1, "重要": 2, "一般": 3, "普通": 4 }
   // 比较两个对象的严重程度（最严重的排在前面）
   const severityDiff = severityOrder[a.severity] - severityOrder[b.severity]
   // 如果严重程度相同，则按发生时间排序（时间最新的排在前面）
