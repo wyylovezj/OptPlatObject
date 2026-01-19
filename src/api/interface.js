@@ -7,7 +7,7 @@
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
 import { textToSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { timer, voiceStatus, speakText } from '@/utils/publicData.js'
+import { processSpeechQueue } from '@/utils/publicData.js'
 import axios from 'axios'
 
 
@@ -42,11 +42,6 @@ export const loginAuthentication = async (username, password) => {
  */
 export const searchData = async (searchQuery) => {
   try {
-    // 清除定时器，防止内存泄漏
-    if (timer.value) {
-      clearTimeout(timer.value)
-      // 返回响应数据中的data字段
-    }
     // 处理搜索参数，如果state为空字符串则设置为'未处理'
     const params = {
       ...searchQuery, // 展开搜索条件对象
@@ -66,23 +61,12 @@ export const searchData = async (searchQuery) => {
       // 检查发生时间是否在2分钟内
       const occurrenceTime = new Date(item.occurrenceTime)
       if (occurrenceTime > twoMinutesAgo && item.severity ==='严重') {
+        // // 添加到语音播报列表（自动去重）
         alarmStore.addAlarmIfNotExists(item)
       }
     })
-    if (alarmStore.textList.length > 0) {
-      console.log(alarmStore.textList)
-      // 异步播报语音消息
-      timer.value =  setTimeout(() => {
-        alarmStore.textList.forEach(item => {
-          if (voiceStatus.value === false) {
-          // 添加到语音播报列表（自动去重）
-          const text = `产生一条${item.category}${item.severity}告警，请及时处理`
-          speakText(text)
-          console.log(text)
-          }
-        })
-      }, 0)
-    }
+    // 处理语音队列
+    processSpeechQueue() // 使用队列方式
     // 返回响应数据中的data字段
     return data
   } catch (error) {
