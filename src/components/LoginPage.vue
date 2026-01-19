@@ -8,8 +8,9 @@ import { User, Lock } from '@element-plus/icons-vue'
 import { messageInstance, loading } from '@/utils/publicData.js'
 
 
-const router = useRouter()
+// 获取store实例
 const authStore = useAuthStore()
+const router = useRouter()
 const loginForm = ref({
   username: '',
   password: ''

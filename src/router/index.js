@@ -12,6 +12,7 @@ import NotFound from '@/components/NotFound.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 
+
 // 创建路由实例
 const router = createRouter({
   // 使用HTML5历史模式
@@ -118,6 +119,7 @@ const router = createRouter({
  * @param next - 下一步操作
  */
 router.beforeEach(async (to, from, next) => {
+  // 获取store实例
   const authStore = useAuthStore()
   // 检查目标路由是否需要认证
   if (to.meta.requiresAuth) {

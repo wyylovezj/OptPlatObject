@@ -373,7 +373,7 @@ const closeCurrentAlert = async () => {
             <span :class="getStateClass(row.state)">{{ row.state }}</span>
           </template>
         </el-table-column>>
-        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="12%" :resizable="false">
+        <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="11%" :resizable="false">
         <template #default="{row}">
           {{ row.system_name || '/' }}
         </template>
@@ -383,7 +383,7 @@ const closeCurrentAlert = async () => {
             {{ row.category || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="object" label="主机名" min-width="14%" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="object" label="主机名" min-width="15%" show-overflow-tooltip :resizable="false">
           <template #default="{row}">
             <el-button type="primary" plain @click="handleView(row)">{{ row.object || '/' }}</el-button>
           </template>

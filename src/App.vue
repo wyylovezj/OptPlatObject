@@ -1,4 +1,5 @@
 <script setup>
+
 import IndexPage from '@/components/IndexPage.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { computed,onMounted, onUnmounted, watch } from 'vue'
@@ -7,14 +8,20 @@ import { refresh } from '@/utils/publicData.js'
 import { ElMessageBox } from 'element-plus'
 
 
-const route = useRoute()
+
+// 获取store实例
 const authStore = useAuthStore()
+
+// 获取当前路由实例
+const route = useRoute()
+
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 // 全局定时器
 let searchTimer = null
 
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
 onMounted(async () => {
+
   // 检测页面是否是通过刷新加载的
   const navigationEntries = performance.getEntriesByType('navigation')
   const isRefresh = navigationEntries.length > 0 && navigationEntries[0].type === 'reload'
@@ -33,7 +40,6 @@ onMounted(async () => {
     () => authStore.isAuthenticated,
     (newValue) => {
       if (newValue) {
-        console.log('刷新数据')
         searchTimer = setInterval(() => {
           refresh()
         }, 50000) // 60秒刷新一次数据
