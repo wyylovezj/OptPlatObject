@@ -7,7 +7,7 @@
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
 import { textToSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { timer, speakText } from '@/utils/publicData.js'
+import { timer, voiceStatus, speakText } from '@/utils/publicData.js'
 import axios from 'axios'
 
 
@@ -22,7 +22,7 @@ import axios from 'axios'
 export const loginAuthentication = async (username, password) => {
   try {
     // 发送POST请求到登录接口
-    const response = await axios.post('http://0.0.0.0:8000/login', {
+    const response = await axios.post('http://127.0.0.1:8000/login', {
       username,
       password,
     })
@@ -53,31 +53,36 @@ export const searchData = async (searchQuery) => {
       state: searchQuery.state === '' ? '未处理' : searchQuery.state, // 处理状态参数
     }
     // 发送POST请求到后端API
-    const response = await axios.post('http://0.0.0.0:8000/searchData', params)
+    const response = await axios.post('http://127.0.0.1:8000/searchData', params)
     // 获取响应数据
     const data = response.data.data
-// 获取告警数据的Pinia store
+    // 获取告警数据的Pinia store
     const alarmStore = textToSpeakStore()
     // 清除列表中发生时间在2分钟以前的数据
     alarmStore.clearAlarms()
     // 获取2分钟内的数据并存入语音播报列表
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000) // 2分钟前的时间戳
+    const twoMinutesAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) // 2分钟前的时间戳
     data.forEach(item => {
       // 检查发生时间是否在2分钟内
       const occurrenceTime = new Date(item.occurrenceTime)
-      console.log(alarmStore.text)
-      if (occurrenceTime > twoMinutesAgo && item.severity ==='严重' && alarmStore.addAlarmIfNotExists(item)) {
-        // 提取事件ID、级别、分类三个字段
+      if (occurrenceTime > twoMinutesAgo && item.severity ==='严重') {
         alarmStore.addAlarmIfNotExists(item)
-        // 添加到语音播报列表（自动去重）
-        const text = `产生一条${item.category}${item.severity}告警，请及时处理`
-        console.log(text)
-        // 异步播报语音消息
-        timer.value =  setTimeout(() => {
-          speakText(text)
-        }, 0)
       }
     })
+    if (alarmStore.textList.length > 0) {
+      console.log(alarmStore.textList)
+      // 异步播报语音消息
+      timer.value =  setTimeout(() => {
+        alarmStore.textList.forEach(item => {
+          if (voiceStatus.value === false) {
+          // 添加到语音播报列表（自动去重）
+          const text = `产生一条${item.category}${item.severity}告警，请及时处理`
+          speakText(text)
+          console.log(text)
+          }
+        })
+      }, 0)
+    }
     // 返回响应数据中的data字段
     return data
   } catch (error) {
@@ -96,7 +101,7 @@ export const searchData = async (searchQuery) => {
 export const closeAlert = async (selectedEventIds, handleOpinion) => {
   try {
     // 发送POST请求到后端API以关闭告警
-    const response = await axios.post('http://0.0.0.0:8000/closeAlarm', {
+    const response = await axios.post('http://127.0.0.1:8000/closeAlarm', {
       selectedEventIds, // 要关闭的事件ID数组
       handleOpinion, // 处理意见
     })

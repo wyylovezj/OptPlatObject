@@ -20,7 +20,6 @@ export const textToSpeakStore = defineStore('Text', () => {
     if (!exists) {
       // 如果未重复，则添加数据到列表
       textList.value.push(alarmData)
-      console.log(textList)
       // 如果未重复，则返回true
       return true
     }
@@ -31,17 +30,13 @@ export const textToSpeakStore = defineStore('Text', () => {
   const clearAlarms = () => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000) // 2分钟前的时间戳
     textList.value = textList.value.filter(item => {
-      // 如果没有 occurrenceTime 字段，则保留该项
-      if (!item.occurrenceTime) {
-        return true
-      }
       // 检查发生时间是否在2分钟以内
       const itemTime = new Date(item.occurrenceTime)
       return itemTime > twoMinutesAgo
     })
   }
   return {
-    text: textList,
+    textList,
     addAlarmIfNotExists,
     clearAlarms,
   }
