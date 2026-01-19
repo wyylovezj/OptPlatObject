@@ -6,6 +6,8 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { messageInstance, stopSpeech, voiceStatus } from '@/utils/publicData.js'
 
+
+// 获取store实例
 const authStore = useAuthStore()
 const user = sessionStorage.getItem('user')
 const name = ref(user)
