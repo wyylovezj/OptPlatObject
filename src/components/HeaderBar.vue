@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { messageInstance, stopSpeech, voiceStatus } from '@/utils/publicData.js'
+import { messageInstance, stopSpeak, isSpeaking } from '@/utils/publicData.js'
 
 
 // 获取store实例
@@ -66,10 +66,10 @@ const logout = async () =>{
     <el-tooltip :visible="visible"
       content="停止语音播报"
     >
-      <el-icon class="speak" @click="stopSpeech" @mouseenter="visible = true" @mouseleave="visible = false">
+      <el-icon class="speak" @click="stopSpeak" @mouseenter="visible = true" @mouseleave="visible = false">
         <svg class="icon" aria-hidden="true" style="pointer-events: none">
-          <use v-show="voiceStatus===false" xlink:href="#icon-bobao-no"></use>
-          <use v-show="voiceStatus===true" xlink:href="#icon-bobao"></use>
+          <use v-show="isSpeaking===false" xlink:href="#icon-bobao-no"></use>
+          <use v-show="isSpeaking===true" xlink:href="#icon-bobao"></use>
         </svg>
       </el-icon>
     </el-tooltip>
