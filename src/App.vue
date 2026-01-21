@@ -2,6 +2,7 @@
 
 import IndexPage from '@/components/IndexPage.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
+import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { computed,onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { refresh } from '@/utils/publicData.js'
@@ -11,14 +12,14 @@ import { ElMessageBox } from 'element-plus'
 
 // 获取store实例
 const authStore = useAuthStore()
-
+const alartStore = useSpeakStore()
 // 获取当前路由实例
 const route = useRoute()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 // 全局定时器
 let searchTimer = null
-
+let unwatch = null
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
 onMounted(async () => {
 
@@ -36,7 +37,7 @@ onMounted(async () => {
       }
     )
   }
-  const unwatch = watch(
+   unwatch = watch(
     () => authStore.isAuthenticated,
     (newValue) => {
       if (newValue) {
@@ -51,13 +52,30 @@ onMounted(async () => {
     { immediate: true } //
   )
 
+  //
+  // onUnmounted(() => {
+  //   unwatch()
+  //   if (searchTimer) {
+  //     clearInterval(searchTimer)
+  //   }
+  // })
+})
+
+onUnmounted(() => {
   // 在组件卸载时取消监听
-  onUnmounted(() => {
+  if (unwatch) {
     unwatch()
-    if (searchTimer) {
-      clearInterval(searchTimer)
-    }
-  })
+  }
+  // 清除全局定时器
+  if (searchTimer) {
+    clearInterval(searchTimer)
+  }
+  // 持久化存储已播报列表
+  try {
+    localStorage.setItem('alreadySpeakQueue', JSON.stringify(alartStore.alreadySpeakQueue.value))
+  } catch (error) {
+    console.error('保存已播报队列到本地存储失败:', error)
+  }
 })
 </script>
 
