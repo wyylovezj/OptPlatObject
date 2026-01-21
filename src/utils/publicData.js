@@ -1,5 +1,5 @@
 import { searchData } from '@/api/interface.js'
-import { textToSpeakStore } from '@/stores/alarmSpeakStore.js'
+import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 
@@ -59,8 +59,8 @@ export const DialogVisibleClose = ref(false)
 // 《关闭》按钮模态框处理意见输入值：同步获取用户输入
 export const handleOpinion = ref('')
 
-// 定时器
-const timer = ref(null)
+// // 定时器
+// const timer = ref(null)
 
 // 控制一键停止本次所有告警播报
 const stopSpeaking = ref(false)
@@ -73,77 +73,83 @@ export const isSpeaking = ref(false)
  */
 export const processSpeechQueue = async () => {
   // 清除定时器，防止内存泄漏
-  if (timer.value) {
-    clearTimeout(timer.value)
-    // 返回响应数据中的data字段
-  }
+  // if (timer.value) {
+  //   clearTimeout(timer.value)
+  //   // 返回响应数据中的data字段
+  // }
   // 判断是否一键停止
   if (stopSpeaking.value) {
     isSpeaking.value = false
     return
   }
   // 获取告警数据的Pinia store
-  const alarmStore = textToSpeakStore()
+  const alarmStore = useSpeakStore()
   if (isSpeaking.value || alarmStore.speechQueue.length === 0) {
     return // 如果正在播报或队列为空，直接返回
   }
-  // 播报中
-  isSpeaking.value = true
-  const alertItem = alarmStore.speechQueue.shift() // 取出队列第一个元素
-  const text = `产生一条${alertItem.category}${alertItem.severity}告警，请及时处理`
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel() // 清除之前的播报
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.0
-    utterance.pitch = 1.0
-    utterance.volume = 1
+  // const alertItem = alarmStore.speechQueue.shift() // 取出队列第一个元素
+  // 判断每个在语音播报队列中的数据，是否已播报，若未播报，则播报的同时添加到已播报队列中
+  alarmStore.addAlreadySpeakQueue()
+  if (alarmStore.count.value > 0) {
+    const text = `产生${alarmStore.count.value}条严重告警，当前未处理严重告警共${alarmStore.speechQueue.length}条，请及时处理！`
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel() // 清除之前的播报
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 1.0
+      utterance.pitch = 1.0
+      utterance.volume = 1
 
-    // 监听语音结束事件
-    utterance.onend = () => {
-      // 播报结束
-      isSpeaking.value = false
-      // 判断是否一键停止
-      if (stopSpeaking.value) {
-        return
-      }
-      // 自动处理下一个播报
-      timer.value = setTimeout(() => {
-        processSpeechQueue()
-      }, 100) // 短暂间隔后继续
-    }
-
-    // 监听语音错误事件
-    utterance.onerror = () => {
-      isSpeaking.value = false
-    }
-
-    // 监听语音开始事件
-    utterance.onstart = () => {
-      // 判断是否一键停止
-      if (stopSpeaking.value) {
+      // 监听语音结束事件
+      utterance.onend = () => {
+        // 播报结束
         isSpeaking.value = false
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel()  // 使用cancel()完全停止所有语音
+        // // 判断是否一键停止
+        // if (stopSpeaking.value) {
+        //   return
+        // }
+        // // 自动处理下一个播报
+        // timer.value = setTimeout(() => {
+        //   processSpeechQueue()
+        // }, 100) // 短暂间隔后继续
+      }
+
+      // 监听语音错误事件
+      utterance.onerror = () => {
+        isSpeaking.value = false
+      }
+
+      // 监听语音开始事件
+      utterance.onstart = () => {
+        // 播报中
+        isSpeaking.value = true
+        // 判断是否一键停止
+        // if (stopSpeaking.value) {
+        //   isSpeaking.value = false
+        //   if ('speechSynthesis' in window) {
+        //     window.speechSynthesis.cancel()  // 使用cancel()完全停止所有语音
+        //   }
+        // }
+      }
+      // 开始播报
+      window.speechSynthesis.speak(utterance)
+      // 重置播报计数,表示当前新增告警已播报完毕
+      alarmStore.count.value = 0
+    } else {
+      isSpeaking.value = false
+      // 处理不支持语音合成的情况
+      if (messageInstance.value) {
+        ElMessage.closeAll()
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+      messageInstance.value = ElMessage.warning({
+        message: '您的浏览器不支持语音合成功能',
+        duration: 1000,
+        offset: window.innerHeight / 2 - 20,
+        onClose: () => {
+          messageInstance.value = null
         }
-      }
+      })
     }
-    // 开始播报
-    window.speechSynthesis.speak(utterance)
-  } else {
-    isSpeaking.value = false
-    // 处理不支持语音合成的情况
-    if (messageInstance.value) {
-      ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0))
-    }
-    messageInstance.value = ElMessage.warning({
-      message: '您的浏览器不支持语音合成功能',
-      duration: 1000,
-      offset: window.innerHeight / 2 - 20,
-      onClose: () => {
-        messageInstance.value = null
-      }
-    })
   }
 }
 
@@ -172,13 +178,15 @@ export const stopSpeak = () => {
   // 停止播报
   stopSpeaking.value = true
   // 清除定时器，防止内存泄漏
-  if (timer.value) {
-    clearTimeout(timer.value)
-    // 返回响应数据中的data字段
-  }
+  // if (timer.value) {
+  //   clearTimeout(timer.value)
+  //   // 返回响应数据中的data字段
+  // }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel()  // 使用cancel()完全停止所有语音
   }
+  // 重置播报状态
+  isSpeaking.value = false
   // 重置停止标志
   stopSpeaking.value = false
 }

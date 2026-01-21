@@ -6,7 +6,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
-import { textToSpeakStore } from '@/stores/alarmSpeakStore.js'
+import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { processSpeechQueue } from '@/utils/publicData.js'
 import axios from 'axios'
 
@@ -52,17 +52,21 @@ export const searchData = async (searchQuery) => {
     // 获取响应数据
     const data = response.data.data
     // 获取告警数据的Pinia store
-    const alarmStore = textToSpeakStore()
+    const alarmStore = useSpeakStore()
+    console.log("1111")
     // 清除列表中发生时间在2分钟以前的数据
     alarmStore.clearAlarms()
-    // 获取2分钟内的数据并存入语音播报列表
+    // // 获取2分钟内的数据并存入语音播报列表
+    console.log("2222")
     const twoMinutesAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) // 2分钟前的时间戳
     data.forEach(item => {
       // 检查发生时间是否在2分钟内
       const occurrenceTime = new Date(item.occurrenceTime)
-      if (occurrenceTime > twoMinutesAgo && item.severity ==='严重') {
-        // // 添加到语音播报列表（自动去重）
-        alarmStore.addAlarmIfNotExists(item)
+      if (occurrenceTime > twoMinutesAgo && item.severity ==='严重' && item.state === '未处理') {
+        console.log("333")
+        console.log("item",item)
+        // 添加到语音播报列表（自动去重）
+        alarmStore.addSpeechQueue(item)
       }
     })
     // 处理语音队列
