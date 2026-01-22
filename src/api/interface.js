@@ -53,18 +53,14 @@ export const searchData = async (searchQuery) => {
     const data = response.data.data
     // 获取告警数据的Pinia store
     const alarmStore = useSpeakStore()
-    console.log("1111")
     // 清除列表中发生时间在2分钟以前的数据
-    alarmStore.clearAlarms()
+    alarmStore.removeSpeechQueue()
     // // 获取2分钟内的数据并存入语音播报列表
-    console.log("2222")
     const twoMinutesAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) // 2分钟前的时间戳
     data.forEach(item => {
       // 检查发生时间是否在2分钟内
       const occurrenceTime = new Date(item.occurrenceTime)
       if (occurrenceTime > twoMinutesAgo && item.severity ==='严重' && item.state === '未处理') {
-        console.log("333")
-        console.log("item",item)
         // 添加到语音播报列表（自动去重）
         alarmStore.addSpeechQueue(item)
       }

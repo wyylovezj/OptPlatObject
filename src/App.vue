@@ -3,16 +3,16 @@
 import IndexPage from '@/components/IndexPage.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { computed,onMounted, onUnmounted, watch } from 'vue'
+import { computed,onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { refresh } from '@/utils/publicData.js'
+import { refresh, stopSpeaking } from '@/utils/publicData.js'
 import { ElMessageBox } from 'element-plus'
 
 
 
 // 获取store实例
 const authStore = useAuthStore()
-const alartStore = useSpeakStore()
+const alarmStore = useSpeakStore()
 // 获取当前路由实例
 const route = useRoute()
 
@@ -21,26 +21,33 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 let searchTimer = null
 let unwatch = null
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
-onMounted(async () => {
-
-  // 检测页面是否是通过刷新加载的
-  const navigationEntries = performance.getEntriesByType('navigation')
-  const isRefresh = navigationEntries.length > 0 && navigationEntries[0].type === 'reload'
-  if (isRefresh) {
-    ElMessageBox.confirm(
-      '页面刷新会终止语音播报，请点击确定开启语音播报！',
-      '提示',
-      {
-        showCancelButton: false,
-        confirmButtonText: '确定',
-        type: 'success',
-      }
-    )
-  }
-   unwatch = watch(
+onMounted(() => {
+  unwatch = watch(
     () => authStore.isAuthenticated,
     (newValue) => {
       if (newValue) {
+        // 检测页面是否是通过刷新加载的
+        const navigationEntries = performance.getEntriesByType('navigation')
+        const isRefresh = navigationEntries.length > 0 && navigationEntries[0].type === 'reload'
+        if (isRefresh) {
+          ElMessageBox.confirm(
+            '页面刷新会终止语音播报，请点击开启或关闭语音播报！',
+            '提示',
+            {
+              showClose: false,
+              confirmButtonText: '开启',
+              cancelButtonText: '关闭',
+              type: 'success',
+              customClass: 'custom-message-box'
+            }
+          )
+            .then(() => {
+              stopSpeaking.value = false
+            })
+            .catch(() => {
+              stopSpeaking.value = true
+            })
+        }
         searchTimer = setInterval(() => {
           refresh()
         }, 50000) // 60秒刷新一次数据
@@ -51,17 +58,16 @@ onMounted(async () => {
     },
     { immediate: true } //
   )
-
-  //
-  // onUnmounted(() => {
-  //   unwatch()
-  //   if (searchTimer) {
-  //     clearInterval(searchTimer)
-  //   }
-  // })
+  // 初始化已播报队列
+  alarmStore.initAlreadySpeakQueue()
+  // 添加页面卸载事件监听
+  window.addEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
 })
 
-onUnmounted(() => {
+
+onBeforeUnmount(() => {
+  // 移除页面卸载事件监听
+  window.removeEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
   // 在组件卸载时取消监听
   if (unwatch) {
     unwatch()
@@ -70,13 +76,9 @@ onUnmounted(() => {
   if (searchTimer) {
     clearInterval(searchTimer)
   }
-  // 持久化存储已播报列表
-  try {
-    localStorage.setItem('alreadySpeakQueue', JSON.stringify(alartStore.alreadySpeakQueue.value))
-  } catch (error) {
-    console.error('保存已播报队列到本地存储失败:', error)
-  }
+  alarmStore.persistAlreadySpeakQueue()
 })
+
 </script>
 
 <template>
@@ -105,4 +107,8 @@ html, body {
 .el-message__content {
   font-size: 16px !important;
 }
+.custom-message-box {
+  margin-top: -15% !important;
+}
+
 </style>

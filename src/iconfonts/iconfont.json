@@ -6,6 +6,20 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "22598862",
+      "name": "铃铛-静音_面",
+      "font_class": "lingdang-jingyin_mian",
+      "unicode": "e747",
+      "unicode_decimal": 59207
+    },
+    {
+      "icon_id": "22598859",
+      "name": "铃铛_面",
+      "font_class": "lingdang_mian",
+      "unicode": "e746",
+      "unicode_decimal": 59206
+    },
+    {
       "icon_id": "26814218",
       "name": "播报",
       "font_class": "bobao",
