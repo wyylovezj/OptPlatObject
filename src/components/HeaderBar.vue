@@ -1,10 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { messageInstance, stopSpeak, isSpeaking } from '@/utils/publicData.js'
+import { messageInstance, stopSpeak, isSpeaking ,stopSpeaking } from '@/utils/publicData.js'
 
 
 // 获取store实例
@@ -13,6 +13,9 @@ const user = sessionStorage.getItem('user')
 const name = ref(user)
 // 控制喇叭提示框的隐藏与显示
 const visible = ref(false)
+// 控制告警图标提示框的隐藏与显示
+const alarmVisible = ref(false)
+const content = ref('')
 // 顶部个人信息菜单后面的上下箭头翻转标志
 const direction = ref(false)
 // 面包屑过滤
@@ -22,7 +25,49 @@ const breadcrumbList = computed(() => {
   // 过滤掉没有breadcrumb的路由记录
   return route.matched.filter(item => item.meta && item.meta.breadcrumb)
 })
+// 侦听开启/关闭语音播报状态的更新
+watch( stopSpeaking, async (newVal) => {
+  if (newVal === false) {
+    content.value = '点击关闭语音播报'
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance.value = ElMessage.success({
+      message: '已开启语音播报',
+      duration: 1000,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+  } else {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel() // 清除之前的播报
+    }
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    content.value = '点击开启语音播报'
+    messageInstance.value = ElMessage.success({
+      message: '已关闭语音播报',
+      duration: 1000,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+  }
+},
+  { flush: 'sync' } // 立即触发回调函数
+)
 
+// 控制个人信息菜单的展开与收起
 const changeDirection = (isVisible) => {
   direction.value = isVisible
 }
@@ -35,7 +80,6 @@ const logout = async () =>{
     ElMessage.closeAll()
     // 等待消息关闭动画完成
     await new Promise(resolve => setTimeout(resolve, 0));
-
   }
   messageInstance.value = ElMessage.success({
     message: '退出登录',
@@ -62,14 +106,25 @@ const logout = async () =>{
     <!-- 面包屑组件结束 -->
   </div>
   <div class="user">
+    <!--  告警开关控制图标  -->
+    <el-tooltip :visible="alarmVisible"
+                :content="content"
+    >
+      <el-icon class="speak" @click="stopSpeaking = !stopSpeaking" @mouseenter="alarmVisible = true" @mouseleave="alarmVisible = false">
+        <svg class="icon" aria-hidden="true" style="pointer-events: none">
+          <use v-show="!stopSpeaking" xlink:href="#icon-lingdang_mian"></use>
+          <use v-show="stopSpeaking" xlink:href="#icon-lingdang-jingyin_mian"></use>
+        </svg>
+      </el-icon>
+    </el-tooltip>
     <!--  告警喇叭图标  -->
     <el-tooltip :visible="visible"
       content="停止语音播报"
     >
       <el-icon class="speak" @click="stopSpeak" @mouseenter="visible = true" @mouseleave="visible = false">
         <svg class="icon" aria-hidden="true" style="pointer-events: none">
-          <use v-show="isSpeaking===false" xlink:href="#icon-bobao-no"></use>
-          <use v-show="isSpeaking===true" xlink:href="#icon-bobao"></use>
+          <use v-show="!isSpeaking" xlink:href="#icon-bobao-no"></use>
+          <use v-show="isSpeaking" xlink:href="#icon-bobao"></use>
         </svg>
       </el-icon>
     </el-tooltip>
@@ -161,7 +216,6 @@ const logout = async () =>{
   cursor: pointer;
   margin-right: 20px;
 }
-
 .user-name {
   font-size: 15px;
   margin-left: 8px;

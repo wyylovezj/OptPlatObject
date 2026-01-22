@@ -62,36 +62,29 @@ export const handleOpinion = ref('')
 // // 定时器
 // const timer = ref(null)
 
-// 控制一键停止本次所有告警播报
-const stopSpeaking = ref(false)
+// 控制开启和关闭告警播报
+export const stopSpeaking = ref(false)
 
 // 语音播报状态：用于喇叭状态和语音播报顺序控制
 export const isSpeaking = ref(false)
+
 
 /**
  * 处理语音播报队列
  */
 export const processSpeechQueue = async () => {
-  // 清除定时器，防止内存泄漏
-  // if (timer.value) {
-  //   clearTimeout(timer.value)
-  //   // 返回响应数据中的data字段
-  // }
-  // 判断是否一键停止
-  if (stopSpeaking.value) {
-    isSpeaking.value = false
-    return
-  }
   // 获取告警数据的Pinia store
   const alarmStore = useSpeakStore()
   if (isSpeaking.value || alarmStore.speechQueue.length === 0) {
     return // 如果正在播报或队列为空，直接返回
   }
-  // const alertItem = alarmStore.speechQueue.shift() // 取出队列第一个元素
   // 判断每个在语音播报队列中的数据，是否已播报，若未播报，则播报的同时添加到已播报队列中
   alarmStore.addAlreadySpeakQueue()
-  if (alarmStore.count.value > 0) {
-    const text = `产生${alarmStore.count.value}条严重告警，当前未处理严重告警共${alarmStore.speechQueue.length}条，请及时处理！`
+  // 移除已播报列表中已处理的数据
+  alarmStore.removeAlreadySpeakQueue()
+  console.log(alarmStore.count)
+  if (alarmStore.count > 0 && !stopSpeaking.value) {
+    const text = `产生${alarmStore.count}条严重告警，当前未处理严重告警共${alarmStore.speechQueue.length}条，请及时处理！`
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel() // 清除之前的播报
       const utterance = new SpeechSynthesisUtterance(text)
@@ -103,14 +96,6 @@ export const processSpeechQueue = async () => {
       utterance.onend = () => {
         // 播报结束
         isSpeaking.value = false
-        // // 判断是否一键停止
-        // if (stopSpeaking.value) {
-        //   return
-        // }
-        // // 自动处理下一个播报
-        // timer.value = setTimeout(() => {
-        //   processSpeechQueue()
-        // }, 100) // 短暂间隔后继续
       }
 
       // 监听语音错误事件
@@ -122,18 +107,13 @@ export const processSpeechQueue = async () => {
       utterance.onstart = () => {
         // 播报中
         isSpeaking.value = true
-        // 判断是否一键停止
-        // if (stopSpeaking.value) {
-        //   isSpeaking.value = false
-        //   if ('speechSynthesis' in window) {
-        //     window.speechSynthesis.cancel()  // 使用cancel()完全停止所有语音
-        //   }
-        // }
+        console.log('开始播报')
       }
       // 开始播报
       window.speechSynthesis.speak(utterance)
       // 重置播报计数,表示当前新增告警已播报完毕
-      alarmStore.count.value = 0
+      alarmStore.count = 0
+      console.log(alarmStore.count)
     } else {
       isSpeaking.value = false
       // 处理不支持语音合成的情况
@@ -170,25 +150,15 @@ export const resumeSpeech = () => {
     window.speechSynthesis.resume()
   }
 }
-
 /**
  * 停止语音播报
  */
 export const stopSpeak = () => {
-  // 停止播报
-  stopSpeaking.value = true
-  // 清除定时器，防止内存泄漏
-  // if (timer.value) {
-  //   clearTimeout(timer.value)
-  //   // 返回响应数据中的data字段
-  // }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel()  // 使用cancel()完全停止所有语音
   }
   // 重置播报状态
   isSpeaking.value = false
-  // 重置停止标志
-  stopSpeaking.value = false
 }
 
 /**

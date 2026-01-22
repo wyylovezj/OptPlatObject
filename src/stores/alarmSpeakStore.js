@@ -15,15 +15,11 @@ export const useSpeakStore = defineStore('speak', () => {
   const speechQueue = ref([])
   // 已播报队列
   // 从本地存储初始化已播报队列
-  const alreadySpeakQueue = ref(() => {
-    const stored = localStorage.getItem('alreadySpeakQueue')
-    return stored ? JSON.parse(stored) : []
-  })
+  const alreadySpeakQueue = ref([])
   // 新增告警数目：语音播报列表 - 已播报列表
   const count = ref(0)
   // 添加未处理告警数据到列表（去重）
-  const addSpeechQueue = (alarmData) => {
-    console.log("333")
+  const addSpeechQueue =  (alarmData) => {
     // 检查是否已存在相同的事件ID
     const exists = speechQueue.value.some(item => item.event_id === alarmData.event_id)
     if (!exists && alarmData.state === '未处理') {
@@ -36,15 +32,14 @@ export const useSpeakStore = defineStore('speak', () => {
     return false
   }
   // 未处理的新告警添加到已播报队列（去重）
-  const addAlreadySpeakQueue = () => {
+  const addAlreadySpeakQueue =  () => {
     speechQueue.value.forEach((alertItem) => {
-      console.log(typeof alreadySpeakQueue.value)
       // 检查语音播报队列和已播报队列中是否存在相同事件ID
-      const exists = alreadySpeakQueue.value.some(item => item.event_id === alertItem.event_id)
+      const exists = alreadySpeakQueue.value.some(item => item === alertItem.event_id)
       if (!exists) {
         // 如果事件ID在语音播报队列且不再已播报队列，则添加数据到已播报队列
         alreadySpeakQueue.value.push(alertItem.event_id)
-        // 新增告警数 +1
+        // 未播报告警数 +1
         count.value++
         // 返回true
         return true
@@ -55,7 +50,7 @@ export const useSpeakStore = defineStore('speak', () => {
   }
 
   // 从已播报队列去除已播报且已处理告警
-  const removeAlreadySpeakQueue = () => {
+  const removeAlreadySpeakQueue =  () => {
     alreadySpeakQueue.value.forEach(alertItem => {
       // 检查语音播报队列和已播报队列中是否存在相同事件ID
       const exists = speechQueue.value.some(item => item.event_id === alertItem)
@@ -70,8 +65,7 @@ export const useSpeakStore = defineStore('speak', () => {
     })
   }
   // 清除列表中发生时间在2分钟以前的数据
-  const clearAlarms = () => {
-    console.log("222")
+  const removeSpeechQueue =  () => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000) // 2分钟前的时间戳
 
     speechQueue.value = speechQueue.value.filter(item => {
@@ -80,13 +74,35 @@ export const useSpeakStore = defineStore('speak', () => {
       return itemTime > twoMinutesAgo
     })
   }
+  // 初始化已播报队列
+  const initAlreadySpeakQueue = () => {
+    console.log("init",localStorage.getItem('alreadySpeakQueue'))
+    if (localStorage.getItem('alreadySpeakQueue') !== 'undefined' && localStorage.getItem('alreadySpeakQueue') !== null) {
+      alreadySpeakQueue.value = JSON.parse(localStorage.getItem('alreadySpeakQueue'))
+      console.log("init",alreadySpeakQueue.value)
+    }
+  }
+  // 持久化已播报队列
+  const persistAlreadySpeakQueue = () => {
+    try {
+      localStorage.setItem('alreadySpeakQueue', JSON.stringify(alreadySpeakQueue.value))
+      console.log("持久化",alreadySpeakQueue.value)
+      console.log("持久化本地存储",localStorage.getItem('alreadySpeakQueue'))
+      console.log('已播报列表已保存到本地存储')
+    } catch (error) {
+      console.error('保存已播报队列到本地存储失败:', error)
+    }
+  }
+
   return {
     speechQueue,
     alreadySpeakQueue,
     count,
     addSpeechQueue,
-    clearAlarms,
+    removeSpeechQueue,
     addAlreadySpeakQueue,
-    removeAlreadySpeakQueue
+    removeAlreadySpeakQueue,
+    initAlreadySpeakQueue,
+    persistAlreadySpeakQueue
   }
 })
