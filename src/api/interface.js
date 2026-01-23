@@ -7,9 +7,26 @@
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { processSpeechQueue } from '@/utils/publicData.js'
+import { processSpeechQueue, dataDictionary } from '@/utils/publicData.js'
 import axios from 'axios'
 
+
+
+// 获取数据字典
+export const getAlarmDictionary = async (visible,type) => {
+  try {
+    if (visible) {
+      const response = await axios.post('http://127.0.0.1:8000/getDict', {
+        "data": type
+      })
+      console.log('Alarm dictionary:', response.data.data)
+      dataDictionary.value = response.data.data
+    }
+  } catch (error) {
+    console.error('Error fetching alarm dictionary:', error)
+    throw error
+  }
+}
 
 /**
  * 登录认证函数：异步函数

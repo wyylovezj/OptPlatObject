@@ -77,6 +77,7 @@ function routeTo() {
 <style scoped>
 .tac {
   user-select: none;
+  overflow: hidden;
 }
 .el-menu-vertical {
   border-right: none !important;
@@ -93,7 +94,6 @@ function routeTo() {
   transition: all 0.3s ease;
 }
 :deep(.el-menu-item) {
-  padding-left: 50px !important;
   color: rgba(207, 211, 217, 1)  !important;
 }
 :deep(.el-menu-item:hover) {
