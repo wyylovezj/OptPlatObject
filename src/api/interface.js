@@ -7,16 +7,15 @@
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { processSpeechQueue, dataDictionary } from '@/utils/publicData.js'
+import { processSpeechQueue, dataDictionary, serverIp } from '@/utils/publicData.js'
 import axios from 'axios'
-
 
 
 // 获取数据字典
 export const getAlarmDictionary = async (visible,type) => {
   try {
     if (visible) {
-      const response = await axios.post('http://127.0.0.1:8000/getDict', {
+      const response = await axios.post(`${serverIp.value}/dataDictionary_get`, {
         "data": type
       })
       console.log('Alarm dictionary:', response.data.data)
@@ -39,7 +38,7 @@ export const getAlarmDictionary = async (visible,type) => {
 export const loginAuthentication = async (username, password) => {
   try {
     // 发送POST请求到登录接口
-    const response = await axios.post('http://127.0.0.1:8000/login', {
+    const response = await axios.post(`${serverIp.value}/login`, {
       username,
       password,
     })
@@ -65,7 +64,7 @@ export const searchData = async (searchQuery) => {
       state: searchQuery.state === '' ? '未处理' : searchQuery.state, // 处理状态参数
     }
     // 发送POST请求到后端API
-    const response = await axios.post('http://127.0.0.1:8000/searchData', params)
+    const response = await axios.post(`${serverIp.value}/searchData`, params)
     // 获取响应数据
     const data = response.data.data
     // 获取告警数据的Pinia store
@@ -102,7 +101,7 @@ export const searchData = async (searchQuery) => {
 export const closeAlert = async (selectedEventIds, handleOpinion) => {
   try {
     // 发送POST请求到后端API以关闭告警
-    const response = await axios.post('http://127.0.0.1:8000/closeAlarm', {
+    const response = await axios.post(`${serverIp.value}/closeAlarm`, {
       selectedEventIds, // 要关闭的事件ID数组
       handleOpinion, // 处理意见
     })

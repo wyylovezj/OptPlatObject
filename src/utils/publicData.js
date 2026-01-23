@@ -39,7 +39,6 @@ export const Query = {
   object: '',        // 主机名
   system_name: '',   // 业务系统
   occurrenceTime: [], // 发生时间
-  // timeSelect: '',    // 快捷选择时间：今天，明天
   state:'',         // 告警状态
   source: ''         // 告警来源
 }
@@ -70,6 +69,8 @@ export const stopSpeaking = ref(false)
 // 语音播报状态：用于喇叭状态和语音播报顺序控制
 export const isSpeaking = ref(false)
 
+// 修改 src/utils/publicData.js 中的 serverIp 定义
+export const serverIp = ref(window.APP_CONFIG?.SERVER_IP || 'default-ip');
 
 /**
  * 处理语音播报队列
@@ -200,7 +201,16 @@ export const throttle = (fn, delay) => {
   }
 }
 // 表单查询数据模型
-export const searchQuery = ref(JSON.parse(JSON.stringify(Query)))
+export const searchQuery = ref({
+  category: '',      // 告警分类
+  severity: '',      // 告警级别
+  ip: '',            // IP地址
+  object: '',        // 主机名
+  system_name: '',   // 业务系统
+  occurrenceTime: [], // 发生时间
+  state:'',         // 告警状态
+  source: ''         // 告警来源
+})
 // 搜索按钮、刷新按钮查询数据,增加了节流控制
 export const refresh = throttle(async () => {
   // 立刻停止上次告警
@@ -209,6 +219,7 @@ export const refresh = throttle(async () => {
   loading.value = true
   // 关闭告警图形动画
   blinkTrigger.value = false
+  console.log('searchQuery:',searchQuery.value)
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
   const minDelay = new Promise(resolve => setTimeout(resolve, 300))
   try {

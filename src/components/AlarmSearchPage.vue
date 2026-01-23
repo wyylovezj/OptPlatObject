@@ -170,12 +170,12 @@ const batchClose = async () => {
   <div class="search-page-container">
     <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
       <el-form-item label="告警分类：" prop="category">
-        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getAlarmDictionary(visible, '告警分类')">
-          <el-option v-for="(item,index) in dataDictionary" :key="index" :value="item" />
+        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getAlarmDictionary(visible, '告警分类')" @clear="searchQuery.category = ''">
+          <el-option v-for="(item, index) in dataDictionary" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
         </el-select>
       </el-form-item>
       <el-form-item label="告警级别：" prop="severity">
-        <el-select v-model="searchQuery.severity" clearable placeholder="请选择" style="width: 150px">
+        <el-select v-model="searchQuery.severity" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.severity = ''">
           <el-option v-for="item in severityOptions" :key="item.value" :label="item.label" :value="item.value">
             <div class="flex items-center">
               <el-tag :color="item.color" style="margin-right: 8px" size="small" />
@@ -207,7 +207,7 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">
-        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => getAlarmDictionary(visible, '系统名称')">
+        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => getAlarmDictionary(visible, '系统名称')" @clear="searchQuery.system_name = ''">
           <el-option v-for="(item,index) in dataDictionary" :key="index" :value="item" />
         </el-select>
       </el-form-item>
@@ -220,15 +220,16 @@ const batchClose = async () => {
           value-format="YYYY-MM-DD HH:mm:ss"
           :shortcuts="shortcuts"
           unlink-panels
+          @clear="searchQuery.occurrenceTime = []"
         />
       </el-form-item>
       <el-form-item label="告警状态：" prop="state">
-        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 100px">
+        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 100px" @clear="searchQuery.state = ''">
           <el-option v-for="item in stateOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
       <el-form-item label="告警来源："  prop="source">
-        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 100px">
+        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 100px" @clear="searchQuery.source = ''">
           <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>

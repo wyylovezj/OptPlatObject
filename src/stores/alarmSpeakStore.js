@@ -41,6 +41,7 @@ export const useSpeakStore = defineStore('speak', () => {
         alreadySpeakQueue.value.push(alertItem.event_id)
         // 未播报告警数 +1
         count.value++
+        persistAlreadySpeakQueue()
         // 返回true
         return true
       }
@@ -51,23 +52,15 @@ export const useSpeakStore = defineStore('speak', () => {
 
   // 从已播报队列去除已播报且已处理告警
   const removeAlreadySpeakQueue =  () => {
-    alreadySpeakQueue.value.forEach(alertItem => {
-      // 检查语音播报队列和已播报队列中是否存在相同事件ID
-      const exists = speechQueue.value.some(item => item.event_id === alertItem)
-      if (!exists) {
-        // 如果事件ID在语音播报队列且不再已播报队列，则添加数据到已播报队列
-        alreadySpeakQueue.value.remove(alertItem)
-        // 返回true
-        return true
-      }
-      // 如果相同，则返回false
-      return false
+    alreadySpeakQueue.value = alreadySpeakQueue.value.filter(alertItem => {
+      // 只保留仍在语音播报队列中的项目
+      return speechQueue.value.some(item => item.event_id === alertItem)
     })
+    persistAlreadySpeakQueue()
   }
   // 清除列表中发生时间在2分钟以前的数据
   const removeSpeechQueue =  () => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000) // 2分钟前的时间戳
-
     speechQueue.value = speechQueue.value.filter(item => {
       // 检查发生时间是否在2分钟以内
       const itemTime = new Date(item.occurrenceTime)
@@ -79,13 +72,13 @@ export const useSpeakStore = defineStore('speak', () => {
     console.log("init",localStorage.getItem('alreadySpeakQueue'))
     if (localStorage.getItem('alreadySpeakQueue') !== 'undefined' && localStorage.getItem('alreadySpeakQueue') !== null) {
       alreadySpeakQueue.value = JSON.parse(localStorage.getItem('alreadySpeakQueue'))
-      console.log("init",alreadySpeakQueue.value)
     }
   }
   // 持久化已播报队列
   const persistAlreadySpeakQueue = () => {
     try {
-      localStorage.setItem('alreadySpeakQueue', JSON.stringify(alreadySpeakQueue.value))
+      // 保存当前值的副本
+      localStorage.setItem('alreadySpeakQueue', JSON.stringify([...alreadySpeakQueue.value]))
       console.log("持久化",alreadySpeakQueue.value)
       console.log("持久化本地存储",localStorage.getItem('alreadySpeakQueue'))
       console.log('已播报列表已保存到本地存储')
