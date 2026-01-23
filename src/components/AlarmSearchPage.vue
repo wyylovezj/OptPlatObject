@@ -1,18 +1,12 @@
 <script setup>
 import { ref } from 'vue'
-import { selectedRows, DialogVisibleClose, refresh, searchQuery } from '@/utils/publicData.js'
+import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary } from '@/utils/publicData.js'
+import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 
 
-// 告警分类选择器
-const categoryOptions = [
-  {
-    value: '操作系统',
-  },
-  {
-    value: '中间件',
-  },
-]
+
+
 const severityOptions = [
   {
     value: 4,
@@ -36,9 +30,7 @@ const severityOptions = [
   },
 ]
 
-const system_nameOptions = [
 
-]
 
 const stateOptions = [
   {
@@ -178,8 +170,8 @@ const batchClose = async () => {
   <div class="search-page-container">
     <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
       <el-form-item label="告警分类：" prop="category">
-        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px">
-          <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getAlarmDictionary(visible, '告警分类')">
+          <el-option v-for="(item,index) in dataDictionary" :key="index" :value="item" />
         </el-select>
       </el-form-item>
       <el-form-item label="告警级别：" prop="severity">
@@ -215,8 +207,8 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">
-        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px">
-          <el-option v-for="item in system_nameOptions" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => getAlarmDictionary(visible, '系统名称')">
+          <el-option v-for="(item,index) in dataDictionary" :key="index" :value="item" />
         </el-select>
       </el-form-item>
       <el-form-item label="发生时间：" prop="occurrenceTime">
