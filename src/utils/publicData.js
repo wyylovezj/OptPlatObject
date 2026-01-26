@@ -7,6 +7,9 @@ import { ElMessage } from 'element-plus'
 // 表格组件实例的引用
 export const tableRef = ref(null)
 
+// 获取当前登录用户名
+export const user = ref(null)
+
 // 侧边栏折叠标志：false为展开，true为折叠
 export const isCollapse = ref(false)
 
@@ -29,8 +32,21 @@ export const currentPage = ref(1)
 export const messageInstance = ref(null)
 
 // 数据字典
-export const dataDictionary = ref([])
-
+export const dataDictionary = ref({
+  category: [],      // 告警分类
+  system_name: [],      // 业务系统
+  userGroup: [],      // 用户组
+  user: [],          // 用户
+})
+// 触发工单的数据模型
+export const orderModel = ref({
+  system_name: '',  // 业务系统
+  eventId: '', // 事件ID
+  createUser: '', // 创建人
+  userGroup: '', // 用户组
+  username: '', // 用户
+  orderHandleOpinion: '', // 处理意见
+})
 // 数据查询参数的数据模型
 export const Query = {
   category: '',      // 告警分类
@@ -69,6 +85,7 @@ export const stopSpeaking = ref(false)
 // 语音播报状态：用于喇叭状态和语音播报顺序控制
 export const isSpeaking = ref(false)
 
+
 // 修改 src/utils/publicData.js 中的 serverIp 定义
 export const serverIp = ref(window.APP_CONFIG?.SERVER_IP || 'default-ip');
 
@@ -85,7 +102,6 @@ export const processSpeechQueue = async () => {
   alarmStore.addAlreadySpeakQueue()
   // 移除已播报列表中已处理的数据
   alarmStore.removeAlreadySpeakQueue()
-  console.log(alarmStore.count)
   if (alarmStore.count > 0 && !stopSpeaking.value) {
     const text = `产生${alarmStore.count}条严重告警，当前未处理严重告警共${alarmStore.speechQueue.length}条，请及时处理！`
     if ('speechSynthesis' in window) {
@@ -219,7 +235,6 @@ export const refresh = throttle(async () => {
   loading.value = true
   // 关闭告警图形动画
   blinkTrigger.value = false
-  console.log('searchQuery:',searchQuery.value)
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
   const minDelay = new Promise(resolve => setTimeout(resolve, 300))
   try {
@@ -240,6 +255,10 @@ export const refresh = throttle(async () => {
   }
   finally {
     loading.value = false
+    // 手动刷新完成后重置定时器
+    if (window.resetRefreshTimer) {
+      window.resetRefreshTimer()
+    }
   }
 }, 300)
 

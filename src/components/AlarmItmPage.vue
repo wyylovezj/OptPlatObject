@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2025-12-08 09:45:07
  */
-import { closeAlert, searchData } from '@/api/interface.js'
+import { closeAlert, getUserGroup, searchData, creatOrder } from '@/api/interface.js'
 import { Edit, } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref, onMounted } from 'vue'
@@ -24,7 +24,7 @@ import {
   messageInstance,
   blinkTrigger,
   sortSeverity,
-  handleSortChange,
+  handleSortChange, dataDictionary, user,orderModel,refresh
 } from '@/utils/publicData.js'
 
 
@@ -61,10 +61,11 @@ const initTableData = async () => {
 onMounted(async () => {
   // 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
   await initTableData()
+  if (sessionStorage.getItem('user')) {
+    user.value = sessionStorage.getItem('user')
+    orderModel.value.createUser = user.value
   }
-)
-
-
+})
 
 
 // 全选功能函数
@@ -170,6 +171,8 @@ const dialogVisibleView = ref(false)
 // 《查看》按钮弹出的模态框中当前表格行数据的变量
 const currentRow = ref({})
 
+// 《触发工单》按钮弹出的模态框的显示标识符
+const dialogVisibleOrder = ref(false)
 
 /**
  * 表格《告警级别》列自定义内容：根据问题严重程度获取对应的颜色代码
@@ -197,7 +200,8 @@ const getSeverityColor = (severity) => {
 const getStateClass = (state) => {
   const classMap = {
     '未处理': 'status-unprocessed',
-    '已关闭': 'status-processed',
+    '已分派': 'status-assigned',
+    '已关闭': 'status-closed',
   }
   return classMap[state] || 'status-default'
 }
@@ -257,8 +261,71 @@ const handleClose = async (row) => {
  * @param row
  */
 const handleCreateTicket = (row) => {
-  console.log('触发工单', row)
-  // 这里可以添加触发工单的逻辑
+  // row 为表格列传入的当前行变量
+  // 将当前选中的行数据保存到响应式变量中
+  // 这些数据将被用于查看对话框的内容展示
+  currentRow.value = row
+  // 获取告警事件ID
+  orderModel.value.eventId = row.event_id
+  orderModel.value.system_name = row.system_name
+  // 打开查看对话框
+  dialogVisibleOrder.value = true
+}
+const createTicket = async () => {
+  try {
+    await creatOrder(orderModel.value)
+      .then(async () => {
+          // 关闭工单模态框
+          dialogVisibleOrder.value = false
+          // 清空数据模型
+          orderModel.value.system_name = ''
+          orderModel.value.eventId = ''
+          orderModel.value.userGroup = ''
+          orderModel.value.username = ''
+          orderModel.value.orderHandleOpinion = ''
+          // 更新数据
+          refresh()
+          // 显示成功提示消息
+          if (messageInstance.value) {
+            // 先关闭所有可能存在的消息
+            ElMessage.closeAll()
+            // 等待消息关闭动画完成
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+
+          // 显示成功提示
+          messageInstance.value = ElMessage.success({
+            message: '工单创建成功', // 成功提示内容
+            duration: 1000,  // 显示持续时间(毫秒)
+            offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
+            onClose: () => {   // 消息关闭时的回调
+              messageInstance.value = null   // 清空消息实例引用
+            }
+          })
+      })
+      .catch(async () => {
+        // 显示成功提示消息
+        if (messageInstance.value) {
+          // 先关闭所有可能存在的消息
+          ElMessage.closeAll()
+          // 等待消息关闭动画完成
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        // 显示成功提示
+        messageInstance.value = ElMessage.error({
+          message: '工单创建失败', // 成功提示内容
+          duration: 1000,  // 显示持续时间(毫秒)
+          offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
+          onClose: () => {   // 消息关闭时的回调
+            messageInstance.value = null   // 清空消息实例引用
+          }
+        })
+      })
+  }
+  catch (e) {
+    console.log(e)
+  }
 }
 
 /**
@@ -370,7 +437,7 @@ const closeCurrentAlert = async () => {
         </el-table-column>
         <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
           <template #default="{row}">
-            <span :class="getStateClass(row.state)">{{ row.state }}</span>
+              <span :class="getStateClass(row.state)">{{ row.state }}</span>
           </template>
         </el-table-column>>
         <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="10%" :resizable="false">
@@ -385,7 +452,7 @@ const closeCurrentAlert = async () => {
         </el-table-column>
         <el-table-column prop="object" label="主机名" min-width="16%" show-overflow-tooltip :resizable="false">
           <template #default="{row}">
-            <el-button type="primary" plain @click="handleView(row)">{{ row.object || '/' }}</el-button>
+            <el-button type="primary" plain @click="handleView(row)" style="overflow: hidden">{{ row.object || '/' }}</el-button>
           </template>
         </el-table-column>
         <el-table-column prop="ip" label="IP地址" min-width="8%" :resizable="false">
@@ -415,9 +482,11 @@ const closeCurrentAlert = async () => {
                 <el-button type="primary" :icon="Edit"></el-button>>
                 <template #dropdown>
                   <el-dropdown-menu style="user-select: none">
-                    <el-dropdown-item @click="handleView(scope.row)">查看</el-dropdown-item>
-                    <el-dropdown-item @click="handleClose(scope.row)">关闭</el-dropdown-item>
-                    <el-dropdown-item @click="handleCreateTicket(scope.row)">触发工单</el-dropdown-item>
+                    <el-dropdown-item @click="handleView(scope.row)" style="color: #409EFF;font-weight: bold" >查看</el-dropdown-item>
+                    <el-dropdown-item v-if="scope.row.state === '已关闭'" disabled @click="handleClose(scope.row)">关闭</el-dropdown-item>
+                    <el-dropdown-item v-else @click="handleClose(scope.row)" style="color: #409EFF;font-weight: bold">关闭</el-dropdown-item>
+                    <el-dropdown-item v-if="scope.row.state === '已关闭' || scope.row.state === '已分派'" disabled @click="handleCreateTicket(scope.row)">触发工单</el-dropdown-item>
+                    <el-dropdown-item v-else @click="handleCreateTicket(scope.row)" style="color: #409EFF;font-weight: bold">触发工单</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -461,6 +530,7 @@ const closeCurrentAlert = async () => {
       center
       style="user-select: text"
       destroy-on-close
+      @close="() => { dialogVisibleView = false }"
     >
       <el-table
         :data="[currentRow]"
@@ -523,6 +593,7 @@ const closeCurrentAlert = async () => {
       width="40%"
       center
       :show-close="false"
+      @close="() => { handleOpinion = ''; DialogVisibleClose = false }"
     >
       <div style="font-size: 20px; color: #606266; user-select: none">处理意见：</div>
       <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
@@ -546,9 +617,66 @@ const closeCurrentAlert = async () => {
             DialogVisibleClose = false;
             handleOpinion = ''
           "
-        >取消</el-button
-        >
+        >取消</el-button>
       </div>
+    </el-dialog>
+    <!-- 触发工单按钮模态框 -->
+    <el-dialog
+      v-model="dialogVisibleOrder"
+      top="10%" title="触发工单"
+      width="30%"
+      center
+      :show-close="false"
+      @close="() => { orderModel.system_name = '';orderModel.eventId = '';orderModel.userGroup = '';orderModel.username ='';orderModel.orderHandleOpinion = '';dialogVisibleOrder = false}"
+    >
+      <el-form
+        :inline="true"
+        :model="orderModel"
+        style=" display: flex;align-items: center;flex-wrap: wrap;user-select: none"
+      >
+        <el-form-item label="用户组名" prop="userGroup">
+          <el-select v-model="orderModel.userGroup" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getUserGroup(visible, '用户组')" @clear="orderModel.userGroup = '';orderModel.username = '';dataDictionary.userGroup = [];dataDictionary.username = []">
+            <el-option v-for="(item, index) in dataDictionary.userGroup" :key="index" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="用户名" prop="username">
+          <el-select v-model="orderModel.username" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getUserGroup(visible, '用户')" @clear="orderModel.username = '';dataDictionary.username = []">
+            <el-option v-for="(item, index) in dataDictionary.username" :key="index" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="处理意见" prop="orderHandleOpinion" style="width: 100%">
+          <div style="display: flex; flex: 1;align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
+            <el-input
+              v-model="orderModel.orderHandleOpinion"
+              style="font-size: 16px;width: 100%"
+              type="textarea"
+              :autosize="{ maxRows: 10, minRows: 5 }"
+              resize="none"
+              placeholder="请输入……"
+              maxlength="100"
+              show-word-limit
+            />
+          </div>
+        </el-form-item>
+        <el-form-item style="flex: none;margin-left: auto;margin-right: 5px;">
+          <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
+            <el-button type="primary" @click="orderModel.orderHandleOpinion = ''">清空</el-button>
+            <el-button type="primary" @click="createTicket">确认</el-button>
+            <el-button
+              type="primary"
+              @click="
+                dialogVisibleOrder = false;
+                // 清空数据模型
+                orderModel.value.system_name = ''
+                orderModel.value.eventId = ''
+                orderModel.value.userGroup = ''
+                orderModel.value.username = ''
+                orderModel.value.orderHandleOpinion = ''
+                "
+            >取消</el-button>
+          </div>
+        </el-form-item>
+      </el-form>
     </el-dialog>
   </div>
 
@@ -604,10 +732,17 @@ const closeCurrentAlert = async () => {
 .status-unprocessed {
   color: #909399; /* 未处理 - 蓝色 */
 }
-.status-processed {
+.status-closed {
   color: #67C23A; /* 已处理 - 绿色 */
 }
+.status-assigned {
+  color: #E6A23C; /* 已分配 - 黄色 */
+}
 
+/* 表格行样式 */
+:deep(.el-table__body tr) {
+  transition: background-color 0.3s ease;
+}
 /* 表格行hover样式 */
 :deep(.el-table__body tr:hover > td) {
   background-color: inherit !important;

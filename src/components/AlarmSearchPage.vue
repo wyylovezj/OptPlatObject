@@ -5,8 +5,6 @@ import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 
 
-
-
 const severityOptions = [
   {
     value: 4,
@@ -35,6 +33,9 @@ const severityOptions = [
 const stateOptions = [
   {
     value: '未处理',
+  },
+  {
+    value: '已分派',
   },
   {
     value: '已关闭',
@@ -136,7 +137,22 @@ const formSearch = ref(null)
 
 const clearSearch = () => {
   if (formSearch.value) {
+    // 重置表单验证和字段值
     formSearch.value.resetFields()
+    // 重置数据模型值
+    searchQuery.value = {
+      category: '',      // 告警分类
+      severity: '',      // 告警级别
+      ip: '',            // IP地址
+      object: '',        // 主机名
+      system_name: '',   // 业务系统
+      occurrenceTime: [], // 发生时间
+      state:'',         // 告警状态
+      source: ''         // 告警来源
+    }
+    // 重置数据字典值
+    dataDictionary.value.category= []
+    dataDictionary.value.system_name= []
   }
 }
 
@@ -170,8 +186,8 @@ const batchClose = async () => {
   <div class="search-page-container">
     <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
       <el-form-item label="告警分类：" prop="category">
-        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getAlarmDictionary(visible, '告警分类')" @clear="searchQuery.category = ''">
-          <el-option v-for="(item, index) in dataDictionary" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
+        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getAlarmDictionary(visible, '告警分类')" @clear="searchQuery.category = '';dataDictionary.category = []">
+          <el-option v-for="(item, index) in dataDictionary.category" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
         </el-select>
       </el-form-item>
       <el-form-item label="告警级别：" prop="severity">
@@ -207,8 +223,8 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">
-        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => getAlarmDictionary(visible, '系统名称')" @clear="searchQuery.system_name = ''">
-          <el-option v-for="(item,index) in dataDictionary" :key="index" :value="item" />
+        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => getAlarmDictionary(visible, '系统名称')" @clear="searchQuery.system_name = '';dataDictionary.system_name = []">
+          <el-option v-for="(item,index) in dataDictionary.system_name" :key="index" :value="item" />
         </el-select>
       </el-form-item>
       <el-form-item label="发生时间：" prop="occurrenceTime">
@@ -224,12 +240,12 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="告警状态：" prop="state">
-        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 100px" @clear="searchQuery.state = ''">
+        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.state = ''">
           <el-option v-for="item in stateOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
       <el-form-item label="告警来源："  prop="source">
-        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 100px" @clear="searchQuery.source = ''">
+        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.source = ''">
           <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
@@ -272,5 +288,13 @@ const batchClose = async () => {
   border-radius: 50%;
   display: inline-block;
   margin-right: 8px;
+}
+/* 下拉框文本居中 */
+:deep(.el-select-dropdown__item) {
+  text-align: center;
+}
+
+:deep(.el-select__wrapper) {
+  text-align: center;
 }
 </style>
