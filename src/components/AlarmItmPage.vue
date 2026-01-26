@@ -70,6 +70,7 @@ onMounted(async () => {
 
 // 全选功能函数
 const handleSelectAll = () => {
+  selectedRows.value = []
   // 调用表格的toggleAllSelection方法，全选当前页所有行
   // ?是可选链操作符，防止 tableRef.value 为 null 或 undefined 时报错
   tableRef.value?.toggleAllSelection()
@@ -342,7 +343,9 @@ const closeCurrentAlert = async () => {
   try {
     // 单行关闭时将当前行加入到接口保存要关闭的event_id的selectedRows数组中
     // 多行关闭时直接通过表格的selected属性获取选中行。
-    selectedRows.value.push(currentRow.value)
+    if (selectedRows.value.length === 0) {
+      selectedRows.value.push(currentRow.value)
+    }
     // 调用关闭告警接口
     // 参数：选中的告警ID列表和处理意见
     // await：阻塞代码执行，等待异步函数closeAlert执行完成
@@ -452,7 +455,7 @@ const closeCurrentAlert = async () => {
         </el-table-column>
         <el-table-column prop="object" label="主机名" min-width="16%" show-overflow-tooltip :resizable="false">
           <template #default="{row}">
-            <el-button type="primary" plain @click="handleView(row)" style="overflow: hidden">{{ row.object || '/' }}</el-button>
+            <el-button type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden;">{{ row.object || '/' }}</el-button>
           </template>
         </el-table-column>
         <el-table-column prop="ip" label="IP地址" min-width="8%" :resizable="false">
@@ -548,7 +551,11 @@ const closeCurrentAlert = async () => {
             ></span>
           </template>
         </el-table-column>
-        <el-table-column prop="state" label="状态" min-width="5%" :resizable="false" />
+        <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
+          <template #default="{row}">
+            <span :class="getStateClass(row.state)">{{ row.state }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false">
           <template #default="{row}">
             {{ row.system_name || '/' }}
@@ -641,7 +648,7 @@ const closeCurrentAlert = async () => {
         </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-select v-model="orderModel.username" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getUserGroup(visible, '用户')" @clear="orderModel.username = '';dataDictionary.username = []">
-            <el-option v-for="(item, index) in dataDictionary.username" :key="index" :value="item" />
+            <el-option v-for="(item, index) in dataDictionary.username" :key="index" :label="item[1]" :value="item[0]" />
           </el-select>
         </el-form-item>
         <el-form-item label="处理意见" prop="orderHandleOpinion" style="width: 100%">
