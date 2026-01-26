@@ -7,10 +7,52 @@
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { processSpeechQueue, dataDictionary, serverIp } from '@/utils/publicData.js'
+
+import {
+  processSpeechQueue,
+  dataDictionary,
+  serverIp,
+  orderModel,
+} from '@/utils/publicData.js'
 import axios from 'axios'
 
-
+// 获取用户组/用户（触发工单）
+export const getUserGroup = async (visible,type) => {
+  try {
+    if (visible) {
+      const response = await axios.post(`${serverIp.value}/itsm_user_data`, {
+        "group": orderModel.value.userGroup,
+        "data": type
+      })
+      if (type === '用户组') {
+        dataDictionary.value.userGroup = response.data.data
+      } else if (type === '用户') {
+        dataDictionary.value.username = response.data.data
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching user group:', error)
+    throw error
+  }
+}
+// 创建工单（触发工单）
+export const creatOrder = async () => {
+  try {
+    // 发送POST请求到后端API以关闭告警
+    const response = await axios.post(`${serverIp.value}/itsm_event`, {
+      "user": orderModel.value.createUser, // 创建人
+      "Alarm_Handle": orderModel.value.username, // 处理人
+      "system_name": orderModel.value.system_name, // 系统名称
+      "event_id": orderModel.value.eventId, // 事件ID
+      "alarm_details": orderModel.value.orderHandleOpinion, // 告警描述
+    })
+    return response.data
+  } catch (error) {
+    // 如果发生错误，抛出带有错误信息的Error对象
+    // 优先使用后端返回的错误信息，否则使用默认错误信息
+    throw new Error(error.response?.data?.message || '创建工单失败，服务器未连接')
+  }
+}
 // 获取数据字典
 export const getAlarmDictionary = async (visible,type) => {
   try {
@@ -18,8 +60,11 @@ export const getAlarmDictionary = async (visible,type) => {
       const response = await axios.post(`${serverIp.value}/dataDictionary_get`, {
         "data": type
       })
-      console.log('Alarm dictionary:', response.data.data)
-      dataDictionary.value = response.data.data
+      if (type === '告警分类') {
+        dataDictionary.value.category = response.data.data
+      } else if (type === '系统名称') {
+        dataDictionary.value.system_name = response.data.data
+      }
     }
   } catch (error) {
     console.error('Error fetching alarm dictionary:', error)
@@ -61,7 +106,7 @@ export const searchData = async (searchQuery) => {
     // 处理搜索参数，如果state为空字符串则设置为'未处理'
     const params = {
       ...searchQuery, // 展开搜索条件对象
-      state: searchQuery.state === '' ? '未处理' : searchQuery.state, // 处理状态参数
+      // state: searchQuery.state === '' ? '未处理' : searchQuery.state, // 处理状态参数
     }
     // 发送POST请求到后端API
     const response = await axios.post(`${serverIp.value}/searchData`, params)

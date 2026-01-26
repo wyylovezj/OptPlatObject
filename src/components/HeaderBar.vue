@@ -1,16 +1,21 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { messageInstance, stopSpeak, isSpeaking ,stopSpeaking } from '@/utils/publicData.js'
+import {
+  messageInstance,
+  stopSpeak,
+  isSpeaking,
+  stopSpeaking,
+  user
+} from '@/utils/publicData.js'
 
 
 // 获取store实例
 const authStore = useAuthStore()
-const user = sessionStorage.getItem('user')
-const name = ref(user)
+
 // 控制喇叭提示框的隐藏与显示
 const visible = ref(false)
 // 控制告警图标提示框的隐藏与显示
@@ -89,6 +94,11 @@ const logout = async () =>{
     }
   })
 }
+onMounted(() => {
+  if (sessionStorage.getItem('user')) {
+    user.value = sessionStorage.getItem('user')
+  }
+})
 </script>
 
 <template>
@@ -138,7 +148,7 @@ const logout = async () =>{
     <el-dropdown  @visible-change="changeDirection" trigger="click">
       <span class="el-dropdown-link">
         <span class="user-name" style="font-size: 1em">
-          {{name}}
+          {{user}}
         </span>
         <el-icon  style="font-size: 0.9em; color: rgba(255, 255, 255, 1);">
           <svg class="icon" aria-hidden="true">

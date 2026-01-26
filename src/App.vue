@@ -48,12 +48,24 @@ onMounted(() => {
               stopSpeaking.value = true
             })
         }
-        searchTimer = setInterval(() => {
-          refresh()
-        }, 50000) // 60秒刷新一次数据
+        // 创建一个函数来重启定时器
+        const restartTimer = () => {
+          if (searchTimer) {
+            clearInterval(searchTimer);
+          }
+          searchTimer = setInterval(() => {
+            refresh()
+          }, 60000) // 60秒刷新一次数据
+        }
+        // 首次启动定时器
+        restartTimer()
+        // 监听手动刷新事件，重置定时器
+        // 需要在全局范围内暴露重置函数
+        window.resetRefreshTimer = restartTimer
       } else if (searchTimer) {
           clearInterval(searchTimer)
           searchTimer = null
+          window.resetRefreshTimer = null
         }
     },
     { immediate: true } //
