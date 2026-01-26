@@ -27,6 +27,7 @@ export const getUserGroup = async (visible,type) => {
       if (type === '用户组') {
         dataDictionary.value.userGroup = response.data.data
       } else if (type === '用户') {
+        console.log("用户",response.data.data)
         dataDictionary.value.username = response.data.data
       }
     }
