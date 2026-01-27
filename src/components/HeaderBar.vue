@@ -60,7 +60,7 @@ watch( stopSpeaking, async (newVal) => {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
     content.value = '点击开启语音播报'
-    messageInstance.value = ElMessage.success({
+    messageInstance.value = ElMessage.warning({
       message: '已关闭语音播报',
       duration: 1000,
       onClose: () => {

@@ -59,6 +59,9 @@ export const Query = {
   source: ''         // 告警来源
 }
 
+// 下拉列表筛选功能开启标志
+export const isFilter = ref(false)
+
 // 表格当前选中行的数组：数组中的每一项代表一个选中的行
 export const selectedRows = ref([])
 

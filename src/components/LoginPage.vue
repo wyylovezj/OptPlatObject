@@ -38,8 +38,13 @@ const handleLogin = async () => {
       // 等待消息关闭动画完成
       await new Promise(resolve => setTimeout(resolve, 0));
     }
-    messageInstance.value= ElMessage.error({
+    messageInstance.value= ElMessage.warning({
       message: '用户名或密码不能为空',
+      duration: 500,  // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 140,  // 垂直偏移量，使消息垂直居中
+      onClose: () => {   // 消息关闭时的回调
+        messageInstance.value = null   // 清空消息实例引用
+      }
     })
     return
   }
@@ -52,7 +57,8 @@ const handleLogin = async () => {
     saveUsernameToHistory(loginForm.value.username)
     // 存储登录状态到 pinia 仓库
     authStore.loginInfoStorage(userData.username, userData.status)
-
+    // 登录成功后，设置标记表示这是登录重定向
+    sessionStorage.setItem('isLoginRedirect', 'true')
     // 登录成功后重定向到所输入的url
     const redirect = router.currentRoute.value.query.redirect || '/'
     await router.push(redirect)
