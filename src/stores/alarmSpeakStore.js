@@ -69,7 +69,6 @@ export const useSpeakStore = defineStore('speak', () => {
   }
   // 初始化已播报队列
   const initAlreadySpeakQueue = () => {
-    console.log("init",localStorage.getItem('alreadySpeakQueue'))
     if (localStorage.getItem('alreadySpeakQueue') !== 'undefined' && localStorage.getItem('alreadySpeakQueue') !== null) {
       alreadySpeakQueue.value = JSON.parse(localStorage.getItem('alreadySpeakQueue'))
     }
@@ -79,9 +78,6 @@ export const useSpeakStore = defineStore('speak', () => {
     try {
       // 保存当前值的副本
       localStorage.setItem('alreadySpeakQueue', JSON.stringify([...alreadySpeakQueue.value]))
-      console.log("持久化",alreadySpeakQueue.value)
-      console.log("持久化本地存储",localStorage.getItem('alreadySpeakQueue'))
-      console.log('已播报列表已保存到本地存储')
     } catch (error) {
       console.error('保存已播报队列到本地存储失败:', error)
     }

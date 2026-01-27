@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary } from '@/utils/publicData.js'
+import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 
@@ -28,8 +28,6 @@ const severityOptions = [
   },
 ]
 
-
-
 const stateOptions = [
   {
     value: '未处理',
@@ -41,6 +39,7 @@ const stateOptions = [
     value: '已关闭',
   },
 ]
+
 const sourceOptions = [
   {
     value: '云上告警',
@@ -49,6 +48,7 @@ const sourceOptions = [
     value: '云下告警',
   },
 ]
+
 // IP地址输入处理函数
 const handleIpInput = (value) => {
   // 只允许输入数字和点
@@ -186,7 +186,7 @@ const batchClose = async () => {
   <div class="search-page-container">
     <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
       <el-form-item label="告警分类：" prop="category">
-        <el-select v-model="searchQuery.category" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getAlarmDictionary(visible, '告警分类')" @clear="searchQuery.category = '';dataDictionary.category = []">
+        <el-select v-model="searchQuery.category" default-first-option fit-input-width class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '告警分类')}" @clear="searchQuery.category = '';dataDictionary.category = []">
           <el-option v-for="(item, index) in dataDictionary.category" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
         </el-select>
       </el-form-item>
@@ -223,7 +223,7 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">
-        <el-select v-model="searchQuery.system_name" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => getAlarmDictionary(visible, '系统名称')" @clear="searchQuery.system_name = '';dataDictionary.system_name = []">
+        <el-select v-model="searchQuery.system_name" default-first-option fit-input-width class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '系统名称')}" @clear="searchQuery.system_name = '';dataDictionary.system_name = []">
           <el-option v-for="(item,index) in dataDictionary.system_name" :key="index" :value="item" />
         </el-select>
       </el-form-item>
@@ -272,13 +272,6 @@ const batchClose = async () => {
   min-width: fit-content;
   min-height: fit-content;
 }
-/*输入框内容居中显示*/
-.center-placeholder :deep(.el-input__inner) {
-  text-align: center;
-}
-.center-placeholder :deep(.el-input__inner)::placeholder {
-  text-align: center;
-}
 .el-tag {
   border: none;
   aspect-ratio: 1;
@@ -297,4 +290,32 @@ const batchClose = async () => {
 :deep(.el-select__wrapper) {
   text-align: center;
 }
+/*输入框内容居中显示*/
+.center-placeholder :deep(.el-input__inner) {
+  text-align: center;
+}
+.center-placeholder :deep(.el-input__inner)::placeholder {
+  text-align: center;
+}
+/* 下拉框光标居中 */
+.center-placeholder :deep(.el-select__wrapper) {
+  justify-content: center;
+}
+
+.center-placeholder :deep(.el-select__selected-item) {
+  text-align: center;
+  width: 100%;
+}
+
+.center-placeholder :deep(.el-select__input) {
+  text-align: center !important;
+  width: 100%;
+}
+
+.center-placeholder :deep(.el-select__input.is-focus) {
+  text-align: center !important;
+}
+
+
+
 </style>

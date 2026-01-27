@@ -7,7 +7,6 @@
  * @lastModifiedTime： 2025-12-05 16:14:57
  */
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-
 import {
   processSpeechQueue,
   dataDictionary,
@@ -27,7 +26,6 @@ export const getUserGroup = async (visible,type) => {
       if (type === '用户组') {
         dataDictionary.value.userGroup = response.data.data
       } else if (type === '用户') {
-        console.log("用户",response.data.data)
         dataDictionary.value.username = response.data.data
       }
     }

@@ -24,7 +24,7 @@ import {
   messageInstance,
   blinkTrigger,
   sortSeverity,
-  handleSortChange, dataDictionary, user,orderModel,refresh
+  handleSortChange, dataDictionary, user,orderModel,refresh,isFilter
 } from '@/utils/publicData.js'
 
 
@@ -274,6 +274,25 @@ const handleCreateTicket = (row) => {
 }
 const createTicket = async () => {
   try {
+    // 当用户名和密码为空时
+    if (orderModel.value.userGroup === '' || orderModel.value.username === '') {
+      // 如果已有提示框在显示，先关闭它
+      if (messageInstance.value) {
+        // 关闭所有消息
+        ElMessage.closeAll()
+        // 等待消息关闭动画完成
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      messageInstance.value= ElMessage.warning({
+        message: '用户组名或用户名不能为空',
+        duration: 500,  // 显示持续时间(毫秒)
+        offset: window.innerHeight / 2 - 140,  // 垂直偏移量，使消息垂直居中
+        onClose: () => {   // 消息关闭时的回调
+          messageInstance.value = null   // 清空消息实例引用
+        }
+      })
+      return
+    }
     await creatOrder(orderModel.value)
       .then(async () => {
           // 关闭工单模态框
@@ -298,7 +317,7 @@ const createTicket = async () => {
           messageInstance.value = ElMessage.success({
             message: '工单创建成功', // 成功提示内容
             duration: 1000,  // 显示持续时间(毫秒)
-            offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
+            offset: window.innerHeight / 2 - 140,  // 垂直偏移量，使消息垂直居中
             onClose: () => {   // 消息关闭时的回调
               messageInstance.value = null   // 清空消息实例引用
             }
@@ -448,7 +467,7 @@ const closeCurrentAlert = async () => {
           {{ row.system_name || '/' }}
         </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" min-width="5%" :resizable="false">
+        <el-table-column prop="category" label="分类" show-overflow-tooltip min-width="5%" :resizable="false">
           <template #default="{row}">
             {{ row.category || '/' }}
           </template>
@@ -481,7 +500,7 @@ const closeCurrentAlert = async () => {
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
           <template #default="scope">
             <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">
-              <el-dropdown >
+              <el-dropdown trigger="click">
                 <el-button type="primary" :icon="Edit"></el-button>>
                 <template #dropdown>
                   <el-dropdown-menu style="user-select: none">
@@ -597,7 +616,7 @@ const closeCurrentAlert = async () => {
     <el-dialog
       v-model="DialogVisibleClose"
       top="10%" title="关闭告警"
-      width="40%"
+      width="30%"
       center
       :show-close="false"
       @close="() => { handleOpinion = ''; DialogVisibleClose = false }"
@@ -608,7 +627,7 @@ const closeCurrentAlert = async () => {
           v-model="handleOpinion"
           style="width: 100%; font-size: 16px"
           type="textarea"
-          :autosize="{ maxRows: 15, minRows: 10 }"
+          :autosize="{ maxRows: 10, minRows: 5 }"
           resize="none"
           placeholder="请输入……"
           maxlength="100"
@@ -630,7 +649,8 @@ const closeCurrentAlert = async () => {
     <!-- 触发工单按钮模态框 -->
     <el-dialog
       v-model="dialogVisibleOrder"
-      top="10%" title="触发工单"
+      top="10%"
+      title="触发工单"
       width="30%"
       center
       :show-close="false"
@@ -641,16 +661,18 @@ const closeCurrentAlert = async () => {
         :model="orderModel"
         style=" display: flex;align-items: center;flex-wrap: wrap;user-select: none"
       >
-        <el-form-item label="用户组名" prop="userGroup">
-          <el-select v-model="orderModel.userGroup" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getUserGroup(visible, '用户组')" @clear="orderModel.userGroup = '';orderModel.username = '';dataDictionary.userGroup = [];dataDictionary.username = []">
-            <el-option v-for="(item, index) in dataDictionary.userGroup" :key="index" :value="item" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="用户名" prop="username">
-          <el-select v-model="orderModel.username" clearable placeholder="请选择" style="width: 150px" @visible-change="(visible) => getUserGroup(visible, '用户')" @clear="orderModel.username = '';dataDictionary.username = []">
-            <el-option v-for="(item, index) in dataDictionary.username" :key="index" :label="item[1]" :value="item[0]" />
-          </el-select>
-        </el-form-item>
+        <div style="display: flex; justify-content: space-between; width: 100%">
+          <el-form-item label="用户组名" prop="userGroup">
+            <el-select v-model="orderModel.userGroup" class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 150px" @change="orderModel.username = '';dataDictionary.username = []" @visible-change="(visible) => {isFilter = visible;getUserGroup(visible, '用户组')}" @clear="orderModel.userGroup = '';orderModel.username = '';dataDictionary.userGroup = [];dataDictionary.username = []">
+              <el-option v-for="(item, index) in dataDictionary.userGroup" :key="index" :value="item" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="用户名" prop="username">
+            <el-select v-model="orderModel.username" class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 150px"  @visible-change="(visible) => {isFilter = visible;getUserGroup(visible, '用户')}" @clear="orderModel.username = '';dataDictionary.username = []">
+              <el-option v-for="(item, index) in dataDictionary.username" :key="index" :label="item[1]" :value="item[0]" />
+            </el-select>
+          </el-form-item>
+        </div>
         <el-form-item label="处理意见" prop="orderHandleOpinion" style="width: 100%">
           <div style="display: flex; flex: 1;align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
             <el-input
@@ -807,5 +829,29 @@ const closeCurrentAlert = async () => {
 :deep(.el-select__wrapper) {
   text-align: center;
 }
+/*输入框内容居中显示*/
+.center-placeholder :deep(.el-input__inner) {
+  text-align: center;
+}
+.center-placeholder :deep(.el-input__inner)::placeholder {
+  text-align: center;
+}
+/* 下拉框光标居中 */
+.center-placeholder :deep(.el-select__wrapper) {
+  justify-content: center;
+}
 
+.center-placeholder :deep(.el-select__selected-item) {
+  text-align: center;
+  width: 100%;
+}
+
+.center-placeholder :deep(.el-select__input) {
+  text-align: center !important;
+  width: 100%;
+}
+
+.center-placeholder :deep(.el-select__input.is-focus) {
+  text-align: center !important;
+}
 </style>
