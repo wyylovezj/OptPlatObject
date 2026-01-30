@@ -1,5 +1,12 @@
 <script setup>
-
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc：应用根组件
+ * @date： 2026-01-28 09:30:17
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2026-01-28 09:30:17
+ */
 import IndexPage from '@/components/IndexPage.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
@@ -111,9 +118,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <router-view v-if="route.name === 'NotFound'" name="NotFound"></router-view>
-  <router-view v-else-if="!isAuthenticated || route.name === 'LoginPage'" name="LoginPage"></router-view>
-  <IndexPage v-else></IndexPage>
+  <div id="app">
+    <router-view v-if="route.name === 'NotFound'" name="NotFound"></router-view>
+    <router-view v-else-if="!isAuthenticated || route.name === 'LoginPage'" name="LoginPage"></router-view>
+    <IndexPage v-else></IndexPage>
+  </div>
 </template>
 
 <style>

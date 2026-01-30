@@ -1,4 +1,12 @@
 <script setup>
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc：侧边栏组件
+ * @date： 2026-01-28 09:29:43
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2026-01-28 09:29:43
+ */
 import '@/iconfonts/iconfont.js'
 import { useRouter } from 'vue-router'
 import { isCollapse } from '@/utils/publicData.js'

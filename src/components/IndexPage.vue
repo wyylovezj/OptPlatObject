@@ -1,4 +1,12 @@
 <script setup>
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc：页面主体
+ * @date： 2026-01-28 09:28:57
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2026-01-28 09:28:57
+ */
 import HeaderBar from '@/components/HeaderBar.vue'
 import SideBar from '@/components/SideBar.vue'
 import { isCollapse } from '@/utils/publicData.js'

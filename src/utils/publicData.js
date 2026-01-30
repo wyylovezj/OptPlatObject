@@ -315,3 +315,18 @@ export const sortSeverity = (a, b) => {
   // 当严重程度不同，返回严重程度的比较结果
   return severityDiff
 }
+
+/**
+ * 生成UUID
+ * @returns {string} - 生成的UUID字符串
+ */
+export const generateUUIDModern = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  } else {
+    // 降级处理
+    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    );
+  }
+}

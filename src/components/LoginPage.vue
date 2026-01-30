@@ -1,4 +1,12 @@
 <script setup>
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc：登录页面
+ * @date： 2026-01-28 09:29:26
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2026-01-28 09:29:26
+ */
 import { loginAuthentication } from '@/api/interface.js'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -60,7 +68,7 @@ const handleLogin = async () => {
     // 登录成功后，设置标记表示这是登录重定向
     sessionStorage.setItem('isLoginRedirect', 'true')
     // 登录成功后重定向到所输入的url
-    const redirect = router.currentRoute.value.query.redirect || '/'
+    const redirect = router.currentRoute.value.query.redirect || '/alarmManagement'
     await router.push(redirect)
     // 如果已有提示框在显示，先关闭它
     if (messageInstance.value) {
@@ -78,6 +86,7 @@ const handleLogin = async () => {
       }
     })
   } catch (error) {
+    console.log(error)
     // 如果已有提示框在显示，先关闭它
     if (messageInstance.value) {
       // 关闭所有消息
