@@ -15,6 +15,9 @@ import {
 } from '@/utils/publicData.js'
 import axios from 'axios'
 
+
+// 设置axios默认携带cookies
+axios.defaults.withCredentials = true
 // 获取用户组/用户（触发工单）
 export const getUserGroup = async (visible,type) => {
   try {
@@ -34,7 +37,11 @@ export const getUserGroup = async (visible,type) => {
     throw error
   }
 }
-// 创建工单（触发工单）
+
+/**
+ * 创建工单
+ * @returns {Promise<*>}
+ */
 export const creatOrder = async () => {
   try {
     // 发送POST请求到后端API以关闭告警
@@ -52,7 +59,13 @@ export const creatOrder = async () => {
     throw new Error(error.response?.data?.message || '创建工单失败，服务器未连接')
   }
 }
-// 获取数据字典
+
+/**
+ * 获取数据字典
+ * @param visible
+ * @param type
+ * @returns {Promise<void>}
+ */
 export const getAlarmDictionary = async (visible,type) => {
   try {
     if (visible) {
@@ -86,11 +99,30 @@ export const loginAuthentication = async (username, password) => {
       username,
       password,
     })
-    return response.data // 返回响应数据
-  } catch (error) {
+    return response.data
+  }
+  catch (error) {
     // 如果发生错误，抛出一个新的错误对象
     // 优先使用服务器返回的错误信息，否则使用默认的'登录失败'
-    throw new Error(error.response?.data?.message || '登录失败')
+    throw new Error(error.response?.data?.message)
+  }
+}
+
+// SSO单点登录
+export const ssoLogin = async (code) => {
+  try{
+    const getAccessTokenUrl = "http://100.18.16.225:3000/sso_server/oauth2/access_token"
+    const response = await axios.get(`${getAccessTokenUrl}`, {
+      params: {
+        code: code,
+      }
+    })
+    console.log("response",response.data.data.sub)
+    return response.data.data.sub
+  }
+  catch (error) {
+    console.error('Error fetching alarm dictionary:', error)
+    throw error
   }
 }
 

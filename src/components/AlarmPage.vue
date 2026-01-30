@@ -1,4 +1,12 @@
 <script setup>
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc： 告警界面组件
+ * @date： 2025-12-08 09:45:07
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2025-12-
+ */
 import AlarmItmPage from '@/components/AlarmItmPage.vue'
 import AlarmSearchPage from '@/components/AlarmSearchPage.vue'
 </script>

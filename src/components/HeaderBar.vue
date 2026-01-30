@@ -1,4 +1,13 @@
 <script setup>
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc：顶部导航栏组件
+ * @date： 2026-01-28 09:28:01
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2026-01-28 09:28:01
+ */
+
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'

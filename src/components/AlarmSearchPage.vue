@@ -1,4 +1,12 @@
 <script setup>
+/**
+ * @author： 魏阳阳
+ * @email： weiyangyang@cinda.com.cn
+ * @desc：告警页面搜索栏组件
+ * @date： 2026-01-28 09:29:55
+ * @lastModifiedBy： 魏阳阳
+ * @lastModifiedTime： 2026-01-28 09:29:55
+ */
 import { ref } from 'vue'
 import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
