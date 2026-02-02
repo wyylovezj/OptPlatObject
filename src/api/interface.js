@@ -16,8 +16,6 @@ import {
 import axios from 'axios'
 
 
-// 设置axios默认携带cookies
-axios.defaults.withCredentials = true
 // 获取用户组/用户（触发工单）
 export const getUserGroup = async (visible,type) => {
   try {
@@ -99,6 +97,7 @@ export const loginAuthentication = async (username, password) => {
       username,
       password,
     })
+    console.log("response",response.data)
     return response.data
   }
   catch (error) {
@@ -115,7 +114,8 @@ export const ssoLogin = async (code) => {
     const response = await axios.get(`${getAccessTokenUrl}`, {
       params: {
         code: code,
-      }
+      },
+      withCredentials: true  // 设置axios默认携带cookies，需要服务端设置相应的响应头
     })
     console.log("response",response.data.data.sub)
     return response.data.data.sub

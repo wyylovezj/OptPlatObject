@@ -53,7 +53,7 @@ function routeTo() {
             </el-icon>
             <span class="menu">告警管理</span>
           </template>
-          <el-menu-item @click="routeTo" index="1-1">告警</el-menu-item>
+          <el-menu-item @click="routeTo" index="1-1">告警数据</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="2">
           <template #title>
@@ -64,7 +64,7 @@ function routeTo() {
             </el-icon>
             <span class="menu">事件管理</span>
           </template>
-          <el-menu-item @click="routeTo" index="2-1">事件</el-menu-item>
+          <el-menu-item @click="routeTo" index="2-1">事件导出</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="3">
           <template #title>
@@ -73,7 +73,7 @@ function routeTo() {
                 <use xlink:href="#icon-xitongguanli"></use>
               </svg>
             </el-icon>
-            <span class="menu">系统管理</span>
+            <span class="menu">运维工具</span>
           </template>
           <el-menu-item @click="routeTo" index="3-1">参数配置</el-menu-item>
         </el-sub-menu>
