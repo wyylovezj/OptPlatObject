@@ -6,8 +6,8 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime：  2025-12-05 16:27:55
  */
-import { ssoLogin,ssoAuth } from '@/api/interface.js'
-import AlarmPage from '@/components/AlarmPage.vue'
+import { ssoLogin } from '@/api/interface.js'
+import AlarmPage from '@/components/alarmManage/AlarmPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import NotFound from '@/components/NotFound.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
@@ -31,7 +31,7 @@ const router = createRouter({
       name: 'IndexPage',
       redirect: () => {
         // 该函数接收目标路由作为参数
-        return { path: '/login' }
+        return { path: '/alarmManagement' }
       },
       meta: {
         requiresAuth: true,
@@ -120,16 +120,10 @@ const router = createRouter({
  * @param next - 下一步操作
  */
 router.beforeEach(async (to, from, next) => {
-  console.log('from.fullPath',from.fullPath)
   // 检查URL中是否有code参数
-  console.log("to.fullPath", to.fullPath)
-  console.log("to.fullPath.split('?')[1]", to.fullPath.split('?')[1])
   const urlParams = new URLSearchParams(to.fullPath.split('?')[1])
-  console.log("urlParams", urlParams)
   const code = urlParams.get('code')
-  console.log("code", code)
   if (code) {
-    console.log('已获取code', code)
     // 处理SSO回调逻辑
     // 例如交换code获取token
     try {
@@ -139,7 +133,6 @@ router.beforeEach(async (to, from, next) => {
         console.error('单点登录失败：获取用户信息失败')
         return
       }
-      console.log('ssoLogin', username)
       const authStore = useAuthStore()
       // const router = useRouter()
       // 存储登录状态到 pinia 仓库
@@ -148,10 +141,8 @@ router.beforeEach(async (to, from, next) => {
       sessionStorage.setItem('isLoginRedirect', 'true')
       // 获取原始的 redirect_uri 或默认重定向到告警管理页面
       const redirectUri = urlParams.get('redirect_uri') || '/alarmManagement'
-      console.log('redirect_uri',redirectUri)
       // 移除查询参数，只保留路径部分
       const redirectPath = new URL(redirectUri, window.location.origin).pathname
-      console.log('redirectPath',redirectPath)
       next({
         path: redirectPath,
         replace: true

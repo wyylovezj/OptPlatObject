@@ -49,13 +49,13 @@ export const orderModel = ref({
 })
 // 数据查询参数的数据模型
 export const Query = {
-  category: '',      // 告警分类
+  category: [],      // 告警分类
   severity: '',      // 告警级别
   ip: '',            // IP地址
   object: '',        // 主机名
-  system_name: '',   // 业务系统
+  system_name: [],   // 业务系统
   occurrenceTime: [], // 发生时间
-  state:'',         // 告警状态
+  state: [],         // 告警状态
   source: ''         // 告警来源
 }
 

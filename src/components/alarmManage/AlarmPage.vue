@@ -7,8 +7,8 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2025-12-
  */
-import AlarmItmPage from '@/components/AlarmItmPage.vue'
-import AlarmSearchPage from '@/components/AlarmSearchPage.vue'
+import AlarmItmPage from '@/components/alarmManage/AlarmItmPage.vue'
+import AlarmSearchPage from '@/components/alarmManage/AlarmSearchPage.vue'
 </script>
 
 <template>
