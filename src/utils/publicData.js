@@ -47,17 +47,17 @@ export const orderModel = ref({
   username: '', // 用户
   orderHandleOpinion: '', // 处理意见
 })
-// 数据查询参数的数据模型
-export const Query = {
+// 表单查询数据模型
+export const searchQuery = ref({
   category: [],      // 告警分类
   severity: '',      // 告警级别
   ip: '',            // IP地址
   object: '',        // 主机名
   system_name: [],   // 业务系统
   occurrenceTime: [], // 发生时间
-  state: [],         // 告警状态
+  state:'',         // 告警状态
   source: ''         // 告警来源
-}
+})
 
 // 下拉列表筛选功能开启标志
 export const isFilter = ref(false)
@@ -219,17 +219,7 @@ export const throttle = (fn, delay) => {
     }
   }
 }
-// 表单查询数据模型
-export const searchQuery = ref({
-  category: '',      // 告警分类
-  severity: '',      // 告警级别
-  ip: '',            // IP地址
-  object: '',        // 主机名
-  system_name: '',   // 业务系统
-  occurrenceTime: [], // 发生时间
-  state:'',         // 告警状态
-  source: ''         // 告警来源
-})
+
 // 搜索按钮、刷新按钮查询数据,增加了节流控制
 export const refresh = throttle(async () => {
   // 立刻停止上次告警

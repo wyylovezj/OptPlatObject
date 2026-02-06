@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-01-28 09:29:55
  */
-import { ref } from 'vue'
+import { ref,watch } from 'vue'
 import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
@@ -139,7 +139,52 @@ const shortcuts = [
     },
   },
 ]
-
+// 监听搜索数据模型变化：触发搜索框权限功能
+watch(searchQuery, (val) => {
+  if (val.category.length === 0) {
+    checkAllCategory.value = false
+    indeterminateCategory.value = false
+  } else if (val.category.length === dataDictionary.value.category.length) {
+    checkAllCategory.value = true
+    indeterminateCategory.value = false
+  } else if (val.category.length > 0) {
+    indeterminateCategory.value = true
+  }
+  if (val.system_name.length === 0) {
+    checkAllSystem.value = false
+    indeterminateSystem.value = false
+  }  else if (val.system_name.length === dataDictionary.value.system_name.length) {
+    checkAllSystem.value = true
+    indeterminateSystem.value = false
+  }  else if (val.system_name.length > 0) {
+    indeterminateSystem.value = true
+  }
+}, { deep: true }
+)
+// 告警分类全选按钮标志
+const checkAllCategory = ref(false)
+const indeterminateCategory = ref(false)
+// 告警分类全选按钮
+const handleCheckAllCategory = (val) => {
+  indeterminateCategory.value = false
+  if (val) {
+    searchQuery.value.category = dataDictionary.value.category.map(item => Object.keys(item)[0])
+  } else {
+    searchQuery.value.category = []
+  }
+}
+// 业务系统按钮标志
+const checkAllSystem = ref(false)
+const indeterminateSystem = ref(false)
+// 告警分类全选按钮
+const handleCheckAllSystem = (val) => {
+  indeterminateSystem.value = false
+  if (val) {
+    searchQuery.value.system_name = dataDictionary.value.system_name
+  } else {
+    searchQuery.value.system_name = []
+  }
+}
 // 重置按钮清空搜索数据
 const formSearch = ref(null)
 
@@ -161,6 +206,10 @@ const clearSearch = () => {
     // 重置数据字典值
     dataDictionary.value.category= []
     dataDictionary.value.system_name= []
+    indeterminateCategory.value = false
+    indeterminateSystem.value = false
+    checkAllCategory.value= false
+    checkAllSystem.value= false
   }
 }
 
@@ -200,13 +249,23 @@ const batchClose = async () => {
           collapse-tags
           collapse-tags-tooltip
           default-first-option
-          fit-input-width class="center-placeholder"
+          fit-input-width
+          :class="{ centerPlaceholder: searchQuery.category.length === 0 }"
           :filterable="isFilter"
           clearable
           placeholder="请选择"
           style="width: 200px"
           @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '告警分类')}"
-          @clear="searchQuery.category = [];dataDictionary.category = []">
+          @clear="checkAllCategory= false;searchQuery.category = [];dataDictionary.category = []">
+          <template #header>
+            <el-checkbox
+              v-model="checkAllCategory"
+              :indeterminate="indeterminateCategory"
+              @change="handleCheckAllCategory"
+            >
+              全选
+            </el-checkbox>
+          </template>
           <el-option v-for="(item, index) in dataDictionary.category" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
         </el-select>
       </el-form-item>
@@ -243,7 +302,29 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">
-        <el-select v-model="searchQuery.system_name" default-first-option fit-input-width class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 200px"  @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '系统名称')}" @clear="searchQuery.system_name = [];dataDictionary.system_name = []">
+        <el-select
+          v-model="searchQuery.system_name"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          default-first-option
+          fit-input-width
+          :class="{ centerPlaceholder: searchQuery.system_name.length === 0 }"
+          :filterable="isFilter"
+          clearable
+          placeholder="请选择"
+          style="width: 200px"
+          @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '系统名称')}"
+          @clear="checkAllSystem= false;searchQuery.system_name = [];dataDictionary.system_name = []">
+          <template #header>
+            <el-checkbox
+              v-model="checkAllSystem"
+              :indeterminate="indeterminateSystem"
+              @change="handleCheckAllSystem"
+            >
+              全选
+            </el-checkbox>
+          </template>
           <el-option v-for="(item,index) in dataDictionary.system_name" :key="index" :value="item" />
         </el-select>
       </el-form-item>
@@ -260,7 +341,7 @@ const batchClose = async () => {
         />
       </el-form-item>
       <el-form-item label="告警状态：" prop="state">
-        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.state = []">
+        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.state = ''">
           <el-option v-for="item in stateOptions" :key="item.value" :label="item.label" :value="item.value"/>
         </el-select>
       </el-form-item>
@@ -310,31 +391,31 @@ const batchClose = async () => {
 :deep(.el-select__wrapper) {
   text-align: center;
 }
-/*!*输入框内容居中显示*!
-.center-placeholder :deep(.el-input__inner) {
+/*输入框内容居中显示*/
+.centerPlaceholder :deep(.el-input__inner) {
   text-align: center;
 }
-.center-placeholder :deep(.el-input__inner)::placeholder {
+.centerPlaceholder :deep(.el-input__inner)::placeholder {
   text-align: center;
 }
-!* 下拉框光标居中 *!
-.center-placeholder :deep(.el-select__wrapper) {
+/* 下拉框光标居中 */
+.centerPlaceholder :deep(.el-select__wrapper) {
   justify-content: center;
 }
 
-.center-placeholder :deep(.el-select__selected-item) {
+.centerPlaceholder :deep(.el-select__selected-item) {
   text-align: center;
   width: 100%;
 }
 
-.center-placeholder :deep(.el-select__input) {
+.centerPlaceholder :deep(.el-select__input) {
   text-align: center !important;
   width: 100%;
 }
 
-.center-placeholder :deep(.el-select__input.is-focus) {
+.centerPlaceholder :deep(.el-select__input.is-focus) {
   text-align: center !important;
-}*/
+}
 
 
 

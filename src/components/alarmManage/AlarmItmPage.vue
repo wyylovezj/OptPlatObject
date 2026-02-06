@@ -15,7 +15,6 @@ import {
   tableRef,
   loading,
   currentPage,
-  Query,
   selectedRows,
   selectedEventIds,
   DialogVisibleClose,
@@ -24,7 +23,7 @@ import {
   messageInstance,
   blinkTrigger,
   sortSeverity,
-  handleSortChange, dataDictionary, user,orderModel,refresh,isFilter
+  handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery
 } from '@/utils/publicData.js'
 
 
@@ -36,7 +35,7 @@ import {
 const initTableData = async () => {
   try {
     // 获取所有数据
-    const allData = await searchData(Query)
+    const allData = await searchData(searchQuery.value)
     // 对所有数据进行排序
     tableData.value = allData.sort(sortSeverity)
   } catch (error) {
@@ -830,28 +829,28 @@ const closeCurrentAlert = async () => {
   text-align: center;
 }
 /*输入框内容居中显示*/
-.center-placeholder :deep(.el-input__inner) {
+.centerPlaceholder :deep(.el-input__inner) {
   text-align: center;
 }
-.center-placeholder :deep(.el-input__inner)::placeholder {
+.centerPlaceholder :deep(.el-input__inner)::placeholder {
   text-align: center;
 }
 /* 下拉框光标居中 */
-.center-placeholder :deep(.el-select__wrapper) {
+.centerPlaceholder :deep(.el-select__wrapper) {
   justify-content: center;
 }
 
-.center-placeholder :deep(.el-select__selected-item) {
+.centerPlaceholder :deep(.el-select__selected-item) {
   text-align: center;
   width: 100%;
 }
 
-.center-placeholder :deep(.el-select__input) {
+.centerPlaceholder :deep(.el-select__input) {
   text-align: center !important;
   width: 100%;
 }
 
-.center-placeholder :deep(.el-select__input.is-focus) {
+.centerPlaceholder :deep(.el-select__input.is-focus) {
   text-align: center !important;
 }
 </style>
