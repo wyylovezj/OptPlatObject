@@ -86,22 +86,31 @@ const changeDirection = (isVisible) => {
   direction.value = isVisible
 }
 const logout = async () =>{
-  authStore.logoutInfoClear()
-  router.push('/login')
-  // 如果已有提示框在显示，先关闭它
-  if (messageInstance.value) {
-    // 关闭所有消息
-    ElMessage.closeAll()
-    // 等待消息关闭动画完成
-    await new Promise(resolve => setTimeout(resolve, 0));
-  }
-  messageInstance.value = ElMessage.success({
-    message: '退出登录',
-    duration: 1000,
-    onClose: () => {
-      messageInstance.value = null
+  if (sessionStorage.getItem('isLoginRedirect')){
+    // SSO登录退出
+    sessionStorage.removeItem('isLoginRedirect')
+    authStore.logoutInfoClear()
+    window.location.replace('https://100.18.16.180/next/portal')
+  } else {
+    // 域登录退出
+    authStore.logoutInfoClear()
+    router.push('/login')
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
-  })
+    messageInstance.value = ElMessage.success({
+      message: '退出登录',
+      duration: 1000,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+  }
+
 }
 onMounted(() => {
   if (sessionStorage.getItem('user')) {
@@ -268,5 +277,8 @@ onMounted(() => {
   font-size: 15px;
   font-weight:400 !important;
 }
-
+.item {
+  margin-top: 10px;
+  margin-right: 10px;
+}
 </style>

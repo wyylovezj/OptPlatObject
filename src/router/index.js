@@ -13,6 +13,8 @@ import NotFound from '@/components/NotFound.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { generateUUIDModern } from '@/utils/publicData.js'
 import { createRouter, createWebHistory } from 'vue-router'
+import ToolsPage from '@/components/toolsManage/ToolsPage.vue'
+
 
 // 创建路由实例
 const router = createRouter({
@@ -91,6 +93,47 @@ const router = createRouter({
             requiresAuth: true,
             title: '告警',
             breadcrumb: '告警',
+          },
+        },
+      ],
+    },
+    /**
+     * 事件管理模块路由
+     * @path /toolsManagement
+     * @name toolsManagement
+     * @requiresAuth true - 需要认证
+     * @title 登录
+     * @breadcrumb 登录
+     */
+    {
+      path: '/toolsManagement',
+      name: 'toolsManagement',
+      redirect: (to) => {
+        // 该函数接收目标路由作为参数
+        return to.path + '/tools'
+      },
+      meta: {
+        requiresAuth: true,
+        title: '工具管理',
+        breadcrumb: '工具管理',
+      },
+      children: [
+        /**
+         * 事件导出页面路由
+         * @path tools
+         * @name tools
+         * @requiresAuth true - 需要认证
+         * @title 告警
+         * @breadcrumb 告警
+         */
+        {
+          path: 'tools',
+          name: 'tools',
+          component: ToolsPage,
+          meta: {
+            requiresAuth: true,
+            title: '工具库',
+            breadcrumb: '工具库',
           },
         },
       ],
@@ -175,7 +218,7 @@ router.beforeEach(async (to, from, next) => {
           const authorizationUrl = 'http://100.18.16.180/api/v1/api_gateway/sso_server/oauth2/access_token'
           const accessType = 'online'
           const clientId = '0a9d7aa7c8c8595c2d44'
-          const redirectUri = 'http://100.18.16.225:8080/alarmManagement/alarmItem'
+          const redirectUri = 'https://100.18.16.225:8080/alarmManagement/alarmItem'
           const state = generateUUIDModern()
           const scope = 'read'
           const responseType = 'code'
@@ -195,8 +238,6 @@ router.beforeEach(async (to, from, next) => {
       next()
     }
   }
-
-
 })
 // 导出默认路由配置
 // 使用 ES6 的 export default 语法导出 router 对象

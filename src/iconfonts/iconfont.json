@@ -6,6 +6,27 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "43964628",
+      "name": "账号解锁",
+      "font_class": "zhanghaojiesuo",
+      "unicode": "e84c",
+      "unicode_decimal": 59468
+    },
+    {
+      "icon_id": "25246658",
+      "name": "上传文件",
+      "font_class": "shangchuanwenjian",
+      "unicode": "e61a",
+      "unicode_decimal": 58906
+    },
+    {
+      "icon_id": "34920453",
+      "name": "下载文件_24",
+      "font_class": "xiazaiwenjian_24",
+      "unicode": "e7bc",
+      "unicode_decimal": 59324
+    },
+    {
       "icon_id": "22598862",
       "name": "铃铛-静音_面",
       "font_class": "lingdang-jingyin_mian",

@@ -12,12 +12,10 @@ import AlarmSearchPage from '@/components/alarmManage/AlarmSearchPage.vue'
 </script>
 
 <template>
-  <div class="alarm-page" style=">
-">
+  <div class="alarm-page">
     <AlarmSearchPage></AlarmSearchPage>
     <AlarmItmPage></AlarmItmPage>
   </div>
-
 </template>
 
 <style scoped>
