@@ -1,18 +1,16 @@
 <script setup>
-import { ref, markRaw,watch  } from 'vue'
+import { ref, useTemplateRef, markRaw,watch  } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete,CirclePlusFilled,RemoveFilled,Refresh } from '@element-plus/icons-vue'
 
 
-// 目录树实例
-const treeRef2 = ref(null)
-// 目录树筛选字符
+
+const treeRef2 = useTemplateRef('treeRef2')
 const filterText = ref('')
-// 监听筛选字符变化
 watch(filterText, (val) => {
   treeRef2.value?.filter(val)
 })
-// 目录树筛选函数
+
 const filterNode = (value, data) => {
   if (!value) return true
   return data.label.includes(value)
@@ -21,7 +19,6 @@ let id = 1000
 const refresh = (data) => {
   console.log(data)
 }
-// 新增目录或节点
 const append = (data) => {
   ElMessageBox.prompt('', '新增子节点', {
     confirmButtonText: '确认',
@@ -42,7 +39,6 @@ const append = (data) => {
       })
     })
 }
-// 删除目录或节点
 const remove = (node, data) => {
   ElMessageBox.confirm(
     `确认要删除节点：${data.label}?`,
@@ -68,24 +64,6 @@ const dataSource = ref([
     id: 1,
     label: '工具库',
     children: [
-      {
-        id: 2,
-        label: '系统工具',
-        children: [
-          {
-            id: 4,
-            label: '工单导出'
-          },
-          {
-            id: 5,
-            label: '域账号解锁'
-          }
-        ]
-      },
-      {
-        id: 3,
-        label: '网络工具'
-      },
     ],
   },
 ])
