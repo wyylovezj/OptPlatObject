@@ -14,6 +14,7 @@ import {
   orderModel,
 } from '@/utils/publicData.js'
 import axios from 'axios'
+import { exportIp } from '@/utils/publicDataTools.js'
 
 
 // 获取用户组/用户（触发工单）
@@ -188,3 +189,65 @@ export const closeAlert = async (selectedEventIds, handleOpinion) => {
     throw new Error(error.response?.data?.message || '关闭告警失败')
   }
 }
+
+
+export const exportOrderFile = async (data, percentage) => {
+  try {
+    // 发送POST请求到后端API以关闭告警
+    const response = await axios.post(`${exportIp.value}/api/itsm/export_file`, {
+      control_type: data.OrderType,
+      start_time: data.startTime,
+      end_time: data.endTime,
+      export_user: data.username,
+    });
+
+    console.log("response", response.data.task_id);
+    let timeout;
+
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    return new Promise((resolve) => {
+      timeout = setInterval(async () => {
+        const response2 = await axios.get(`${exportIp.value}/api/itsm/export_progress/${response.data.data.task_id}`);
+        console.log("response", response2.data);
+        percentage.exporterOrder = response2.data.data.progress;
+
+        if (response2.data.status === 'completed') {
+          clearInterval(timeout);
+          // 下载Excel文件
+          try {
+            const datetime = new Date();
+            const formattedDatetime =
+              datetime.getFullYear().toString() +
+              (datetime.getMonth() + 1).toString().padStart(2, '0') + // 月份从0开始，需要+1
+              datetime.getDate().toString().padStart(2, '0') +
+              datetime.getHours().toString().padStart(2, '0') +
+              datetime.getMinutes().toString().padStart(2, '0');
+            const downloadResponse = await axios.get(`${exportIp.value}/api/itsm/export_download/${response.data.data.task_id}`, {
+              responseType: 'blob' // 设置响应类型为blob
+            });
+            const url = window.URL.createObjectURL(new Blob([downloadResponse.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `工单导出-${formattedDatetime}.xlsx`); // 设置下载文件名
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            // 返回完成状态
+            resolve(true); // 使用 resolve 返回值
+          } catch (downloadError) {
+            console.error('下载文件失败:', downloadError);
+            resolve(null); // 失败时返回 null 或其他值
+          }
+        }
+      }, 1000);
+    });
+  } catch (error) {
+    // 如果发生错误，抛出带有错误信息的Error对象
+    // 优先使用后端返回的错误信息，否则使用默认错误信息
+    throw new Error(error.response?.data?.message);
+  }
+};
+

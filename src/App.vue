@@ -87,10 +87,10 @@ onMounted(() => {
         // 需要在全局范围内暴露重置函数
         window.resetRefreshTimer = restartTimer
       } else if (searchTimer) {
-          clearInterval(searchTimer)
-          searchTimer = null
-          window.resetRefreshTimer = null
-        }
+        clearInterval(searchTimer)
+        searchTimer = null
+        window.resetRefreshTimer = null
+      }
     },
     { immediate: true } //
   )
@@ -104,6 +104,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   // 移除页面卸载事件监听
   window.removeEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
+  // 关闭页面时清除标记
+  if (sessionStorage.getItem('isLoginRedirect')) {
+    sessionStorage.removeItem('isLoginRedirect')
+  }
   // 在组件卸载时取消监听
   if (unwatch) {
     unwatch()

@@ -24,8 +24,8 @@ const handleClose = (key, keyPath) => {
   console.log(key, keyPath)
 }
 const router = useRouter()
-function routeTo() {
-  router.push('/alarmManagement/alarmItem')
+function routeTo(path) {
+  router.push(path)
 }
 
 </script>
@@ -53,7 +53,7 @@ function routeTo() {
             </el-icon>
             <span class="menu">告警管理</span>
           </template>
-          <el-menu-item @click="routeTo" index="1-1">告警数据</el-menu-item>
+          <el-menu-item @click="routeTo('/alarmManagement/alarmItem')" index="1-1">告警数据</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="2">
           <template #title>
@@ -62,9 +62,9 @@ function routeTo() {
                 <use xlink:href="#icon-shijianguanli"></use>
               </svg>
             </el-icon>
-            <span class="menu">事件管理</span>
+            <span class="menu">工具管理</span>
           </template>
-          <el-menu-item @click="routeTo" index="2-1">事件导出</el-menu-item>
+          <el-menu-item @click="routeTo('/toolsManagement/tools')" index="2-1">工具库</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="3">
           <template #title>

@@ -36,19 +36,26 @@ export const useAuthStore = defineStore('auth', () => {
   }
   // 退出登录时清除登录信息
   const logoutInfoClear = () => {
-    // 清除用户名
-    user.value = null
-    // 清除登录状态
-    state.value = null
-    // 设置登录标志为未登录
-    isAuthenticated.value = false
-    // 清除本地存储
-    if (sessionStorage.getItem('user')) {
-      sessionStorage.removeItem('user')
+    if (sessionStorage.getItem('isLoginRedirect')){
+      // sso登录退出
+      sessionStorage.removeItem('isLoginRedirect')
+    } else{
+      // 域登录退出
+      // 清除用户名
+      user.value = null
+      // 清除登录状态
+      state.value = null
+      // 设置登录标志为未登录
+      isAuthenticated.value = false
+      // 清除本地存储
+      if (sessionStorage.getItem('user')) {
+        sessionStorage.removeItem('user')
+      }
+      if (sessionStorage.getItem('status')) {
+        sessionStorage.removeItem('status')
+      }
     }
-    if (sessionStorage.getItem('status')) {
-      sessionStorage.removeItem('status')
-    }
+
   }
   // 检查是否已登录
   const checkIsAuth = () => {
