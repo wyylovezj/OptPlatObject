@@ -2,7 +2,7 @@
 import { ref, useTemplateRef, markRaw,watch  } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete,CirclePlusFilled,RemoveFilled,Refresh } from '@element-plus/icons-vue'
-
+import { handleNodeClick } from '@/utils/publicDataTools.js'
 
 
 const treeRef2 = useTemplateRef('treeRef2')
@@ -15,6 +15,7 @@ const filterNode = (value, data) => {
   if (!value) return true
   return data.label.includes(value)
 }
+
 let id = 1000
 const refresh = (data) => {
   console.log(data)
@@ -85,43 +86,45 @@ const dataSource = ref([
       node-key="id"
       default-expand-all
       :filter-node-method="filterNode"
+      check-on-click-node
+      @node-click="handleNodeClick"
     >
       <template #default="{ node, data }">
         <div class="custom-tree-node">
           <span>{{ node.label }}</span>
-          <div>
-            <el-button
-              v-if="node.level < 3"
-              type="primary"
-              link
-              @click.stop="append(data)">
-              <el-icon :size="15">
-                <CirclePlusFilled/>
-              </el-icon>
-            </el-button>
-            <el-button
-              v-if="node.level === 1"
-              type="primary"
-              link
-              @click.stop="refresh(node, data)"
-              style="margin-left: 0 "
-            >
-              <el-icon :size="15">
-                <Refresh />
-              </el-icon>
-            </el-button>
-            <el-button
-              v-if="node.level > 1 && (!data.children || data.children.length === 0)"
-              type="danger"
-              link
-              @click.stop="remove(node, data)"
-              style="margin-left: 0 "
-            >
-              <el-icon :size="15">
-                <RemoveFilled />
-              </el-icon>
-            </el-button>
-          </div>
+<!--          <div>-->
+<!--            <el-button-->
+<!--              v-if="node.level < 3"-->
+<!--              type="primary"-->
+<!--              link-->
+<!--              @click.stop="append(data)">-->
+<!--              <el-icon :size="15">-->
+<!--                <CirclePlusFilled/>-->
+<!--              </el-icon>-->
+<!--            </el-button>-->
+<!--            <el-button-->
+<!--              v-if="node.level === 1"-->
+<!--              type="primary"-->
+<!--              link-->
+<!--              @click.stop="refresh(node, data)"-->
+<!--              style="margin-left: 0 "-->
+<!--            >-->
+<!--              <el-icon :size="15">-->
+<!--                <Refresh />-->
+<!--              </el-icon>-->
+<!--            </el-button>-->
+<!--            <el-button-->
+<!--              v-if="node.level > 1 && (!data.children || data.children.length === 0)"-->
+<!--              type="danger"-->
+<!--              link-->
+<!--              @click.stop="remove(node, data)"-->
+<!--              style="margin-left: 0 "-->
+<!--            >-->
+<!--              <el-icon :size="15">-->
+<!--                <RemoveFilled />-->
+<!--              </el-icon>-->
+<!--            </el-button>-->
+<!--          </div>-->
         </div>
       </template>
     </el-tree>
