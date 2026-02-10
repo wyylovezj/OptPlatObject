@@ -288,6 +288,7 @@ const batchClose = async () => {
           type="text"
           @input="handleIpInput"
           class="center-placeholder"
+          clearable
         />
       </el-form-item>
       <el-form-item label="主机名：" prop="object">
@@ -299,6 +300,7 @@ const batchClose = async () => {
           type="text"
           @input="handleHostInput"
           class="center-placeholder"
+          clearable
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">

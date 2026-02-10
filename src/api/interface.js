@@ -143,6 +143,7 @@ export const searchData = async (searchQuery) => {
     // 发送POST请求到后端API
     const response = await axios.post(`${serverIp.value}/searchData`, params)
     // 获取响应数据
+    console.log("response",response.data)
     const data = response.data.data
     // 获取告警数据的Pinia store
     const alarmStore = useSpeakStore()
@@ -251,3 +252,18 @@ export const exportOrderFile = async (data, percentage) => {
   }
 };
 
+// 账号解锁
+export const unlockAccountInterface = async (data) => {
+  try {
+    // 发送POST请求到后端API以关闭告警
+    const response = await axios.post(`${exportIp.value}/unlockAccount `, {
+      unlock_type: data.type,
+      username: data.username,
+    });
+    console.log("response", response.data);
+    return response.data;
+  }
+  catch (error) {
+    throw new Error(error.response?.data?.message);
+  }
+}
