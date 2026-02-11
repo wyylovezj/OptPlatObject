@@ -5,10 +5,9 @@ import { WorkOrderDataModel, selectedNode, containsLabel, UnlockAccountDataModel
 import { exportOrderFile, unlockAccountInterface } from '@/api/interface.js'
 import { CircleCheckFilled } from '@element-plus/icons-vue'
 
-
 // 定义一个计算属性，判断是否有 el-card 需要显示
 const hasVisibleCards = computed(() => {
-  return containsLabel('工单导出') || containsLabel('域账号解锁') // 可以继续添加其他卡片的判断条件
+  return containsLabel('工单导出') || containsLabel('账号解锁') // 可以继续添加其他卡片的判断条件
 })
 // 模态框可视状态
 const dialogVisible = ref({
@@ -17,6 +16,9 @@ const dialogVisible = ref({
 })
 // 导出工单表单实例
 const exporterForm = ref(null)
+const responseData = ref({
+  unlock: '',
+})
 // 解锁账号表单实例
 const unlockAccountForm = ref(null)
 // 导出按钮禁用
@@ -60,12 +62,19 @@ const exportWorkOrder = async () => {
       exportDisabled.value.exporterOrder = true
       dialogVisible.value.OrderExporter = false
       percentageVisible.value.exporterOrder = true
-      const status = await exportOrderFile(WorkOrderDataModel.value, percentage.value)
-      console.log(status)
-      if (status) {
-        exportDisabled.value.exporterOrder = false
-        // percentageVisible.value.exporterOrder = false
+      try {
+        const status = await exportOrderFile(WorkOrderDataModel.value, percentage.value)
+        if (status) {
+          responseData.value.unlock = status.message
+          console.log(responseData.value.unlock)
+          exportDisabled.value.exporterOrder = false
+          // percentageVisible.value.exporterOrder = false
+        }
       }
+      catch(error) {
+        console.log(error)
+      }
+
     } else {
       console.log('error submit!', fields)
     }
@@ -137,18 +146,22 @@ const unlockAccount = async () => {
     if (valid) {
       exportDisabled.value.unlockAccount = true
       dialogVisible.value.unlockAccount = false
-      const status = await unlockAccountInterface(UnlockAccountDataModel.value)
-      console.log(status)
-      if (status) {
-        exportDisabled.value.unlockAccount = false
-        // percentageVisible.value.exporterOrder = false
+      try {
+        const status = await unlockAccountInterface(UnlockAccountDataModel.value)
+        console.log(status)
+        if (status) {
+          exportDisabled.value.unlockAccount = false
+          // percentageVisible.value.exporterOrder = false
+        }
+      } catch (error) {
+        console.log(error.message)
       }
     } else {
       console.log('error submit!', fields)
     }
   })
 }
-const unlockTypeModel =[
+const unlockTypeModel = [
   {
     value: '1',
     label: '域账号解锁',
@@ -167,7 +180,7 @@ const handleAccountInput = (value) => {
 
 <template>
   <div class="toolsItem">
-    <el-card v-if="containsLabel('工单导出')" shadow="hover" body-style="height: 100%;box-sizing: border-box;">
+    <el-card v-if="containsLabel('工单导出')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
       <!-- 卡片主体内容 -->
       <div class="card-content">
         <!-- 上部分：2:1 比例 -->
@@ -216,7 +229,7 @@ const handleAccountInput = (value) => {
         </div>
       </div>
     </el-card>
-    <el-card v-if="containsLabel('域账号解锁')" shadow="hover" body-style="height: 100%;box-sizing: border-box;">
+    <el-card v-if="containsLabel('账号解锁')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
       <!-- 卡片主体内容 -->
       <div class="card-content">
         <!-- 上部分：2:1 比例 -->
@@ -237,9 +250,9 @@ const handleAccountInput = (value) => {
         </div>
         <!-- 下部分：按钮 -->
         <div class="bottom-section">
-          <div style="flex: 3; width: 100%;font-size: 15px;color: #88CF64;display: flex;align-items: center">
-            <span>账号已解锁</span>
-            <el-icon :size="20"><CircleCheckFilled /></el-icon>
+          <div style="flex: 3; width: 100%; font-size: 15px; color: #88cf64; text-align: center; margin-top: 5px">
+            <span style="vertical-align: middle">{{ responseData.unlock }}</span>
+            <el-icon :size="17" style="vertical-align: middle"><CircleCheckFilled /></el-icon>
           </div>
           <div style="flex: 1; display: flex; justify-content: flex-end">
             <el-button type="primary" :disabled="exportDisabled.unlockAccount" @click="dialogVisible.unlockAccount = true"> 解锁 </el-button>
@@ -473,8 +486,7 @@ const handleAccountInput = (value) => {
   overflow: hidden;
 }
 .demo-progress .el-progress--line {
-  padding-top: 5px;
-  margin-bottom: 15px;
+  margin-top: 5px;
   max-width: 90%;
 }
 .el-progress__text {
