@@ -9,10 +9,37 @@ const treeRef2 = ref(null)
 // 目录树筛选字符
 const filterText = ref('')
 
+// 构建过滤后的树结构
+const getFilteredTree = (nodes, filterValue) => {
+  const result = [];
+  nodes.forEach(node => {
+    // 检查当前节点是否匹配
+    const isMatch = node.label.includes(filterValue);
+
+    // 递归处理子节点
+    const filteredChildren = node.children ? getFilteredTree(node.children, filterValue) : [];
+
+    // 如果当前节点匹配或者有匹配的子节点，则保留该节点
+    if (isMatch || filteredChildren.length > 0) {
+      result.push({
+        ...node,
+        children: isMatch ? node.children : filteredChildren // 若当前节点匹配，保留所有子节点；否则保留过滤后的子节点
+      });
+    }
+  });
+  return result;
+};
+
+
 
 // 监听筛选字符变化
 watch(filterText, (val) => {
   treeRef2.value?.filter(val)
+  console.log(treeRef2.value?.filter(val))
+  // 使用过滤后的树结构，filteredTree是一个数据，需要使用其第一个元素作为节点对象
+  const filteredTree = getFilteredTree(dataSource.value, filterText.value);
+  selectedNode.value = filteredTree[0]
+  console.log(filteredTree)
 })
 const dataSource = ref([
   {
@@ -57,7 +84,33 @@ const parentMap = buildParentMap(dataSource.value)
 
 // 目录树筛选函数
 const filterNode = (value, data) => {
-  if (!value) return true // 无搜索词时显示所有节点
+  if (!value) {
+    selectedNode.value = {
+      id: 1,
+      label: '工具库',
+      children: [
+        {
+          id: 2,
+          label: '系统工具',
+          children: [
+            {
+              id: 4,
+              label: '工单导出'
+            },
+            {
+              id: 5,
+              label: '域账号解锁'
+            }
+          ]
+        },
+        {
+          id: 3,
+          label: '网络工具'
+        }
+      ]
+    }
+    return true // 无搜索词时显示所有节点
+  }
 
   // 检查当前节点是否匹配
   const isCurrentMatch = data.label.includes(value)

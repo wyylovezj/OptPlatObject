@@ -104,7 +104,7 @@ export const loginAuthentication = async (username, password) => {
   catch (error) {
     // 如果发生错误，抛出一个新的错误对象
     // 优先使用服务器返回的错误信息，否则使用默认的'登录失败'
-    throw new Error(error.response?.data?.message)
+    throw new Error(error.response?.data?.message  || '服务器连接失败')
   }
 }
 
@@ -123,7 +123,7 @@ export const ssoLogin = async (code) => {
   }
   catch (error) {
     console.error('Error fetching alarm dictionary:', error)
-    throw error
+    throw new Error(error.response?.data?.message  || '服务器连接失败')
   }
 }
 
@@ -165,7 +165,7 @@ export const searchData = async (searchQuery) => {
     return data
   } catch (error) {
     // 捕获错误并抛出，优先显示后端返回的错误信息，否则显示默认错误信息
-    throw new Error(error.response?.data?.message || '查询失败')
+    throw new Error(error.response?.data?.message || '服务器连接失败')
   }
 }
 
@@ -187,11 +187,17 @@ export const closeAlert = async (selectedEventIds, handleOpinion) => {
   } catch (error) {
     // 如果发生错误，抛出带有错误信息的Error对象
     // 优先使用后端返回的错误信息，否则使用默认错误信息
-    throw new Error(error.response?.data?.message || '关闭告警失败')
+    throw new Error(error.response?.data?.message || '服务器连接失败')
   }
 }
 
-
+/**
+ * 导出订单文件函数：异步函数
+ * @param {Object} data - 包含订单类型和开始时间的对象
+ * @param {Function} percentage - 进度回调函数
+ * @returns {Promise} - 返回一个Promise，解析为响应数据
+ * @throws {Error} - 如果导出文件失败，抛出错误
+ */
 export const exportOrderFile = async (data, percentage) => {
   try {
     // 发送POST请求到后端API以关闭告警
@@ -214,7 +220,6 @@ export const exportOrderFile = async (data, percentage) => {
         const response2 = await axios.get(`${exportIp.value}/api/itsm/export_progress/${response.data.data.task_id}`);
         console.log("response", response2.data);
         percentage.exporterOrder = response2.data.data.progress;
-
         if (response2.data.status === 'completed') {
           clearInterval(timeout);
           // 下载Excel文件
@@ -248,11 +253,11 @@ export const exportOrderFile = async (data, percentage) => {
   } catch (error) {
     // 如果发生错误，抛出带有错误信息的Error对象
     // 优先使用后端返回的错误信息，否则使用默认错误信息
-    throw new Error(error.response?.data?.message);
+    throw new Error(error.response?.data?.message || '服务器连接失败');
   }
 };
 
-// 账号解锁
+// 解锁账户
 export const unlockAccountInterface = async (data) => {
   try {
     // 发送POST请求到后端API以关闭告警
@@ -264,6 +269,6 @@ export const unlockAccountInterface = async (data) => {
     return response.data;
   }
   catch (error) {
-    throw new Error(error.response?.data?.message);
+    throw new Error(error.response?.data?.message || '服务器连接失败');
   }
 }
