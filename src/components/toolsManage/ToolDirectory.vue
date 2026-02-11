@@ -2,21 +2,95 @@
 import { ref, markRaw,watch  } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete,CirclePlusFilled,RemoveFilled,Refresh } from '@element-plus/icons-vue'
-import { handleNodeClick } from '@/utils/publicDataTools.js'
+import { handleNodeClick, selectedNode } from '@/utils/publicDataTools.js'
 
 // 目录树实例
 const treeRef2 = ref(null)
 // 目录树筛选字符
 const filterText = ref('')
+
+
 // 监听筛选字符变化
 watch(filterText, (val) => {
   treeRef2.value?.filter(val)
 })
+const dataSource = ref([
+  {
+    id: 1,
+    label: '工具库',
+    children: [
+      {
+        id: 2,
+        label: '系统工具',
+        children: [
+          {
+            id: 4,
+            label: '工单导出'
+          },
+          {
+            id: 5,
+            label: '账号解锁'
+          }
+        ]
+      },
+      {
+        id: 3,
+        label: '网络工具'
+      },
+    ],
+  },
+])
+// 构建父子关系映射
+const buildParentMap = (nodes, parentMap = {}) => {
+  nodes.forEach(node => {
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        parentMap[child.id] = node.id // 记录子节点的父节点ID
+      })
+      buildParentMap(node.children, parentMap) // 递归处理子节点
+    }
+  })
+  return parentMap
+}
+// 根据子节点找父节点
+const parentMap = buildParentMap(dataSource.value)
+
 // 目录树筛选函数
 const filterNode = (value, data) => {
-  if (!value) return true
-  return data.label.includes(value)
+  if (!value) return true // 无搜索词时显示所有节点
+
+  // 检查当前节点是否匹配
+  const isCurrentMatch = data.label.includes(value)
+
+  // 检查父节点是否匹配
+  let isParentMatch = false
+  let parentId = parentMap[data.id]
+  while (parentId) {
+    const parentNode = findNodeById(dataSource.value, parentId)
+    if (parentNode && parentNode.label.includes(value)) {
+      isParentMatch = true
+      break
+    }
+    parentId = parentMap[parentId] // 继续向上查找父节点
+  }
+
+  return isCurrentMatch || isParentMatch
 }
+
+// 根据节点ID查找节点
+const findNodeById = (nodes, id) => {
+  for (const node of nodes) {
+    if (node.id === id) return node
+    if (node.children && node.children.length > 0) {
+      const found = findNodeById(node.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+
+
 
 let id = 1000
 const refresh = (data) => {
@@ -64,32 +138,7 @@ const remove = (node, data) => {
       })
     })
 }
-const dataSource = ref([
-  {
-    id: 1,
-    label: '工具库',
-    children: [
-      {
-        id: 2,
-        label: '系统工具',
-        children: [
-          {
-            id: 4,
-            label: '工单导出'
-          },
-          {
-            id: 5,
-            label: '域账号解锁'
-          }
-        ]
-      },
-      {
-        id: 3,
-        label: '网络工具'
-      },
-    ],
-  },
-])
+
 </script>
 
 <template>
@@ -100,6 +149,7 @@ const dataSource = ref([
       class="w-60 mb-2"
       placeholder="搜索"
       style="margin-bottom: 20px;"
+      clearable
     />
     <el-tree
       ref="treeRef2"
