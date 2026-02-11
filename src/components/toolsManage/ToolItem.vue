@@ -3,7 +3,7 @@ import { searchQuery } from '@/utils/publicData.js'
 import { ref, computed } from 'vue'
 import { WorkOrderDataModel, selectedNode, containsLabel, UnlockAccountDataModel } from '@/utils/publicDataTools.js'
 import { exportOrderFile, unlockAccountInterface } from '@/api/interface.js'
-import { CircleCheckFilled } from '@element-plus/icons-vue'
+import { CircleCheckFilled,CircleCloseFilled } from '@element-plus/icons-vue'
 
 // 定义一个计算属性，判断是否有 el-card 需要显示
 const hasVisibleCards = computed(() => {
@@ -14,10 +14,14 @@ const dialogVisible = ref({
   OrderExporter: false, // 工单导出模态框可视状态
   unlockAccount: false, // 域账号解锁模态框可视状态
 })
+
 // 导出工单表单实例
 const exporterForm = ref(null)
 const responseData = ref({
-  unlock: '',
+  unlock: {
+    message: '',
+    status: '',
+  },
 })
 // 解锁账号表单实例
 const unlockAccountForm = ref(null)
@@ -65,14 +69,12 @@ const exportWorkOrder = async () => {
       try {
         const status = await exportOrderFile(WorkOrderDataModel.value, percentage.value)
         if (status) {
-          responseData.value.unlock = status.message
-          console.log(responseData.value.unlock)
           exportDisabled.value.exporterOrder = false
           // percentageVisible.value.exporterOrder = false
         }
       }
       catch(error) {
-        console.log(error)
+        console.error(error)
       }
 
     } else {
@@ -151,10 +153,15 @@ const unlockAccount = async () => {
         console.log(status)
         if (status) {
           exportDisabled.value.unlockAccount = false
+          responseData.value.unlock.message = status.message
+          responseData.value.unlock.status = status.status
           // percentageVisible.value.exporterOrder = false
         }
       } catch (error) {
         console.log(error.message)
+        responseData.value.unlock.message = error.message
+        responseData.value.unlock.status = 'fail'
+        exportDisabled.value.unlockAccount = false
       }
     } else {
       console.log('error submit!', fields)
@@ -250,9 +257,10 @@ const handleAccountInput = (value) => {
         </div>
         <!-- 下部分：按钮 -->
         <div class="bottom-section">
-          <div style="flex: 3; width: 100%; font-size: 15px; color: #88cf64; text-align: center; margin-top: 5px">
-            <span style="vertical-align: middle">{{ responseData.unlock }}</span>
-            <el-icon :size="17" style="vertical-align: middle"><CircleCheckFilled /></el-icon>
+          <div :class="responseData.unlock.status" style="flex: 3; width: 100%; font-size: 15px; text-align: center; margin-top: 5px;">
+            <span style="vertical-align: middle;margin-right: 3px">{{ responseData.unlock.message }}</span>
+            <el-icon v-if="responseData.unlock.status === 'success'" :size="17" style="vertical-align: middle"><CircleCheckFilled /></el-icon>
+            <el-icon v-if="responseData.unlock.status === 'fail'" :size="17" style="vertical-align: middle"><CircleCloseFilled /></el-icon>
           </div>
           <div style="flex: 1; display: flex; justify-content: flex-end">
             <el-button type="primary" :disabled="exportDisabled.unlockAccount" @click="dialogVisible.unlockAccount = true"> 解锁 </el-button>
@@ -404,7 +412,7 @@ const handleAccountInput = (value) => {
   flex: 1;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 20px;
   align-items: flex-start;
   user-select: none;
   border: #dcdfe6 solid 1px;
@@ -492,4 +500,11 @@ const handleAccountInput = (value) => {
 .el-progress__text {
   min-width: auto;
 }
+.success {
+  color: #88cf64;
+}
+.fail {
+  color: #F56C6C;
+}
+
 </style>

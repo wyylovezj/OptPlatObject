@@ -35,7 +35,7 @@ function routeTo(path) {
     <el-col :span="50">
       <el-menu
         class="el-menu-vertical"
-        text-color="#fff"
+        :text-color="isCollapse ? '#000' : '#fff'"
         active-text-color="#ffd04b"
         @open="handleOpen"
         @close="handleClose"
