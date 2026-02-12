@@ -194,11 +194,11 @@ export const closeAlert = async (selectedEventIds, handleOpinion) => {
 /**
  * 导出订单文件函数：异步函数
  * @param {Object} data - 包含订单类型和开始时间的对象
- * @param {Function} percentage - 进度回调函数
+ * @param {object} percentageInfo 数据模型
  * @returns {Promise} - 返回一个Promise，解析为响应数据
  * @throws {Error} - 如果导出文件失败，抛出错误
  */
-export const exportOrderFile = async (data, percentage) => {
+export const exportOrderFile = async (data, percentageInfo) => {
   try {
     // 发送POST请求到后端API以关闭告警
     const response = await axios.post(`${exportIp.value}/api/itsm/export_file`, {
@@ -219,7 +219,11 @@ export const exportOrderFile = async (data, percentage) => {
       timeout = setInterval(async () => {
         const response2 = await axios.get(`${exportIp.value}/api/itsm/export_progress/${response.data.data.task_id}`);
         console.log("response", response2.data);
-        percentage.exporterOrder = response2.data.data.progress;
+        percentageInfo.percentage = response2.data.data.progress;
+        if (response2.data.status === 'failed') {
+          clearInterval(timeout);
+          percentageInfo.percentage = response2.data.data.status;
+        }
         if (response2.data.status === 'completed') {
           clearInterval(timeout);
           // 下载Excel文件

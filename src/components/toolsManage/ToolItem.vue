@@ -35,8 +35,9 @@ const percentageVisible = ref({
   exporterOrder: true, // 工单导出进度条可视状态
 })
 // 进度条百分比
-const percentage = ref({
-  exporterOrder: 0,
+const percentageInfo = ref({
+  percentage: 0,
+  status: ''
 })
 // 限制开始时间 不能早于结束时间30天
 const disabledStartDate = (time) => {
@@ -67,7 +68,7 @@ const exportWorkOrder = async () => {
       dialogVisible.value.OrderExporter = false
       percentageVisible.value.exporterOrder = true
       try {
-        const status = await exportOrderFile(WorkOrderDataModel.value, percentage.value)
+        const status = await exportOrderFile(WorkOrderDataModel.value, percentageInfo.value)
         if (status) {
           exportDisabled.value.exporterOrder = false
           // percentageVisible.value.exporterOrder = false
@@ -212,13 +213,14 @@ const handleAccountInput = (value) => {
             <el-progress
               :text-inside="true"
               :stroke-width="20"
-              :percentage="percentage.exporterOrder"
+              :percentage="percentageInfo.percentage"
               striped
               status="success"
-              :striped-flow="percentage.exporterOrder > 0 && percentage.exporterOrder < 100"
+              :striped-flow="percentageInfo.percentage > 0 && percentageInfo.percentage < 100"
             >
-              <span v-if="percentage.exporterOrder === 0" style="color: #6cbc45; font-weight: bold">导出功能已就绪！</span>
-              <span v-if="percentage.exporterOrder === 100">导出已完成！</span>
+              <span v-if="percentageInfo.percentage === 0 && percentageInfo.status === ''" style="color: #6cbc45; font-weight: bold">导出功能已就绪！</span>
+              <span v-if="percentageInfo.percentage === 100 && percentageInfo.status === ''" style="color: #6cbc45; font-weight: bold">导出已完成！</span>
+              <span v-if="percentageInfo.status === 'failed'" style="color: #d32323; font-weight: bold">导出失败，服务异常！</span>
             </el-progress>
           </div>
           <div style="flex: 1; display: flex; justify-content: flex-end">
@@ -227,7 +229,7 @@ const handleAccountInput = (value) => {
               :disabled="exportDisabled.exporterOrder"
               @click="
                 dialogVisible.OrderExporter = true;
-                percentage.exporterOrder = 0;
+                percentageInfo.percentage = 0;
               "
             >
               导出

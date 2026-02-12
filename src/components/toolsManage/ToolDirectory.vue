@@ -191,6 +191,12 @@ const remove = (node, data) => {
       })
     })
 }
+// 高亮树节点搜索中匹配的字符
+const highlightText = (text, keyword) => {
+  if (!keyword) return text; // 如果没有输入过滤字符，直接返回原文本
+  const regex = new RegExp(`(${keyword})`, 'gi'); // 创建正则表达式，忽略大小写
+  return text.replace(regex, '<mark>$1</mark>'); // 将匹配的部分用 <mark> 标签包裹
+};
 
 </script>
 
@@ -216,7 +222,9 @@ const remove = (node, data) => {
     >
       <template #default="{ node, data }">
         <div class="custom-tree-node">
-          <span>{{ node.label }}</span>
+          <!-- 使用 v-html 渲染高亮文本 -->
+          <span v-html="highlightText(node.label, filterText)"></span>
+<!--          <span>{{ node.label }}</span>-->
 <!--          <div>-->
 <!--            <el-button-->
 <!--              v-if="node.level < 3"-->
@@ -285,4 +293,11 @@ const remove = (node, data) => {
   overflow-y: scroll;
   scrollbar-width: thin; /* Firefox 隐藏滚动条 */
 }
+mark {
+  background-color: yellow;
+  color: black;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
 </style>

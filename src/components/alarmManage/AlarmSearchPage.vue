@@ -139,7 +139,7 @@ const shortcuts = [
     },
   },
 ]
-// 监听搜索数据模型变化：触发搜索框权限功能
+// 监听搜索数据模型变化：触发搜索框全选权限功能
 watch(searchQuery, (val) => {
   if (val.category.length === 0) {
     checkAllCategory.value = false
@@ -164,27 +164,100 @@ watch(searchQuery, (val) => {
 // 告警分类全选按钮标志
 const checkAllCategory = ref(false)
 const indeterminateCategory = ref(false)
+// 告警分类搜索关键词
+const searchKeywordCategory = ref('');
+
+// 告警分类过滤后的选项列表
+const filteredOptionsCategory = ref([]);
+// 告警分类初始化过滤选项
+const initFilteredOptionsCategory = () => {
+  if (searchKeywordCategory.value) {
+    // 如果搜索关键词不为空，根据关键词过滤选项
+    filteredOptionsCategory.value = dataDictionary.value.category.filter((item) =>
+      Object.values(item)[0].toLowerCase().includes(searchKeywordCategory.value)
+    );
+  } else {
+    // 如果搜索关键词为空，显示所有选项
+    filteredOptionsCategory.value = [...dataDictionary.value.category];
+  }
+};
+
+// 告警分类过滤选项函数
+const filterOptionsCategory = () => {
+  if (!searchKeywordCategory.value) {
+    // 如果搜索关键词为空，显示所有选项
+    filteredOptionsCategory.value = [...dataDictionary.value.category];
+  } else {
+    // 根据关键词过滤选项
+    filteredOptionsCategory.value = dataDictionary.value.category.filter((item) =>
+      Object.values(item)[0].toLowerCase().includes(searchKeywordCategory.value)
+    );
+  }
+};
+// 告警分类监听下拉框显示状态，初始化过滤选项
+watch((visible) => {
+  if (visible) {
+    initFilteredOptionsCategory();
+  }
+});
 // 告警分类全选按钮
 const handleCheckAllCategory = (val) => {
   indeterminateCategory.value = false
   if (val) {
-    searchQuery.value.category = dataDictionary.value.category.map(item => Object.keys(item)[0])
+    searchQuery.value.category = [...filteredOptionsCategory.value];
   } else {
-    searchQuery.value.category = []
+    searchQuery.value.category = [];
   }
-}
+};
 // 业务系统按钮标志
 const checkAllSystem = ref(false)
 const indeterminateSystem = ref(false)
-// 告警分类全选按钮
-const handleCheckAllSystem = (val) => {
-  indeterminateSystem.value = false
-  if (val) {
-    searchQuery.value.system_name = dataDictionary.value.system_name
+
+// 业务系统搜索关键词
+const searchKeywordSystemName = ref('');
+
+// 业务系统过滤后的选项列表
+const filteredOptionsSystemName = ref([]);
+// 业务系统初始化过滤选项
+const initFilteredOptionsSystemName = () => {
+  if (searchKeywordSystemName.value) {
+    // 如果搜索关键词不为空，根据关键词过滤选项
+    filteredOptionsSystemName.value = dataDictionary.value.system_name.filter((item) =>
+      item.includes(searchKeywordSystemName.value)
+    );
   } else {
-    searchQuery.value.system_name = []
+    // 如果搜索关键词为空，显示所有选项
+    filteredOptionsSystemName.value = [...dataDictionary.value.system_name];
   }
-}
+};
+
+// 业务系统过滤选项函数
+const filterOptionsSystemName = () => {
+  if (!searchKeywordSystemName.value) {
+    // 如果搜索关键词为空，显示所有选项
+    filteredOptionsSystemName.value = [...dataDictionary.value.system_name];
+  } else {
+    // 根据关键词过滤选项
+    filteredOptionsSystemName.value = dataDictionary.value.system_name.filter((item) =>
+      item.includes(searchKeywordSystemName.value)
+    );
+  }
+};
+// 业务系统监听下拉框显示状态，初始化过滤选项
+watch((visible) => {
+  if (visible) {
+    initFilteredOptionsSystemName();
+  }
+});
+// 业务系统全选逻辑
+const handleCheckAllSystem = (val) => {
+  indeterminateSystem.value = false;
+  if (val) {
+    searchQuery.value.system_name = [...filteredOptionsSystemName.value];
+  } else {
+    searchQuery.value.system_name = [];
+  }
+};
 // 重置按钮清空搜索数据
 const formSearch = ref(null)
 
@@ -237,6 +310,7 @@ const batchClose = async () => {
   }
   DialogVisibleClose.value = true
 }
+
 </script>
 
 <template>
@@ -251,13 +325,19 @@ const batchClose = async () => {
           default-first-option
           fit-input-width
           :class="{ centerPlaceholder: searchQuery.category.length === 0 }"
-          :filterable="isFilter"
           clearable
           placeholder="请选择"
           style="width: 200px"
-          @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '告警分类')}"
+          @visible-change="(visible) => {getAlarmDictionary(visible, '告警分类')}"
           @clear="checkAllCategory= false;searchQuery.category = [];dataDictionary.category = []">
           <template #header>
+            <!-- 自定义搜索输入框 -->
+            <el-input
+              v-model="searchKeywordCategory"
+              placeholder="搜索选项"
+              @input="filterOptionsCategory"
+              clearable
+            />
             <el-checkbox
               v-model="checkAllCategory"
               :indeterminate="indeterminateCategory"
@@ -266,7 +346,7 @@ const batchClose = async () => {
               全选
             </el-checkbox>
           </template>
-          <el-option v-for="(item, index) in dataDictionary.category" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
+          <el-option v-for="(item,index) in filteredOptionsCategory" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
         </el-select>
       </el-form-item>
       <el-form-item label="告警级别：" prop="severity">
@@ -312,13 +392,19 @@ const batchClose = async () => {
           default-first-option
           fit-input-width
           :class="{ centerPlaceholder: searchQuery.system_name.length === 0 }"
-          :filterable="isFilter"
           clearable
           placeholder="请选择"
           style="width: 200px"
-          @visible-change="(visible) => {isFilter = visible;getAlarmDictionary(visible, '系统名称')}"
+          @visible-change="(visible) => {getAlarmDictionary(visible, '系统名称');}"
           @clear="checkAllSystem= false;searchQuery.system_name = [];dataDictionary.system_name = []">
           <template #header>
+            <!-- 自定义搜索输入框 -->
+            <el-input
+              v-model="searchKeywordSystemName"
+              placeholder="搜索选项"
+              @input="filterOptionsSystemName"
+              clearable
+            />
             <el-checkbox
               v-model="checkAllSystem"
               :indeterminate="indeterminateSystem"
@@ -327,7 +413,7 @@ const batchClose = async () => {
               全选
             </el-checkbox>
           </template>
-          <el-option v-for="(item,index) in dataDictionary.system_name" :key="index" :value="item" />
+          <el-option v-for="(item,index) in filteredOptionsSystemName" :key="index" :value="item" />
         </el-select>
       </el-form-item>
       <el-form-item label="发生时间：" prop="occurrenceTime">
@@ -400,25 +486,5 @@ const batchClose = async () => {
 .centerPlaceholder :deep(.el-input__inner)::placeholder {
   text-align: center;
 }
-/* 下拉框光标居中 */
-.centerPlaceholder :deep(.el-select__wrapper) {
-  justify-content: center;
-}
-
-.centerPlaceholder :deep(.el-select__selected-item) {
-  text-align: center;
-  width: 100%;
-}
-
-.centerPlaceholder :deep(.el-select__input) {
-  text-align: center !important;
-  width: 100%;
-}
-
-.centerPlaceholder :deep(.el-select__input.is-focus) {
-  text-align: center !important;
-}
-
-
 
 </style>
