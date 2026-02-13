@@ -12,9 +12,9 @@ import { useAuthStore } from '@/stores/authInfoStore.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { computed,onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { messageInstance, refresh, stopSpeaking } from '@/utils/publicData.js'
+import { messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
 import { ElMessageBox, ElMessage } from 'element-plus'
-
+import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 
 // 获取store实例
 const authStore = useAuthStore()
@@ -28,6 +28,13 @@ let searchTimer = null
 let unwatch = null
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
 onMounted(() => {
+  // 初始化用户信息
+  if (sessionStorage.getItem('user')) {
+    user.value = sessionStorage.getItem('user')
+    console.log('用户信息：', user.value)
+    // 初始化工单导出接口用户名
+    WorkOrderDataModel.value.username = user.value
+  }
   unwatch = watch(
     () => authStore.isAuthenticated,
     (newValue) => {

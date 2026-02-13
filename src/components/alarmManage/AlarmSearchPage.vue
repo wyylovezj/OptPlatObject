@@ -273,7 +273,7 @@ const clearSearch = () => {
       object: '',        // 主机名
       system_name: [],   // 业务系统
       occurrenceTime: [], // 发生时间
-      state: [],         // 告警状态
+      state: '',         // 告警状态
       source: ''         // 告警来源
     }
     // 重置数据字典值

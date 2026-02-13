@@ -200,6 +200,7 @@ export const closeAlert = async (selectedEventIds, handleOpinion) => {
  */
 export const exportOrderFile = async (data, percentageInfo) => {
   try {
+    console.log('exportOrderFile', data.username)
     // 发送POST请求到后端API以关闭告警
     const response = await axios.post(`${exportIp.value}/api/itsm/export_file`, {
       control_type: data.OrderType,
@@ -223,6 +224,7 @@ export const exportOrderFile = async (data, percentageInfo) => {
         if (response2.data.status === 'failed') {
           clearInterval(timeout);
           percentageInfo.percentage = response2.data.data.status;
+          resolve(null);
         }
         if (response2.data.status === 'completed') {
           clearInterval(timeout);
