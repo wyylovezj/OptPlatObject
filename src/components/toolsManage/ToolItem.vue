@@ -1,7 +1,7 @@
 <script setup>
-import { searchQuery } from '@/utils/publicData.js'
+import { searchQuery, user } from '@/utils/publicData.js'
 import { ref, computed } from 'vue'
-import { WorkOrderDataModel, selectedNode, containsLabel, UnlockAccountDataModel } from '@/utils/publicDataTools.js'
+import { WorkOrderDataModel, selectedNode, containsLabel, UnlockAccountDataModel,isAdmin } from '@/utils/publicDataTools.js'
 import { exportOrderFile, unlockAccountInterface } from '@/api/interface.js'
 import { CircleCheckFilled,CircleCloseFilled } from '@element-plus/icons-vue'
 
@@ -71,7 +71,6 @@ const exportWorkOrder = async () => {
         const status = await exportOrderFile(WorkOrderDataModel.value, percentageInfo.value)
         if (status) {
           exportDisabled.value.exporterOrder = false
-          // percentageVisible.value.exporterOrder = false
         }
       }
       catch(error) {
@@ -142,7 +141,7 @@ const unlockAccountRules = ref({
     },
   ],
 })
-// 导出工单模态框中确定按钮点击事件
+// 用户解锁模态框中确定按钮点击事件
 const unlockAccount = async () => {
   if (!unlockAccountForm.value) return
   await unlockAccountForm.value.validate(async (valid, fields) => {
@@ -156,7 +155,6 @@ const unlockAccount = async () => {
           exportDisabled.value.unlockAccount = false
           responseData.value.unlock.message = status.message
           responseData.value.unlock.status = status.status
-          // percentageVisible.value.exporterOrder = false
         }
       } catch (error) {
         console.log(error.message)
@@ -219,7 +217,7 @@ const handleAccountInput = (value) => {
               :striped-flow="percentageInfo.percentage > 0 && percentageInfo.percentage < 100"
             >
               <span v-if="percentageInfo.percentage === 0 && percentageInfo.status === ''" style="color: #6cbc45; font-weight: bold">导出功能已就绪！</span>
-              <span v-if="percentageInfo.percentage === 100 && percentageInfo.status === ''" style="color: #6cbc45; font-weight: bold">导出已完成！</span>
+              <span v-if="percentageInfo.percentage === 100 && percentageInfo.status === ''" style="color: #ffffff; font-weight: bold">导出已完成！</span>
               <span v-if="percentageInfo.status === 'failed'" style="color: #d32323; font-weight: bold">导出失败，服务异常！</span>
             </el-progress>
           </div>
@@ -238,7 +236,7 @@ const handleAccountInput = (value) => {
         </div>
       </div>
     </el-card>
-    <el-card v-if="containsLabel('账号解锁')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+    <el-card v-if="containsLabel('账号解锁') && isAdmin(user)" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
       <!-- 卡片主体内容 -->
       <div class="card-content">
         <!-- 上部分：2:1 比例 -->

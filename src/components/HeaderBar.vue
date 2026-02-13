@@ -110,13 +110,12 @@ const logout = async () =>{
       }
     })
   }
-
 }
-onMounted(() => {
-  if (sessionStorage.getItem('user')) {
-    user.value = sessionStorage.getItem('user')
-  }
-})
+// onMounted(() => {
+//   if (sessionStorage.getItem('user')) {
+//     user.value = sessionStorage.getItem('user')
+//   }
+// })
 </script>
 
 <template>

@@ -1,18 +1,19 @@
 import { ref } from 'vue'
 
 
+const userGroup = ['weiyangyang']
 
-
-
-// 用户信息
-export const user = ref(sessionStorage.getItem('user') || null)
+export const isAdmin = (user) => {
+  console.log(user)
+  return userGroup.includes(user);
+}
 // 导出工单请求的数据模型
 export const WorkOrderDataModel = ref(
   {
     OrderType: '',  // 工单类型
     startTime: '', // 开始时间
     endTime: '', // 结束时间
-    username: user.value, // 操作用户
+    username:  '', // 操作用户
   }
 )
 // 账号解锁请求的数据模型
