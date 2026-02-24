@@ -473,10 +473,12 @@ const closeCurrentAlert = async () => {
         </el-table-column>
         <el-table-column prop="object" label="主机名" min-width="16%" show-overflow-tooltip :resizable="false">
           <template #default="{row}">
-            <el-button type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden;">{{ row.object || '/' }}</el-button>
+            <el-button type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden;">
+              {{ row.object || '/' }}
+            </el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="ip" label="IP地址" min-width="8%" :resizable="false">
+        <el-table-column prop="ip" label="IP地址" show-overflow-tooltip min-width="8%" :resizable="false">
           <template #default="{row}">
             {{ row.ip || '/' }}
           </template>

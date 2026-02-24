@@ -8,13 +8,13 @@
  * @lastModifiedTime： 2026-01-28 09:30:17
  */
 import IndexPage from '@/components/IndexPage.vue'
-import { useAuthStore } from '@/stores/authInfoStore.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { computed,onMounted, onBeforeUnmount, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/authInfoStore.js'
 import { messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
-import { ElMessageBox, ElMessage } from 'element-plus'
 import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 // 获取store实例
 const authStore = useAuthStore()
@@ -44,18 +44,18 @@ onMounted(() => {
         // 检测页面是否是通过刷新加载的
         const navigationEntries = performance.getEntriesByType('navigation')
         const isRefresh = navigationEntries.length > 0 && navigationEntries[0].type === 'reload'
-        if (isRefresh && !wasLoginRedirect) {
-          ElMessageBox.confirm(
-            '页面刷新会终止语音播报，请点击开启或关闭语音播报！',
-            '提示',
-            {
-              showClose: false,
-              confirmButtonText: '开启',
-              cancelButtonText: '关闭',
-              type: 'success',
-              customClass: 'custom-message-box'
-            }
-          )
+        // 判断当前是否在告警管理页面（包括告警管理的所有子路由）
+        // 使用更可靠的方式获取路由状态
+        const isAlarmPage = window.location.pathname.startsWith('/alarmManagement')
+
+        if (isRefresh && !wasLoginRedirect && isAlarmPage) {
+          ElMessageBox.confirm('页面刷新会终止语音播报，请点击开启或关闭语音播报！', '提示', {
+            showClose: false,
+            confirmButtonText: '开启',
+            cancelButtonText: '关闭',
+            type: 'success',
+            customClass: 'custom-message-box',
+          })
             .then(async () => {
               stopSpeaking.value = false
               // 如果已有提示框在显示，先关闭它
@@ -63,14 +63,14 @@ onMounted(() => {
                 // 关闭所有消息
                 ElMessage.closeAll()
                 // 等待消息关闭动画完成
-                await new Promise(resolve => setTimeout(resolve, 0));
+                await new Promise((resolve) => setTimeout(resolve, 0))
               }
               messageInstance.value = ElMessage.success({
                 message: '已开启语音播报',
                 duration: 1000,
                 onClose: () => {
                   messageInstance.value = null
-                }
+                },
               })
             })
             .catch(() => {
@@ -82,7 +82,7 @@ onMounted(() => {
         // 创建一个函数来重启定时器
         const restartTimer = () => {
           if (searchTimer) {
-            clearInterval(searchTimer);
+            clearInterval(searchTimer)
           }
           searchTimer = setInterval(() => {
             refresh()
@@ -99,14 +99,13 @@ onMounted(() => {
         window.resetRefreshTimer = null
       }
     },
-    { immediate: true } //
+    { immediate: true }, //
   )
   // 初始化已播报队列
   alarmStore.initAlreadySpeakQueue()
   // 添加页面卸载事件监听
   window.addEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
 })
-
 
 onBeforeUnmount(() => {
   // 移除页面卸载事件监听
@@ -125,7 +124,6 @@ onBeforeUnmount(() => {
   }
   alarmStore.persistAlreadySpeakQueue()
 })
-
 </script>
 
 <template>
@@ -138,7 +136,8 @@ onBeforeUnmount(() => {
 
 <style>
 /* 因element组件高度默认是内容高度，在此设置高度为页面高度 */
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -159,5 +158,4 @@ html, body {
 .custom-message-box {
   margin-top: -15% !important;
 }
-
 </style>
