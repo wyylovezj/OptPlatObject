@@ -8,7 +8,7 @@
  * @lastModifiedTime： 2026-01-28 09:28:01
  */
 
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

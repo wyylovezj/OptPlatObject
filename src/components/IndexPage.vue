@@ -9,13 +9,13 @@
  */
 import HeaderBar from '@/components/HeaderBar.vue'
 import SideBar from '@/components/SideBar.vue'
-import { isCollapse } from '@/utils/publicData.js'
+import { isCollapse, debounce } from '@/utils/publicData.js'
 import { Expand,Fold } from '@element-plus/icons-vue'
 
 // 侧边栏折叠标志
-const toggleCollapse = () => {
+const toggleCollapse = debounce(() => {
   isCollapse.value = !isCollapse.value
-}
+}, 150)
 </script>
 
 <template>
@@ -68,7 +68,7 @@ const toggleCollapse = () => {
 .el-aside {
   background: rgba(15, 39, 68, 1);
   height: 100%;
-  transition: width 0.4s ease;
+  transition: width 0.3s ease;
 }
 .el-header {
   height: 40px;
@@ -92,6 +92,7 @@ const toggleCollapse = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: width 0.3s ease
 }
 .icon {
   width: 1em;

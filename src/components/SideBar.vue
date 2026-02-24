@@ -99,7 +99,7 @@ function routeTo(path) {
 }
 :deep(.el-menu) {
   background-color: transparent !important;
-  transition: all 0.3s ease;
+  transition: none; /* 移除Element Plus默认过渡，避免冲突 */
 }
 :deep(.el-menu-item) {
   color: rgba(207, 211, 217, 1)  !important;
@@ -127,4 +127,5 @@ function routeTo(path) {
   overflow: hidden;
   color: rgba(255, 255, 255, 1);;
 }
+
 </style>
