@@ -18,7 +18,7 @@ import {
   stopSpeak,
   isSpeaking,
   stopSpeaking,
-  user
+  user, isSsoLogin
 } from '@/utils/publicData.js'
 
 
@@ -86,9 +86,8 @@ const changeDirection = (isVisible) => {
   direction.value = isVisible
 }
 const logout = async () =>{
-  if (sessionStorage.getItem('isLoginRedirect')){
+  if (isSsoLogin.value){
     // SSO登录退出
-    sessionStorage.removeItem('isLoginRedirect')
     authStore.logoutInfoClear()
     window.location.replace('https://100.18.16.180/next/portal')
   } else {

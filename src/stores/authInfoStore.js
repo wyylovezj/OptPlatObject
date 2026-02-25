@@ -6,6 +6,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2025-12-05 16:39:53
  */
+import { isSsoLogin } from '@/utils/publicData.js'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 /**
@@ -33,13 +34,13 @@ export const useAuthStore = defineStore('auth', () => {
     // 存储用户名、登录状态到本地存储
     sessionStorage.setItem('user', user.value)
     sessionStorage.setItem('status', state.value)
+    if (isSsoLogin.value) {
+      // 登录成功后，设置标记表示这是登录重定向
+      sessionStorage.setItem('isLoginRedirect', 'true')
+    }
   }
   // 退出登录时清除登录信息
   const logoutInfoClear = () => {
-    if (sessionStorage.getItem('isLoginRedirect')){
-      // sso登录退出
-      sessionStorage.removeItem('isLoginRedirect')
-    } else{
       // 域登录退出
       // 清除用户名
       user.value = null
@@ -54,8 +55,11 @@ export const useAuthStore = defineStore('auth', () => {
       if (sessionStorage.getItem('status')) {
         sessionStorage.removeItem('status')
       }
-    }
-
+      if (isSsoLogin.value) {
+        isSsoLogin.value = false
+        // SSO登录退出
+        sessionStorage.removeItem('isLoginRedirect')
+      }
   }
   // 检查是否已登录
   const checkIsAuth = () => {
