@@ -31,6 +31,8 @@ export const currentPage = ref(1)
 // 当前显示的提示框实例对象：用于控制提示框的开启与关闭，限制整个项目中同一时刻最多仅有一个提示框显示
 export const messageInstance = ref(null)
 
+// SSO登录标志
+export const isSsoLogin = ref(false)
 // 数据字典
 export const dataDictionary = ref({
   category: [],      // 告警分类

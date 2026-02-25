@@ -11,7 +11,7 @@ import AlarmPage from '@/components/alarmManage/AlarmPage.vue'
 import LoginPage from '@/components/LoginPage.vue'
 import NotFound from '@/components/NotFound.vue'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { generateUUIDModern } from '@/utils/publicData.js'
+import { generateUUIDModern,isSsoLogin } from '@/utils/publicData.js'
 import { createRouter, createWebHistory } from 'vue-router'
 import ToolsPage from '@/components/toolsManage/ToolsPage.vue'
 
@@ -178,10 +178,10 @@ router.beforeEach(async (to, from, next) => {
       }
       const authStore = useAuthStore()
       // const router = useRouter()
+      // SSO登录
+      isSsoLogin.value = true
       // 存储登录状态到 pinia 仓库
       authStore.loginInfoStorage(username, "success")
-      // 登录成功后，设置标记表示这是登录重定向
-      sessionStorage.setItem('isLoginRedirect', 'true')
       // 获取原始的 redirect_uri 或默认重定向到告警管理页面
       const redirectUri = urlParams.get('redirect_uri') || '/alarmManagement'
       // 移除查询参数，只保留路径部分

@@ -10,7 +10,7 @@
 import IndexPage from '@/components/IndexPage.vue'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
+import { isSsoLogin, messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
 import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
@@ -111,8 +111,8 @@ onBeforeUnmount(() => {
   // 移除页面卸载事件监听
   window.removeEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
   // 关闭页面时清除标记
-  if (sessionStorage.getItem('isLoginRedirect')) {
-    sessionStorage.removeItem('isLoginRedirect')
+  if (isSsoLogin.value) {
+    authStore.logoutInfoClear()
   }
   // 在组件卸载时取消监听
   if (unwatch) {
