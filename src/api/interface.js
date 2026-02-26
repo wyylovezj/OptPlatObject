@@ -237,6 +237,7 @@ export const exportOrderFile = async (data, percentageInfo) => {
               datetime.getDate().toString().padStart(2, '0') +
               datetime.getHours().toString().padStart(2, '0') +
               datetime.getMinutes().toString().padStart(2, '0');
+              datetime.getSeconds().toString().padStart(2, '0'); // 添加秒
             const downloadResponse = await axios.get(`${exportIp.value}/api/itsm/export_download/${response.data.data.task_id}`, {
               responseType: 'blob' // 设置响应类型为blob
             });

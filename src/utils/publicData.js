@@ -1,5 +1,6 @@
 import { searchData } from '@/api/interface.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
+import { convertAlarmDataToTreeOptimized } from '@/utils/treeData.js'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 
@@ -24,6 +25,9 @@ export const loginLoading = ref(false)
 
 // 严重告警图形闪烁动画的标志：false为不闪烁，true为闪烁
 export const blinkTrigger = ref(true)
+
+// 表格模式是否为聚合
+export const isAggregate = ref(false)
 
 // 分页组件当前页码：默认值为第一页
 export const currentPage = ref(1)
@@ -67,12 +71,21 @@ export const isFilter = ref(false)
 // 表格当前选中行的数组：数组中的每一项代表一个选中的行
 export const selectedRows = ref([])
 
+// 辅助函数：获取可关闭的选中行
+const getCloseableSelectedRows = () => {
+  return selectedRows.value.filter(row => {
+    // 聚合模式下过滤掉根节点
+    return !(isAggregate.value && row.children && row.children.length > 0);
+  })
+}
+
 // 表格当前选中行的event_id的数组：数组中的每一项代表一个选中的行的event_id
 export const selectedEventIds = computed(() => {
-  // 获取表格当前选中行的数组中每一项的event_id：
+  const closeableRows = getCloseableSelectedRows()
+// 获取表格当前选中行的数组中每一项的event_id：
   // ？：该操作符号用于安全访问selectedRows.value，防止数组为空时抛出错误；
   // map：返回一个新数组，数组中的每一项是selectedRows.value中每一项的event_id
-  return selectedRows.value?.map(row => row.event_id)
+  return closeableRows.map(row => row.event_id)
 })
 
 // 《关闭》按钮模态框显示标识符：false为不显示，true为显示
@@ -227,6 +240,8 @@ export const refresh = throttle(async () => {
   stopSpeak()
   // 设置加载标志为true,控制表格加载动画
   loading.value = true
+  // 记录当前聚合状态
+  const currentAggregateState = isAggregate.value
   // 关闭告警图形动画
   blinkTrigger.value = false
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
@@ -242,6 +257,11 @@ export const refresh = throttle(async () => {
     // 重置表格组件中级别列的排序图标为默认状态
     if (tableRef.value) {
       tableRef.value.clearSort()
+    }
+    // 保持聚合状态并重新处理数据
+    isAggregate.value = currentAggregateState
+    if (isAggregate.value) {
+      tableData.value = convertAlarmDataToTreeOptimized(tableData.value)
     }
     // 重新开启动画，确保动画开始时间相同，频率一致
     blinkTrigger.value = true
