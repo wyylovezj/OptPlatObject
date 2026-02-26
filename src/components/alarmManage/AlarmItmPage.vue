@@ -8,9 +8,10 @@
  * @lastModifiedTime： 2025-12-08 09:45:07
  */
 import { closeAlert, getUserGroup, searchData, creatOrder } from '@/api/interface.js'
-import { Edit, } from '@element-plus/icons-vue'
+import { convertAlarmDataToTreeOptimized } from '@/utils/treeData.js'
+import { Edit, Plus, Minus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, nextTick, ref, onMounted } from 'vue'
+import { computed, nextTick, ref, onMounted, watch, onUnmounted } from 'vue'
 import {
   tableRef,
   loading,
@@ -23,7 +24,7 @@ import {
   messageInstance,
   blinkTrigger,
   sortSeverity,
-  handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery
+  handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery, isAggregate
 } from '@/utils/publicData.js'
 
 
@@ -37,7 +38,22 @@ const initTableData = async () => {
     // 获取所有数据
     const allData = await searchData(searchQuery.value)
     // 对所有数据进行排序
-    tableData.value = allData.sort(sortSeverity)
+    const sortedData = allData.sort(sortSeverity)
+
+    if (isAggregate.value) {
+      // 聚合模式：转换为树形数据
+      tableData.value = convertAlarmDataToTreeOptimized(sortedData)
+      // 分别对根节点和子节点进行排序
+      tableData.value.forEach(rootNode => {
+        if (rootNode.children && rootNode.children.length > 0) {
+          // 对子节点按index排序
+          rootNode.children.sort((a, b) => (a.index || 0) - (b.index || 0))
+        }
+      })
+    } else {
+      // 非聚合模式：使用原始数据
+      tableData.value = sortedData
+    }
   } catch (error) {
     // 如果存在消息实例，先关闭所有消息
     if (messageInstance.value) {
@@ -57,6 +73,96 @@ const initTableData = async () => {
     })
   }
 }
+// 监听 isAggregate 变化，自动重新加载数据
+watch(isAggregate, async (newVal, oldVal) => {
+
+  if (newVal === oldVal) return
+  globalLoading.value = true
+  try {
+    // 清除展开状态
+    clearExpandStates()
+    await initTableData()
+    // 重置到第一页
+    currentPage.value = 1
+
+    // 等待DOM更新完成后重新同步状态
+    await nextTick()
+    syncExpandStates()
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+  catch (error) {
+    console.error('聚合模式切换失败:', error)
+  }
+  finally {
+    globalLoading.value = false
+  }
+})
+// 创建全局加载状态
+const globalLoading = ref(false)
+
+
+// 聚合开关的处理函数
+const handleAggregateChange = async () => {
+  // 立即显示全局加载状态
+  globalLoading.value = true
+  // 立即显示加载状态
+  loading.value = true
+  try {
+    // 清除展开状态
+    clearExpandStates()
+
+    await initTableData()
+    currentPage.value = 1
+    // 等待DOM更新完成后重新同步状态
+    await nextTick()
+    syncExpandStates()
+    // 确保有足够的加载时间让用户感知
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+  catch (error) {
+    console.error('切换聚合模式失败:', error)
+  }
+  finally {
+    // 同时关闭两种加载状态
+    globalLoading.value = false
+    loading.value = false
+  }
+}
+// 清除所有展开状态
+const clearExpandStates = () => {
+  expandedRows.value.clear()
+  // 如果使用了Element Plus的树形表格，也需要清除其内部状态
+  if (tableRef.value && typeof tableRef.value.setExpandedKeys === 'function') {
+    tableRef.value.setExpandedKeys([])
+  }
+  blinkTrigger.value = false
+}
+
+// 同步展开状态
+const syncExpandStates = async () => {
+  // 重新设置展开状态（如果需要的话）
+  // expandedRows.value.forEach(eventId => {
+  //   const row = findRowByEventId(tableData.value, eventId)
+  //   if (row) {
+  //     tableRef.value?.toggleRowExpansion(row, true)
+  //   }
+  // })
+  await nextTick()
+  blinkTrigger.value = true
+}
+// 辅助函数：根据event_id查找行数据
+// const findRowByEventId = (data, targetEventId) => {
+//   for (const item of data) {
+//     if (item.event_id === targetEventId) {
+//       return item
+//     }
+//     if (item.children && item.children.length > 0) {
+//       const found = findRowByEventId(item.children, targetEventId)
+//       if (found) return found
+//     }
+//   }
+//   return null
+// }
 onMounted(async () => {
   // 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
   await initTableData()
@@ -368,15 +474,14 @@ const closeCurrentAlert = async () => {
     // 参数：选中的告警ID列表和处理意见
     // await：阻塞代码执行，等待异步函数closeAlert执行完成
     await closeAlert(selectedEventIds.value, handleOpinion.value)
-    // 从表格数据中移除已关闭的告警
-    selectedEventIds.value.forEach(id => {
-      // 查找匹配的告警在表格数据中的索引
-      const index = tableData.value.findIndex((item) => String(item.event_id) === String(id))
-      if (index !== -1) {
-        // 如果找到匹配项，则从表格数据中移除
-        tableData.value.splice(index, 1)
-      }
-    })
+    // 根据是否为聚合模式采用不同的数据移除策略
+    if (isAggregate.value) {
+      // 聚合模式：从树形结构中移除节点
+      removeNodesFromTree(tableData.value, selectedEventIds.value)
+    } else {
+      // 非聚合模式：从平面数组中移除
+      removeNodesFromArray(tableData.value, selectedEventIds.value)
+    }
     // 清空选中行数组
     selectedRows.value = []
     // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
@@ -420,18 +525,209 @@ const closeCurrentAlert = async () => {
     })
   }
 }
+
+// 从树形结构中移除节点的辅助函数
+const removeNodesFromTree = (treeData, eventIdsToRemove) => {
+  for (let i = treeData.length - 1; i >= 0; i--) {
+    const node = treeData[i]
+
+    // 如果当前节点需要被移除
+    if (eventIdsToRemove.includes(node.event_id)) {
+      treeData.splice(i, 1)
+      continue
+    }
+
+    // 递归处理子节点
+    if (node.children && node.children.length > 0) {
+      removeNodesFromTree(node.children, eventIdsToRemove)
+
+      // 如果子节点都被移除了，清理空的children数组
+      if (node.children.length === 0) {
+        delete node.children
+      }
+
+      // 更新根节点的统计信息
+      if (node.isHostNode) {
+        updateRootNodeStatistics(node)
+      }
+    }
+  }
+  // 第二步：清理没有子节点的根节点
+  cleanupEmptyRootNodes(treeData)
+}
+
+// 清理空根节点的函数
+const cleanupEmptyRootNodes = (treeData) => {
+  for (let i = treeData.length - 1; i >= 0; i--) {
+    const node = treeData[i]
+
+    // 如果是根节点且没有子节点，则删除
+    if (node.isHostNode && (!node.children || node.children.length === 0)) {
+      treeData.splice(i, 1)
+    }
+  }
+}
+// 从平面数组中移除节点的辅助函数
+const removeNodesFromArray = (arrayData, eventIdsToRemove) => {
+  for (let i = arrayData.length - 1; i >= 0; i--) {
+    if (eventIdsToRemove.includes(arrayData[i].event_id)) {
+      arrayData.splice(i, 1)
+    }
+  }
+}
+
+// 更新根节点统计信息
+const updateRootNodeStatistics = (rootNode) => {
+  if (rootNode.children && rootNode.children.length > 0) {
+    const stats = {
+      total: rootNode.children.length,
+      critical: rootNode.children.filter(child => child.severity === '严重').length,
+      normal: rootNode.children.filter(child => child.severity === '一般').length,
+      processed: rootNode.children.filter(child => child.state === '已分派' || child.state === '已关闭').length,
+      unprocessed: rootNode.children.filter(child => child.state === '未处理').length,
+    }
+
+    rootNode.statistics = stats
+    rootNode.alarm_details = `(总计: ${stats.total}, 严重: ${stats.critical}, 一般: ${stats.normal})`
+
+    // 更新根节点的最高级别和最新时间
+    rootNode.severity = getHighestSeverity(rootNode.children)
+    rootNode.occurrenceTime = getLatestTime(rootNode.children)
+  }
+}
+
+// 获取最高级别（从 treeData.js 中提取的逻辑）
+const getHighestSeverity = (children) => {
+  return children.reduce((highest, alarm) => {
+    if (alarm.severity === "严重") return "严重"
+    if (highest === "严重") return "严重"
+    return alarm.severity
+  }, "一般")
+}
+
+// 获取最新时间（从 treeData.js 中提取的逻辑）
+const getLatestTime = (children) => {
+  return children.reduce((latest, alarm) => {
+    const currentTime = new Date(alarm.occurrenceTime)
+    const latestTime = new Date(latest)
+    return currentTime > latestTime ? alarm.occurrenceTime : latest
+  }, "1970-01-01 00:00:00")
+}
+
+// 展开状态管理：使用 Set 数据结构存储已展开行的 event_i，自动去重，查找效率高
+const expandedRows = ref(new Set())
+
+// 切换行展开和折叠状态
+const toggleRowExpansion = async (row) => {
+  // 确保在聚合模式下才处理展开
+  if (!isAggregate.value) return
+  // 折叠逻辑
+  if (expandedRows.value.has(row.event_id)) {
+    // 从集合中删除
+    expandedRows.value.delete(row.event_id)
+    // 调用表格组件收缩方法
+    tableRef.value?.toggleRowExpansion(row, false)
+  } else {
+    // 展开逻辑
+    // 展开前先同步图标闪烁状态
+    blinkTrigger.value = false
+    // 等待DOM更新完成
+    await nextTick()
+    // 添加到展开集合
+    expandedRows.value.add(row.event_id)
+    // 调用表格组件展开方法
+    tableRef.value?.toggleRowExpansion(row, true)
+
+    // 等待展开完成
+    await nextTick()
+    // 展开后重新图标同步
+    blinkTrigger.value = true
+  }
+}
+// 检查行是否展开
+const isRowExpanded = (row) => {
+  return expandedRows.value.has(row.event_id)
+}
+
+
+// 聚合模式下计算子节点的独立序号
+const getChildNodeIndex = (row) => {
+  // 非聚合模式直接返回空字符串
+  if (!isAggregate.value) return ''
+
+  // 获取当前页的展平数据（包含所有节点）
+  const flattenedData = []
+
+  const flattenTree = (nodes) => {
+    nodes.forEach(node => {
+      // 将当前节点加入数组
+      flattenedData.push(node)
+      if (node.children && node.children.length > 0) {
+        // 递归处理子节点
+        flattenTree(node.children)
+      }
+    })
+  }
+  // 展平当前页的所有数据
+  flattenTree(currentPageData.value)
+
+  // 只为子节点分配序号
+  let childIndex = 1
+  for (let i = 0; i < flattenedData.length; i++) {
+    const currentNode = flattenedData[i]
+
+    // 跳过根节点
+    if (currentNode.children && currentNode.children.length > 0) {
+      continue
+    }
+
+    // 找到目标子节点
+    if (currentNode.event_id === row.event_id) {
+      return childIndex
+    }
+
+    // 子节点序号递增
+    childIndex++
+  }
+
+  return ''
+}
+// 在组件卸载时清理状态
+onUnmounted(() => {
+  clearExpandStates()
+})
 </script>
 
 <template>
   <div class="item-page-container">
+
     <!--  全选/反选按钮-->
-    <div style="display: flex; align-items: center;">
-      <el-button type="primary" @click="handleSelectAll">全选</el-button>
-      <el-button type="primary" @click="handleReverseSelection">反选</el-button>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <!--  全选/反选按钮-->
+      <div style="display: flex; align-items: center;">
+        <el-button type="primary" @click="handleSelectAll">全选</el-button>
+        <el-button type="primary" @click="handleReverseSelection">反选</el-button>
+      </div>
+      <el-switch
+        v-model="isAggregate"
+        class="ml-2"
+        inline-prompt
+        width="60"
+        active-text="聚合"
+        inactive-text="不聚合"
+        @change="handleAggregateChange"
+      />
     </div>
     <!-- 表格 -->
     <div class="table-container">
+      <!-- 全局加载遮罩 -->
+      <div v-if="globalLoading" class="global-loading-overlay">
+        <div class="loading-content">
+          <div class="loading-text">正在切换表格模式...</div>
+        </div>
+      </div>
       <el-table
+        v-if="!globalLoading"
         ref="tableRef"
         :data="currentPageData"
         border
@@ -440,14 +736,60 @@ const closeCurrentAlert = async () => {
         :cell-style="{ textAlign: 'center' }"
         :header-cell-style="{ textAlign: 'center' }"
         row-key="event_id"
+        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
         v-loading="loading"
       >
         <el-table-column type="selection" reserve-selection min-width="2%" :resizable="false" />
-        <el-table-column label="序号" type="index" :index="(index) => (currentPage - 1) * pageSize + index + 1" min-width="4%" :resizable="false" />
+<!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->
+        <!-- 自定义展开列 -->
+        <el-table-column v-if="isAggregate" label="聚合" min-width="4%" :resizable="false">
+          <template #default="{ row }">
+            <div class="expand-column" @click.stop="toggleRowExpansion(row)">
+              <el-button
+                v-if="row.hasChildren || (row.children && row.children.length > 0)"
+                :icon="isRowExpanded(row) ? Minus : Plus"
+                circle
+                size="small"
+                class="expand-btn"
+                :class="{ 'expanded': isRowExpanded(row) }"
+              />
+              <div v-else class="empty-expand"></div>
+            </div>
+          </template>
+        </el-table-column>
+<!--        <el-table-column label="序号" type="index" :index="(index) => (currentPage - 1) * pageSize + index + 1" min-width="4%" :resizable="false" />-->
+        <el-table-column label="序号" min-width="5%" :resizable="false">
+          <template #default="{ row, $index }">
+            <span
+              :class="{ 'root-node-index': isAggregate && row.children && row.children.length > 0 }"
+              :style="{
+                  backgroundColor: isAggregate && row.children && row.children.length > 0 ? '#409eff' : 'transparent',
+                  color: isAggregate && row.children && row.children.length > 0 ? 'white' : 'inherit',
+                  padding: isAggregate && row.children && row.children.length > 0 ? '2px 6px' : '0',
+                  borderRadius: isAggregate && row.children && row.children.length > 0 ? '4px' : '0'
+              }"
+            >
+              <span v-if="isAggregate">
+                <!-- 聚合模式：根节点显示子节点个数，子节点显示独立序号 -->
+                <span v-if="row.children && row.children.length > 0">
+                  {{ row.children.length }}
+                </span>
+                <span v-else>
+                  {{ getChildNodeIndex(row) }}
+                </span>
+              </span>
+              <span v-else>
+                <!-- 非聚合模式：正常序号 -->
+                {{ (currentPage - 1) * pageSize + $index + 1 }}
+              </span>
+            </span>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="event_id" label="事件ID" v-if="false" />
-        <el-table-column prop="severity" label="级别" sortable="custom"  min-width="5%" :resizable="false">
+        <el-table-column prop="severity" label="级别" :sortable="isAggregate ? false : 'custom'" min-width="5%" :resizable="false">
           <template #default="scope">
           <span
             class="severity-indicator"
@@ -483,7 +825,7 @@ const closeCurrentAlert = async () => {
             {{ row.ip || '/' }}
           </template>
         </el-table-column>
-        <el-table-column prop="alarm_details" label="告警描述" show-overflow-tooltip min-width="25%" :resizable="false">
+        <el-table-column prop="alarm_details" label="告警描述" show-overflow-tooltip :min-width="isAggregate ? '20%' : '24%'" :resizable="false">
           <template #default="{row}">
             {{ row.alarm_details || '/' }}
           </template>
@@ -499,17 +841,67 @@ const closeCurrentAlert = async () => {
           </template>
         </el-table-column>
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
+<!--          <template #default="scope">-->
+<!--            <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">-->
+<!--              <el-dropdown trigger="click">-->
+<!--                <el-button type="primary" :icon="Edit"></el-button>>-->
+<!--                <template #dropdown>-->
+<!--                  <el-dropdown-menu style="user-select: none">-->
+<!--                    <el-dropdown-item @click="handleView(scope.row)" style="color: #409EFF;font-weight: bold" >查看</el-dropdown-item>-->
+<!--                    <el-dropdown-item v-if="scope.row.state === '已关闭'" disabled @click="handleClose(scope.row)">关闭</el-dropdown-item>-->
+<!--                    <el-dropdown-item v-else @click="handleClose(scope.row)" style="color: #409EFF;font-weight: bold">关闭</el-dropdown-item>-->
+<!--                    <el-dropdown-item v-if="scope.row.state === '已关闭' || scope.row.state === '已分派'" disabled @click="handleCreateTicket(scope.row)">触发工单</el-dropdown-item>-->
+<!--                    <el-dropdown-item v-else @click="handleCreateTicket(scope.row)" style="color: #409EFF;font-weight: bold">触发工单</el-dropdown-item>-->
+<!--                  </el-dropdown-menu>-->
+<!--                </template>-->
+<!--              </el-dropdown>-->
+<!--            </div>-->
+<!--          </template>-->
           <template #default="scope">
             <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">
               <el-dropdown trigger="click">
-                <el-button type="primary" :icon="Edit"></el-button>>
+                <el-button
+                  type="primary"
+                  :icon="Edit"
+                  :disabled="isAggregate && scope.row.children && scope.row.children.length > 0"
+                >
+                </el-button>
                 <template #dropdown>
                   <el-dropdown-menu style="user-select: none">
-                    <el-dropdown-item @click="handleView(scope.row)" style="color: #409EFF;font-weight: bold" >查看</el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.state === '已关闭'" disabled @click="handleClose(scope.row)">关闭</el-dropdown-item>
-                    <el-dropdown-item v-else @click="handleClose(scope.row)" style="color: #409EFF;font-weight: bold">关闭</el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.state === '已关闭' || scope.row.state === '已分派'" disabled @click="handleCreateTicket(scope.row)">触发工单</el-dropdown-item>
-                    <el-dropdown-item v-else @click="handleCreateTicket(scope.row)" style="color: #409EFF;font-weight: bold">触发工单</el-dropdown-item>
+                    <el-dropdown-item
+                      @click="handleView(scope.row)"
+                      style="color: #409EFF;font-weight: bold"
+                    >
+                      查看
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      v-if="scope.row.state === '已关闭'"
+                      disabled
+                      @click="handleClose(scope.row)"
+                    >
+                      关闭
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      v-else
+                      @click="handleClose(scope.row)"
+                      style="color: #409EFF;font-weight: bold"
+                    >
+                      关闭
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      v-if="scope.row.state === '已关闭' || scope.row.state === '已分派'"
+                      disabled
+                      @click="handleCreateTicket(scope.row)"
+                    >
+                      触发工单
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      v-else
+                      @click="handleCreateTicket(scope.row)"
+                      style="color: #409EFF;font-weight: bold"
+                    >
+                      触发工单
+                    </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -719,6 +1111,7 @@ const closeCurrentAlert = async () => {
   height: 85%;
   flex-direction: column;
   box-sizing: border-box;
+  position: relative;  /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
 }
 
 /* 表格容器样式：防止表格行多时溢出 */
@@ -728,6 +1121,7 @@ const closeCurrentAlert = async () => {
   display: flex;
   flex-direction: column;
   padding: 20px 0;
+  position: relative; /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
 }
 
 /* 告警图形样式和闪烁动画 */
@@ -737,14 +1131,14 @@ const closeCurrentAlert = async () => {
   height: 20px;
   border-radius: 50%;
   vertical-align: middle;
-  transition: all 0.3s ease;
+  transition: all 0.5s ease;
   margin: 5px 0;
 }
 .severity-blink {
   animation: blink 0.5s infinite;
 }
 @keyframes blink {
-  0% {
+  0%,100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -753,22 +1147,24 @@ const closeCurrentAlert = async () => {
     transform: scale(1.4);
     filter: brightness(1);
   }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 /* 告警状态颜色 */
 .status-unprocessed {
   color: #909399; /* 未处理 - 蓝色 */
+  background-color: transparent !important;
 }
 .status-closed {
   color: #67C23A; /* 已处理 - 绿色 */
+  background-color: transparent !important;
 }
 .status-assigned {
   color: #E6A23C; /* 已分配 - 黄色 */
+  background-color: transparent !important;
 }
-
+.status-default {
+  color: #909399; /* 默认状态 - 灰色 */
+  background-color: transparent !important;
+}
 /* 表格行样式 */
 :deep(.el-table__body tr) {
   transition: background-color 0.3s ease;
@@ -854,5 +1250,79 @@ const closeCurrentAlert = async () => {
 
 .centerPlaceholder :deep(.el-select__input.is-focus) {
   text-align: center !important;
+}
+
+
+/* 自定义展开列样式 */
+.expand-column {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 80%;
+  cursor: pointer;
+}
+
+.expand-btn {
+  transition: all 0.3s ease;
+  border: 1px solid #dcdfe6;
+}
+
+.expand-btn:hover {
+  background-color: #ecf5ff;
+  border-color: #409eff;
+}
+
+.expand-btn.expanded {
+  background-color: #409eff;
+  border-color: #409eff;
+  color: white;
+}
+
+.empty-expand {
+  width: 20px;
+  height: 20px;
+}
+
+/* 隐藏默认的展开图标 */
+:deep(.el-table__expand-icon) {
+  display: none !important;
+}
+
+/* 聚合模式下根节点序号样式 */
+.root-node-index {
+  background-color: #409eff !important;
+  color: white !important;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+/* 全局加载遮罩样式 */
+.global-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.9);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(2px);
+}
+
+.loading-content {
+  text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 300px;
+}
+
+.loading-text {
+  margin-top: 10px;
+  color: #6cbc45;
+  font-size: 15px;
 }
 </style>
