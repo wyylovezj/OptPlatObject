@@ -11,6 +11,10 @@ import HeaderBar from '@/components/HeaderBar.vue'
 import SideBar from '@/components/SideBar.vue'
 import { isCollapse, debounce } from '@/utils/publicData.js'
 import { Expand,Fold } from '@element-plus/icons-vue'
+import { useRoute } from 'vue-router'
+
+// 获取路由实例
+const route = useRoute()
 
 // 侧边栏折叠标志
 const toggleCollapse = debounce(() => {
@@ -44,9 +48,9 @@ const toggleCollapse = debounce(() => {
           </el-header>
           <el-main>
             <router-view v-slot="{ Component }">
-              <transition>
-                <keep-alive>
-                  <component :is="Component" />
+              <transition name="slide-fade" mode="out-in" >
+                <keep-alive :exclude="['AlarmItemPage']" >
+                  <component :is="Component" :key="route.fullPath"/>
                 </keep-alive>
               </transition>
             </router-view>
@@ -59,6 +63,24 @@ const toggleCollapse = debounce(() => {
 </template>
 
 <style scoped>
+/* 添加过渡动画样式 */
+.slide-fade-enter-active {
+  transition: all 0.2s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1);
+}
+
+.slide-fade-enter-from {
+  transform: translateX(20px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateX(-20px);
+  opacity: 0;
+}
 .common-layout {
   height: 100%;
 }
