@@ -470,10 +470,11 @@ const closeCurrentAlert = async () => {
     if (selectedRows.value.length === 0) {
       selectedRows.value.push(currentRow.value)
     }
+    const handleUser = sessionStorage.getItem('user')
     // 调用关闭告警接口
     // 参数：选中的告警ID列表和处理意见
     // await：阻塞代码执行，等待异步函数closeAlert执行完成
-    await closeAlert(selectedEventIds.value, handleOpinion.value)
+    await closeAlert(selectedEventIds.value, handleOpinion.value,handleUser)
     // 根据是否为聚合模式采用不同的数据移除策略
     if (isAggregate.value) {
       // 聚合模式：从树形结构中移除节点
