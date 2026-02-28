@@ -81,6 +81,7 @@ const toggleCollapse = debounce(() => {
   transform: translateX(-20px);
   opacity: 0;
 }
+
 .common-layout {
   height: 100%;
 }
