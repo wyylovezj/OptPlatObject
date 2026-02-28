@@ -157,11 +157,15 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
       alarm_details: `(总计: ${stats.total}, 严重: ${stats.critical}, 一般: ${stats.normal})`,
       occurrenceTime: getLatestTime(sortedChildren),
       processingTime: "/",
-      children: sortedChildren,
+      hasChildren: sortedChildren.length > 0,
+      // children: sortedChildren,
       isHostNode: true,
       statistics: stats
     };
-
+    // 懒加载模式下不立即加载子节点
+     // 保存子节点数据但不直接赋值
+    rootNode._cachedChildren = sortedChildren;
+    rootNode.children = undefined;
     treeData.push(rootNode);
   });
 
@@ -176,4 +180,17 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
   return treeData;
 }
 
+/**
+ * 懒加载子节点数据的函数
+ * @param {Object} node - 根节点对象
+ * @returns {Array} 子节点数组
+ */
+export function loadLazyChildren(node) {
+  // 如果已经有缓存的子节点数据，直接返回
+  if (node._cachedChildren && node._cachedChildren.length > 0) {
+    return node._cachedChildren;
+  }
 
+  // 如果没有缓存数据，返回空数组（理论上不应该发生）
+  return [];
+}

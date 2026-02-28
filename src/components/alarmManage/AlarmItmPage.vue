@@ -8,7 +8,7 @@
  * @lastModifiedTime： 2025-12-08 09:45:07
  */
 import { closeAlert, getUserGroup, searchData, creatOrder } from '@/api/interface.js'
-import { convertAlarmDataToTreeOptimized } from '@/utils/treeData.js'
+import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
 import { Edit, Plus, Minus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref, onMounted, watch, onUnmounted } from 'vue'
@@ -27,8 +27,6 @@ import {
   handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery, isAggregate
 } from '@/utils/publicData.js'
 
-
-
 /**
  * 初始化表格数据：获取当前查询参数下的告警列表数据，此时数据还未渲染到表格，仅仅是保存在数组中，后续将通过currentPage计算属性进行分页处理
  * @returns {Promise<void>}
@@ -43,10 +41,9 @@ const initTableData = async () => {
     if (isAggregate.value) {
       // 聚合模式：转换为树形数据
       tableData.value = convertAlarmDataToTreeOptimized(sortedData)
-      // 分别对根节点和子节点进行排序
+      // 如果不是懒加载模式，对子节点进行排序
       tableData.value.forEach(rootNode => {
         if (rootNode.children && rootNode.children.length > 0) {
-          // 对子节点按index排序
           rootNode.children.sort((a, b) => (a.index || 0) - (b.index || 0))
         }
       })
@@ -72,6 +69,39 @@ const initTableData = async () => {
       }
     })
   }
+}
+
+// 懒加载子节点的处理函数
+const loadTreeNode = (row, treeNode, resolve) => {
+  console.log('加载子节点:', row.event_id)
+
+  // 模拟异步加载延迟
+  setTimeout(() => {
+    try {
+      // 获取缓存的子节点数据
+      const children = loadLazyChildren(row)
+
+      if (children && children.length > 0) {
+        // 对子节点进行排序
+        const sortedChildren = [...children].sort((a, b) => {
+          // 按严重级别和时间排序
+          const severityOrder = { "严重": 2, "一般": 1 }
+          const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
+          if (severityDiff !== 0) return severityDiff
+
+          return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
+        })
+
+        console.log(`加载了 ${sortedChildren.length} 个子节点`)
+        resolve(sortedChildren)
+      } else {
+        resolve([])
+      }
+    } catch (error) {
+      console.error('加载子节点失败:', error)
+      resolve([])
+    }
+  }, 300) // 300ms 模拟网络延迟
 }
 // 监听 isAggregate 变化，自动重新加载数据
 watch(isAggregate, async (newVal, oldVal) => {
@@ -198,7 +228,7 @@ const handleReverseSelection = () => {
 const pageSize = ref(10)
 
 // 数组：每页可选显示行数
-const pageSizeOptions = [5, 10, 20, 50, 100]
+const pageSizeOptions = [5, 10, 20, 50]
 
 // 计算当前页显示的数据的索引范围
 const currentPageData = computed(() => {
@@ -652,48 +682,140 @@ const isRowExpanded = (row) => {
 
 
 // 聚合模式下计算子节点的独立序号
+// const getChildNodeIndex = (row) => {
+//   // 非聚合模式直接返回空字符串
+//   if (!isAggregate.value) return ''
+//
+//   // 获取当前页的展平数据（包含所有节点）
+//   const flattenedData = []
+//
+//   const flattenTree = (nodes) => {
+//     nodes.forEach(node => {
+//       // 将当前节点加入数组
+//       flattenedData.push(node)
+//       if (node.children && node.children.length > 0) {
+//         // 递归处理子节点
+//         flattenTree(node.children)
+//       }
+//     })
+//   }
+//   // 展平当前页的所有数据
+//   flattenTree(currentPageData.value)
+//
+//   // 只为子节点分配序号
+//   let childIndex = 1
+//   for (let i = 0; i < flattenedData.length; i++) {
+//     const currentNode = flattenedData[i]
+//
+//     // 跳过根节点
+//     if (currentNode.children && currentNode.children.length > 0) {
+//       continue
+//     }
+//
+//     // 找到目标子节点
+//     if (currentNode.event_id === row.event_id) {
+//       return childIndex
+//     }
+//
+//     // 子节点序号递增
+//     childIndex++
+//   }
+//
+//   return ''
+// }
+// 在组件卸载时清理状态
+// const getChildNodeIndex = (row) => {
+//   // 非聚合模式直接返回空字符串
+//   if (!isAggregate.value) return ''
+//
+//   // 找到当前行所属的根节点
+//   const findRootNode = (data, targetRow) => {
+//     for (const node of data) {
+//       if (node.children && node.children.length > 0) {
+//         // 检查目标行是否在当前根节点的子节点中
+//         if (node.children.some(child => child.event_id === targetRow.event_id)) {
+//           return node
+//         }
+//         // 递归检查子节点
+//         const found = findRootNode(node.children, targetRow)
+//         if (found) return found
+//       }
+//     }
+//     return null
+//   }
+//
+//   // 在当前页数据中找到根节点
+//   const rootNode = findRootNode(currentPageData.value, row)
+//
+//   if (!rootNode || !rootNode.children) {
+//     return ''
+//   }
+//
+//   // 在当前根节点的子节点中计算序号（从1开始）
+//   let childIndex = 1
+//   for (const child of rootNode.children) {
+//     if (child.event_id === row.event_id) {
+//       return childIndex
+//     }
+//     childIndex++
+//   }
+//
+//   return ''
+// }
+// 优化聚合模式下子节点序号计算（支持懒加载）
 const getChildNodeIndex = (row) => {
   // 非聚合模式直接返回空字符串
   if (!isAggregate.value) return ''
 
-  // 获取当前页的展平数据（包含所有节点）
-  const flattenedData = []
-
-  const flattenTree = (nodes) => {
-    nodes.forEach(node => {
-      // 将当前节点加入数组
-      flattenedData.push(node)
-      if (node.children && node.children.length > 0) {
-        // 递归处理子节点
-        flattenTree(node.children)
-      }
-    })
+  // 检查是否为根节点
+  if (row.hasChildren) {
+    return ''
   }
-  // 展平当前页的所有数据
-  flattenTree(currentPageData.value)
 
-  // 只为子节点分配序号
-  let childIndex = 1
-  for (let i = 0; i < flattenedData.length; i++) {
-    const currentNode = flattenedData[i]
+  // 在整个表格数据中查找包含该子节点的根节点
+  // 使用递归方式在整个树结构中查找
+  const findRootNodeWithChild = (data, targetEventId) => {
+    for (const node of data) {
+      // 检查当前节点是否为根节点且包含目标子节点
+      if (node.hasChildren) {
+        // 检查已加载的子节点
+        if (node.children && node.children.some(child => child.event_id === targetEventId)) {
+          return { rootNode: node, children: node.children }
+        }
+        // 检查缓存的子节点（未展开的情况）
+        if (node._cachedChildren && node._cachedChildren.some(child => child.event_id === targetEventId)) {
+          return { rootNode: node, children: node._cachedChildren }
+        }
+      }
 
-    // 跳过根节点
-    if (currentNode.children && currentNode.children.length > 0) {
-      continue
+      // 递归检查已展开的子节点树结构
+      if (node.children && node.children.length > 0) {
+        const result = findRootNodeWithChild(node.children, targetEventId)
+        if (result) return result
+      }
     }
+    return null
+  }
 
-    // 找到目标子节点
-    if (currentNode.event_id === row.event_id) {
+  // 在完整的表格数据中查找（而不仅仅是当前页）
+  const result = findRootNodeWithChild(tableData.value, row.event_id)
+
+  if (!result || !result.children) {
+    console.warn('未找到子节点的父节点:', row.event_id)
+    return ''
+  }
+
+  // 在找到的子节点数组中计算序号（从1开始）
+  let childIndex = 1
+  for (const child of result.children) {
+    if (child.event_id === row.event_id) {
       return childIndex
     }
-
-    // 子节点序号递增
     childIndex++
   }
 
   return ''
 }
-// 在组件卸载时清理状态
 onUnmounted(() => {
   clearExpandStates()
 })
@@ -741,6 +863,8 @@ onUnmounted(() => {
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
         v-loading="loading"
+        lazy
+        :load="loadTreeNode"
       >
         <el-table-column type="selection" reserve-selection min-width="2%" :resizable="false" />
 <!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->
@@ -749,7 +873,7 @@ onUnmounted(() => {
           <template #default="{ row }">
             <div class="expand-column" @click.stop="toggleRowExpansion(row)">
               <el-button
-                v-if="row.hasChildren || (row.children && row.children.length > 0)"
+                v-if="row.hasChildren"
                 :icon="isRowExpanded(row) ? Minus : Plus"
                 circle
                 size="small"
@@ -764,18 +888,18 @@ onUnmounted(() => {
         <el-table-column label="序号" min-width="5%" :resizable="false">
           <template #default="{ row, $index }">
             <span
-              :class="{ 'root-node-index': isAggregate && row.children && row.children.length > 0 }"
+              :class="{ 'root-node-index': isAggregate && row.hasChildren }"
               :style="{
-                  backgroundColor: isAggregate && row.children && row.children.length > 0 ? '#409eff' : 'transparent',
-                  color: isAggregate && row.children && row.children.length > 0 ? 'white' : 'inherit',
-                  padding: isAggregate && row.children && row.children.length > 0 ? '2px 6px' : '0',
-                  borderRadius: isAggregate && row.children && row.children.length > 0 ? '4px' : '0'
+                  backgroundColor: isAggregate && row.hasChildren ? '#409eff' : 'transparent',
+                  color: isAggregate && row.hasChildren ? 'white' : 'inherit',
+                  padding: isAggregate && row.hasChildren ? '2px 6px' : '0',
+                  borderRadius: isAggregate && row.hasChildren ? '4px' : '0'
               }"
             >
               <span v-if="isAggregate">
                 <!-- 聚合模式：根节点显示子节点个数，子节点显示独立序号 -->
-                <span v-if="row.children && row.children.length > 0">
-                  {{ row.children.length }}
+                <span v-if="row.hasChildren">
+                  {{ row._cachedChildren ? row._cachedChildren.length : (row.children ? row.children.length : 0) }}
                 </span>
                 <span v-else>
                   {{ getChildNodeIndex(row) }}
