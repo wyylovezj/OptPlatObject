@@ -988,7 +988,7 @@ onUnmounted(() => {
                 <el-button
                   type="primary"
                   :icon="Edit"
-                  :disabled="isAggregate && scope.row.children && scope.row.children.length > 0"
+                  :disabled="isAggregate && scope.row.hasChildren"
                 >
                 </el-button>
                 <template #dropdown>
