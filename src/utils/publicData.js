@@ -75,7 +75,7 @@ export const selectedRows = ref([])
 const getCloseableSelectedRows = () => {
   return selectedRows.value.filter(row => {
     // 聚合模式下过滤掉根节点
-    return !(isAggregate.value && row.children && row.children.length > 0);
+    return !(isAggregate.value && row.hasChildren);
   })
 }
 

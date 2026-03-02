@@ -170,29 +170,11 @@ const clearExpandStates = () => {
 
 // 同步展开状态
 const syncExpandStates = async () => {
-  // 重新设置展开状态（如果需要的话）
-  // expandedRows.value.forEach(eventId => {
-  //   const row = findRowByEventId(tableData.value, eventId)
-  //   if (row) {
-  //     tableRef.value?.toggleRowExpansion(row, true)
-  //   }
-  // })
+
   await nextTick()
   blinkTrigger.value = true
 }
-// 辅助函数：根据event_id查找行数据
-// const findRowByEventId = (data, targetEventId) => {
-//   for (const item of data) {
-//     if (item.event_id === targetEventId) {
-//       return item
-//     }
-//     if (item.children && item.children.length > 0) {
-//       const found = findRowByEventId(item.children, targetEventId)
-//       if (found) return found
-//     }
-//   }
-//   return null
-// }
+
 onMounted(async () => {
   // 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
   await initTableData()
@@ -201,27 +183,242 @@ onMounted(async () => {
     orderModel.value.createUser = user.value
   }
 })
+// 优化的根节点处理函数
+const handleOptimizedParentSelection = (parentRow, isSelected) => {
+  if (!isAggregate.value) return
 
+  let childNodes = []
+  if (parentRow.children && parentRow.children.length > 0) {
+    childNodes = parentRow.children
+  } else if (parentRow._cachedChildren) {
+    childNodes = parentRow._cachedChildren
+  }
+
+  console.log(`优化处理父节点 ${parentRow.event_id}: ${isSelected ? '选中' : '取消'} ${childNodes.length} 个子节点`)
+
+  if (childNodes.length === 0) return
+
+  // 准备批量操作
+  const operations = []
+
+  if (isSelected) {
+    // 选中父节点 -> 批量选中所有子节点
+    childNodes.forEach(child => {
+      operations.push({ action: 'select', node: child })
+    })
+  } else {
+    // 取消父节点 -> 批量取消所有子节点
+    childNodes.forEach(child => {
+      operations.push({ action: 'deselect', node: child })
+    })
+  }
+
+  // 执行批量操作
+  batchUpdateSelection(operations)
+}
 
 // 全选功能函数
 const handleSelectAll = () => {
-  selectedRows.value = []
-  // 调用表格的toggleAllSelection方法，全选当前页所有行
-  // ?是可选链操作符，防止 tableRef.value 为 null 或 undefined 时报错
-  tableRef.value?.toggleAllSelection()
+  if (!isAggregate.value) {
+    // 非聚合模式优化逻辑
+    const currentSelection = tableRef.value?.getSelectionRows() || []
+    const currentPageRows = currentPageData.value
+
+    console.log('非聚合模式全选操作')
+    console.log('当前选中行数:', currentSelection.length)
+    console.log('当前页总行数:', currentPageRows.length)
+
+    // 判断当前页面的选中状态
+    const currentPageSelectedCount = currentPageRows.filter(row =>
+      currentSelection.some(selected => selected.event_id === row.event_id)
+    ).length
+    // 检查是否当前页所有行都已选中
+    const isCurrentPageFullySelected = currentPageSelectedCount === currentPageRows.length && currentPageRows.length > 0
+    if (isCurrentPageFullySelected) {
+      // 当前页面所有行都已选中 -> 取消全选
+      console.log('取消非聚合全选')
+      tableRef.value?.clearSelection()
+      selectedRows.value = []
+    } else {
+      // 当前页面有未选中的行 -> 手动选中所有行
+      console.log('执行非聚合全选')
+      selectedRows.value = []
+
+      // 先清除当前选择
+      tableRef.value?.clearSelection()
+
+      // 手动选中当前页所有行
+      currentPageRows.forEach(row => {
+        tableRef.value?.toggleRowSelection(row, true)
+      })
+    }
+
+    return
+  }
+  // 聚合模式下的全选逻辑
+  const currentSelection = tableRef.value?.getSelectionRows() || []
+  const currentPageRows = currentPageData.value
+
+  // 检查是否所有根节点都被选中
+  const rootNodes = currentPageRows.filter(row => row.hasChildren)
+  const allRootsSelected = rootNodes.every(root =>
+    currentSelection.some(selected => selected.event_id === root.event_id)
+  )
+
+  if (allRootsSelected && rootNodes.length > 0) {
+    // 当前所有根节点都已选中 -> 取消全选
+    console.log('取消聚合全选')
+    tableRef.value?.clearSelection()
+    selectedRows.value = []
+
+    // 收集所有需要取消的子节点
+    const cancelOperations = []
+    // 确保所有子节点也被取消
+    rootNodes.forEach(root => {
+      let childNodes = []
+      if (root.children && root.children.length > 0) {
+        childNodes = root.children
+      } else if (root._cachedChildren) {
+        childNodes = root._cachedChildren
+      }
+
+      childNodes.forEach(child => {
+        cancelOperations.push({ action: 'deselect', node: child })
+      })
+    })
+    // 使用批量操作取消所有子节点（与直接点击根节点相同的逻辑）
+    if (cancelOperations.length > 0) {
+      batchUpdateSelection(cancelOperations)
+    }
+  } else {
+    // 执行聚合全选
+    console.log('执行聚合全选')
+    selectedRows.value = []
+    tableRef.value?.toggleAllSelection()
+    // 智能同步父子节点状态
+    // 使用您现有的优化函数
+    nextTick(() => {
+      setTimeout(() => {
+        rootNodes.forEach(root => {
+          // 先确保根节点被选中
+          tableRef.value?.toggleRowSelection(root, true)
+          // 重用您现有的优化处理函数
+          handleOptimizedParentSelection(root, true)
+        })
+
+        // 更新最终状态
+        setTimeout(() => {
+          if (tableRef.value) {
+            selectedRows.value = tableRef.value.getSelectionRows()
+          }
+        }, 100)
+      }, 50)
+    })
+  }
 }
 
 // 反选功能函数
 const handleReverseSelection = () => {
-  // 获取当前页的所有数据行
-  const allRows = currentPageData.value
-  // 遍历每一行，切换其选中状态
-  allRows.forEach((row) => {
-    // 使用tableRef的toggleRowSelection方法切换行选中状态
-    // 如果该行不在已选中列表中，则选中它；如果在，则取消选中
-    // ?是可选链操作符，防止 tableRef.value 为 null 或 undefined 时报错
-    tableRef.value?.toggleRowSelection(row, !selectedRows.value.some((selected) => selected.event_id === row.event_id))
+  // 非聚合模式
+  if (!isAggregate.value) {
+    const allRows = currentPageData.value
+    allRows.forEach((row) => {
+      tableRef.value?.toggleRowSelection(row, !selectedRows.value.some((selected) => selected.event_id === row.event_id))
+    })
+    return
+  }
+  // 聚合模式
+  const rootNodes = currentPageData.value.filter(row => row.hasChildren)
+  const currentSelection = tableRef.value?.getSelectionRows() || []
+  const operations = []
+  // 处理根节点反选
+  rootNodes.forEach(root => {
+    // 获取根节点和子节点的当前选中状态
+    const isRootSelected = currentSelection.some(selected => selected.event_id === root.event_id)
+    const childNodes = root.children || root._cachedChildren || []
+    const selectedChildCount = childNodes.filter(child =>
+      currentSelection.some(selected => selected.event_id === child.event_id)
+    ).length
+    // 判断当前状态
+    const isFullySelected = isRootSelected && selectedChildCount === childNodes.length && childNodes.length > 0
+    const isFullyUnselected = !isRootSelected && selectedChildCount === 0
+    const isPartiallySelected = selectedChildCount > 0 && selectedChildCount < childNodes.length
+
+
+
+    // 根据当前状态决定反选操作
+    if (isFullySelected) {
+      // 完全选中状态 -> 取消全选（复用根节点点击逻辑）
+      console.log('取消根节点全选:', root.event_id)
+      tableRef.value?.toggleRowSelection(root, false)
+      handleOptimizedParentSelection(root, false)
+    } else if (isFullyUnselected) {
+      // 完全未选状态 -> 全选（复用根节点点击逻辑）
+      console.log('选中根节点全选:', root.event_id)
+      tableRef.value?.toggleRowSelection(root, true)
+      handleOptimizedParentSelection(root, true)
+    } else if (isPartiallySelected){
+
+      console.log('优化部分选中反选:', root.event_id)
+
+
+      // 精确反选子节点：已选的取消，未选的选中
+      childNodes.forEach(child => {
+        const isChildCurrentlySelected = currentSelection.some(selected => selected.event_id === child.event_id)
+
+        if (isChildCurrentlySelected) {
+          // 当前已选中的子节点 -> 取消选择
+          console.log('取消子节点选择:', child.event_id)
+          operations.push({ action: 'deselect', node: child })
+        } else {
+          // 当前未选中的子节点 -> 选中
+          console.log('选中子节点:', child.event_id)
+          operations.push({ action: 'select', node: child })
+        }
+      })
+      // 执行批量操作
+      batchUpdateSelection(operations)
+    }
   })
+
+  // 更新选中状态
+  setTimeout(() => {
+    if (tableRef.value) {
+      selectedRows.value = tableRef.value.getSelectionRows()
+    }
+  }, 100)
+
+  //   // 处理子节点
+  //   const childNodes = root.children || root._cachedChildren || []
+  //   const selectedChildCount = childNodes.filter(child =>
+  //     selectedRows.value.some(selected => selected.event_id === child.event_id)
+  //   ).length
+  //
+  //   // 智能调整根节点状态
+  //   const shouldRootActuallyBeSelected = (childNodes.length - selectedChildCount) === childNodes.length
+  //   if (shouldRootActuallyBeSelected !== shouldSelectRoot) {
+  //     tableRef.value?.toggleRowSelection(root, shouldRootActuallyBeSelected)
+  //   }
+  //
+  //   // 收集子节点操作
+  //   childNodes.forEach(child => {
+  //     operations.push({
+  //       action: !selectedRows.value.some(selected => selected.event_id === child.event_id) ? 'select' : 'deselect',
+  //       node: child
+  //     })
+  //   })
+  // })
+  // // 批量执行子节点操作
+  // if (operations.length > 0) {
+  //   setTimeout(() => batchUpdateSelection(operations), 10)
+  // }
+  //
+  // // 更新状态
+  // setTimeout(() => {
+  //   if (tableRef.value) {
+  //     selectedRows.value = tableRef.value.getSelectionRows()
+  //   }
+  // }, 20)
 }
 
 // 每页条数：默认为10
@@ -229,6 +426,7 @@ const pageSize = ref(10)
 
 // 数组：每页可选显示行数
 const pageSizeOptions = [5, 10, 20, 50]
+
 
 // 计算当前页显示的数据的索引范围
 const currentPageData = computed(() => {
@@ -274,12 +472,103 @@ const handleCurrentChange = (page) => {
  * @param selection - 当前选中行的数组
  */
 const handleSelectionChange = (selection) => {
+  // 防止在同步过程中触发额外的处理
+  if (isSyncingSelection) {
+    console.log('跳过选择变更处理，正在同步中...')
+    return
+  }
   // selection是表格组件selection-change事件传递的参数，表示当前选中行的数组
   // 将响应式变量selectedRows的值更新为新的选中行数组，selectedRows绑定到表格组件的选中行属性
   selectedRows.value = selection
+  console.log('选择变更:', selection.map(row => row.event_id))
+  // 在聚合模式下处理父子节点联动
+  if (isAggregate.value) {
+    // 延迟执行父子节点同步
+    setTimeout(() => {
+      syncParentChildSelection()
+    }, 100)
+  }
 }
+// 新增：自定义行选择处理函数
+const handleRowSelect = (selection,row) => {
+  console.log('行选择事件:', row.event_id, row.hasChildren)
+  // 更新全局选中状态
+  selectedRows.value = selection
+  // 在聚合模式下，如果是根节点被选中，需要特殊处理
+  if (isAggregate.value) {
+    if (row.hasChildren) {
+      // 父节点选择处理
+      const isSelected = selection.includes(row)
+      // 使用优化的处理函数
+      handleOptimizedParentSelection(row, isSelected)
+    } else {
+      // // 子节点选择处理 - 独立处理
+      // handleChildNodeSelection(selection, row)
+      // 子节点处理保持原有逻辑
+      setTimeout(() => {
+        if (!isSyncingSelection) {
+          updateParentNodeState(row)
+        }
+      }, 10)
+    }
+  }
+}
+// 新增：处理父节点取消选择的函数
+const handleParentNodeDeselection = (deselectedParent) => {
+  if (!isAggregate.value) return
 
+  console.log('处理父节点取消选择:', deselectedParent.event_id)
+
+  let childNodes = []
+  if (deselectedParent.children && deselectedParent.children.length > 0) {
+    childNodes = deselectedParent.children
+  } else if (deselectedParent._cachedChildren) {
+    childNodes = deselectedParent._cachedChildren
+  }
+
+  console.log(`取消父节点 ${deselectedParent.event_id} 的 ${childNodes.length} 个子节点选择`)
+
+  // 取消所有子节点的选择
+  childNodes.forEach(child => {
+    console.log('取消子节点选择:', child.event_id)
+    tableRef.value?.toggleRowSelection(child, false)
+  })
+}
+// 辅助函数：根据子节点ID找到父节点
+const findParentNode = (childEventId) => {
+  for (const node of tableData.value) {
+    if (node.hasChildren) {
+      // 检查已加载的子节点
+      if (node.children && node.children.some(child => child.event_id === childEventId)) {
+        return node
+      }
+      // 检查缓存的子节点
+      if (node._cachedChildren && node._cachedChildren.some(child => child.event_id === childEventId)) {
+        return node
+      }
+    }
+  }
+  return null
+}
+// // 新增：强制同步选中状态的函数
+// const forceSyncSelection = () => {
+//   if (!isAggregate.value) return
 //
+//   const selectedParents = selectedRows.value.filter(row => row.hasChildren)
+//
+//   selectedParents.forEach(parent => {
+//     let childNodes = []
+//     if (parent.children && parent.children.length > 0) {
+//       childNodes = parent.children
+//     } else if (parent._cachedChildren) {
+//       childNodes = parent._cachedChildren
+//     }
+//
+//     childNodes.forEach(child => {
+//       tableRef.value?.toggleRowSelection(child, true)
+//     })
+//   })
+// }
 /**
  * 使用 nextTick 确保 DOM 更新完成后再执行行选择操作，配合reserve-selection，实现在数据刷新后之前选中的行仍然选中
  * 这个代码块主要用于在表格数据加载后，根据已选中的行 ID 自动勾选对应的表格行
@@ -500,11 +789,6 @@ const closeCurrentAlert = async () => {
     if (selectedRows.value.length === 0) {
       selectedRows.value.push(currentRow.value)
     }
-    const handleUser = sessionStorage.getItem('user')
-    // 调用关闭告警接口
-    // 参数：选中的告警ID列表和处理意见
-    // await：阻塞代码执行，等待异步函数closeAlert执行完成
-    await closeAlert(selectedEventIds.value, handleOpinion.value,handleUser)
     // 根据是否为聚合模式采用不同的数据移除策略
     if (isAggregate.value) {
       // 聚合模式：从树形结构中移除节点
@@ -513,6 +797,11 @@ const closeCurrentAlert = async () => {
       // 非聚合模式：从平面数组中移除
       removeNodesFromArray(tableData.value, selectedEventIds.value)
     }
+    const handleUser = sessionStorage.getItem('user')
+    // 调用关闭告警接口
+    // 参数：选中的告警ID列表和处理意见
+    // await：阻塞代码执行，等待异步函数closeAlert执行完成
+    await closeAlert(selectedEventIds.value, handleOpinion.value,handleUser)
     // 清空选中行数组
     selectedRows.value = []
     // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
@@ -644,7 +933,8 @@ const getLatestTime = (children) => {
     return currentTime > latestTime ? alarm.occurrenceTime : latest
   }, "1970-01-01 00:00:00")
 }
-
+// 添加防循环标志
+let isSyncingSelection = false
 // 展开状态管理：使用 Set 数据结构存储已展开行的 event_i，自动去重，查找效率高
 const expandedRows = ref(new Set())
 
@@ -816,6 +1106,157 @@ const getChildNodeIndex = (row) => {
 
   return ''
 }
+
+// 处理父子节点联动选择的函数
+// 完全重写的父子节点联动处理函数
+const syncParentChildSelection = () => {
+  // 防止无限循环
+  if (isSyncingSelection) {
+    console.log('跳过同步，已在同步中...')
+    return
+  }
+  if (!isAggregate.value || !tableRef.value) return
+  try {
+    isSyncingSelection = true
+    console.log('开始同步选择状态...')
+    // 获取当前表格中所有选中的行
+    const currentSelection = tableRef.value.getSelectionRows()
+    console.log('当前选中行:', currentSelection.map(row => ({
+      id: row.event_id,
+      type: row.hasChildren ? 'parent' : 'child'
+    })))
+
+    // 找出所有根节点（无论是否选中）
+    const allParents = currentPageData.value.filter(row => row.hasChildren)
+
+    allParents.forEach(parent => {
+      const isParentSelected = currentSelection.some(row => row.event_id === parent.event_id)
+
+      // 获取子节点
+      let childNodes = []
+      if (parent.children && parent.children.length > 0) {
+        childNodes = parent.children
+      } else if (parent._cachedChildren) {
+        childNodes = parent._cachedChildren
+      }
+      const selectedChildren = childNodes.filter(child =>
+        currentSelection.some(selected => selected.event_id === child.event_id)
+      )
+      console.log(`父节点 ${parent.event_id}: 选中=${isParentSelected}, 子节点总数=${childNodes.length}, 已选中子节点=${selectedChildren.length}`)
+
+      if (isParentSelected) {
+        // 父节点被选中 -> 确保所有子节点都被选中
+        childNodes.forEach(child => {
+          if (!currentSelection.some(selected => selected.event_id === child.event_id)) {
+            console.log('补选子节点:', child.event_id)
+            tableRef.value.toggleRowSelection(child, true)
+          }
+        })
+      } else if (selectedChildren.length > 0 && selectedChildren.length < childNodes.length) {
+        // 部分子节点被选中 -> 设置父节点为半选状态
+        console.log('设置父节点半选状态:', parent.event_id)
+        // Element Plus 会自动处理半选状态的显示
+      }
+    })
+  }
+  finally {
+    // 确保标志位被重置
+    setTimeout(() => {
+      isSyncingSelection = false
+      console.log('同步完成')
+    }, 0)
+  }
+
+}
+// 新增：处理子节点选择变化影响父节点状态的函数
+const updateParentNodeState = (childNode) => {
+  // 防止在同步过程中执行
+  if (isSyncingSelection) return
+  const parentNode = findParentNode(childNode.event_id)
+  if (!parentNode) return
+
+  let childNodes = []
+  if (parentNode.children && parentNode.children.length > 0) {
+    childNodes = parentNode.children
+  } else if (parentNode._cachedChildren) {
+    childNodes = parentNode._cachedChildren
+  }
+
+  const selectedChildren = childNodes.filter(child =>
+    selectedRows.value.some(selected => selected.event_id === child.event_id)
+  )
+
+  console.log(`父节点 ${parentNode.event_id} 的子节点选择情况: ${selectedChildren.length}/${childNodes.length}`)
+
+  // 根据子节点选择情况更新父节点状态
+  if (selectedChildren.length === childNodes.length && childNodes.length > 0) {
+    // 所有子节点都被选中 -> 选中父节点
+    if (!selectedRows.value.some(row => row.event_id === parentNode.event_id)) {
+      console.log('所有子节点选中，选中父节点:', parentNode.event_id)
+      tableRef.value?.toggleRowSelection(parentNode, true)
+    }
+  } else if (selectedChildren.length === 0) {
+    // 没有子节点被选中 -> 取消父节点选择
+    if (selectedRows.value.some(row => row.event_id === parentNode.event_id)) {
+      console.log('无子节点选中，取消父节点:', parentNode.event_id)
+      tableRef.value?.toggleRowSelection(parentNode, false)
+    }
+  }
+  // 部分子节点被选中时，Element Plus 会自动显示半选状态
+}
+// 优化后的 batchUpdateSelection（恢复防循环机制）
+let isBatchProcessing = false
+
+// 批量更新函数 - 一次性处理多个选择操作
+const batchUpdateSelection = (operations) => {
+  // if (isSyncingSelection || !tableRef.value) return
+  //
+  // isSyncingSelection = true
+  // 简单有效的并发控制
+  if (isBatchProcessing) {
+    console.log('批量操作正在进行中，排队等待...')
+    setTimeout(() => batchUpdateSelection(operations), 50)
+    return
+  }
+  if (!tableRef.value) return
+  isBatchProcessing = true
+  try {
+    console.log(`批量处理 ${operations.length} 个选择操作`)
+
+    // 收集所有需要操作的节点
+    const nodesToSelect = []
+    const nodesToDeselect = []
+
+    operations.forEach(op => {
+      if (op.action === 'select') {
+        nodesToSelect.push(op.node)
+      } else {
+        nodesToDeselect.push(op.node)
+      }
+    })
+
+    // 批量执行选择操作
+    if (nodesToSelect.length > 0) {
+      console.log(`批量选中 ${nodesToSelect.length} 个节点`)
+      nodesToSelect.forEach(node => {
+        tableRef.value.toggleRowSelection(node, true)
+      })
+    }
+
+    if (nodesToDeselect.length > 0) {
+      console.log(`批量取消 ${nodesToDeselect.length} 个节点`)
+      nodesToDeselect.forEach(node => {
+        tableRef.value.toggleRowSelection(node, false)
+      })
+    }
+
+  } finally {
+    setTimeout(() => {
+      isBatchProcessing = false
+      // isSyncingSelection = false
+    }, 0)
+  }
+}
 onUnmounted(() => {
   clearExpandStates()
 })
@@ -865,6 +1306,8 @@ onUnmounted(() => {
         v-loading="loading"
         lazy
         :load="loadTreeNode"
+        @select="handleRowSelect"
+        :select-on-indeterminate="false"
       >
         <el-table-column type="selection" reserve-selection min-width="2%" :resizable="false" />
 <!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->

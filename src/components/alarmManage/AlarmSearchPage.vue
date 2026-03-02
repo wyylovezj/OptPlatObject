@@ -12,7 +12,10 @@ import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary,
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 
-
+const defaultTime = ref([
+  new Date(2000, 1, 1, 0, 0, 0),
+  new Date(2000, 2, 1, 23, 59, 59),
+])
 const severityOptions = [
   {
     value: 4,
@@ -426,6 +429,7 @@ const batchClose = async () => {
           :shortcuts="shortcuts"
           unlink-panels
           @clear="searchQuery.occurrenceTime = []"
+          :default-time="defaultTime"
         />
       </el-form-item>
       <el-form-item label="告警状态：" prop="state">

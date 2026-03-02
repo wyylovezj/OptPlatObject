@@ -173,6 +173,7 @@ export const searchData = async (searchQuery) => {
  * 关闭告警函数：异步函数
  * @param {Array} selectedEventIds - 选中的事件ID数组
  * @param {Function} handleOpinion - 处理意见的回调函数
+ * @param handleUser - 处理人
  * @returns {Promise} - 返回一个Promise，解析为响应数据
  * @throws {Error} - 如果关闭告警失败，抛出错误
  */
