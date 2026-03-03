@@ -74,13 +74,20 @@ const initTableData = async () => {
 // 懒加载子节点的处理函数
 const loadTreeNode = (row, treeNode, resolve) => {
   console.log('加载子节点:', row.event_id)
-
   // 模拟异步加载延迟
   setTimeout(() => {
     try {
+      console.log('row:', row)
       // 获取缓存的子节点数据
       const children = loadLazyChildren(row)
-
+      console.log('children:', children)
+      tableData.value = tableData.value.map(node => {
+        if (node.event_id === row.event_id) {
+          node.children = children
+        }
+        return node
+      })
+      console.log('tableData:', tableData.value)
       if (children && children.length > 0) {
         // 对子节点进行排序
         const sortedChildren = [...children].sort((a, b) => {
@@ -838,8 +845,10 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
           if (eventIdsToRemove.includes(child.event_id)) {
             console.log('移除子节点:', child.event_id)
             node._cachedChildren.splice(j, 1)
+            console.log('parentNode',parentNode)
             parentNode.splice(j, 1)
             console.log('parentNode2',parentNode)
+            console.log('parentNode3',tableData.value)
           }
         }
 
