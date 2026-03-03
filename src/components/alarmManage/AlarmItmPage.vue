@@ -388,37 +388,6 @@ const handleReverseSelection = () => {
     }
   }, 100)
 
-  //   // 处理子节点
-  //   const childNodes = root.children || root._cachedChildren || []
-  //   const selectedChildCount = childNodes.filter(child =>
-  //     selectedRows.value.some(selected => selected.event_id === child.event_id)
-  //   ).length
-  //
-  //   // 智能调整根节点状态
-  //   const shouldRootActuallyBeSelected = (childNodes.length - selectedChildCount) === childNodes.length
-  //   if (shouldRootActuallyBeSelected !== shouldSelectRoot) {
-  //     tableRef.value?.toggleRowSelection(root, shouldRootActuallyBeSelected)
-  //   }
-  //
-  //   // 收集子节点操作
-  //   childNodes.forEach(child => {
-  //     operations.push({
-  //       action: !selectedRows.value.some(selected => selected.event_id === child.event_id) ? 'select' : 'deselect',
-  //       node: child
-  //     })
-  //   })
-  // })
-  // // 批量执行子节点操作
-  // if (operations.length > 0) {
-  //   setTimeout(() => batchUpdateSelection(operations), 10)
-  // }
-  //
-  // // 更新状态
-  // setTimeout(() => {
-  //   if (tableRef.value) {
-  //     selectedRows.value = tableRef.value.getSelectionRows()
-  //   }
-  // }, 20)
 }
 
 // 每页条数：默认为10
@@ -492,6 +461,7 @@ const handleSelectionChange = (selection) => {
 // 新增：自定义行选择处理函数
 const handleRowSelect = (selection,row) => {
   console.log('行选择事件:', row.event_id, row.hasChildren)
+  console.log('行选择事件:',selectedEventIds.value)
   // 更新全局选中状态
   selectedRows.value = selection
   // 在聚合模式下，如果是根节点被选中，需要特殊处理
@@ -512,6 +482,8 @@ const handleRowSelect = (selection,row) => {
       }, 10)
     }
   }
+  console.log('行选择事件结束:',selectedEventIds.value)
+  console.log('行选择事件结束:selectedRows',selectedRows.value)
 }
 // 新增：处理父节点取消选择的函数
 const handleParentNodeDeselection = (deselectedParent) => {
@@ -550,25 +522,6 @@ const findParentNode = (childEventId) => {
   }
   return null
 }
-// // 新增：强制同步选中状态的函数
-// const forceSyncSelection = () => {
-//   if (!isAggregate.value) return
-//
-//   const selectedParents = selectedRows.value.filter(row => row.hasChildren)
-//
-//   selectedParents.forEach(parent => {
-//     let childNodes = []
-//     if (parent.children && parent.children.length > 0) {
-//       childNodes = parent.children
-//     } else if (parent._cachedChildren) {
-//       childNodes = parent._cachedChildren
-//     }
-//
-//     childNodes.forEach(child => {
-//       tableRef.value?.toggleRowSelection(child, true)
-//     })
-//   })
-// }
 /**
  * 使用 nextTick 确保 DOM 更新完成后再执行行选择操作，配合reserve-selection，实现在数据刷新后之前选中的行仍然选中
  * 这个代码块主要用于在表格数据加载后，根据已选中的行 ID 自动勾选对应的表格行
@@ -789,6 +742,17 @@ const closeCurrentAlert = async () => {
     if (selectedRows.value.length === 0) {
       selectedRows.value.push(currentRow.value)
     }
+    // 重要：在修改 tableData 之前先获取选中的 event IDs，使用闭包保存快照
+    const eventIdsToClose = selectedRows.value
+      .filter(row => !(isAggregate.value && row.hasChildren))
+      .map(row => row.event_id)
+    console.log('eventIdsToClose',eventIdsToClose)
+    const handleUser = sessionStorage.getItem('user')
+    // 调用关闭告警接口
+    // 参数：选中的告警ID列表和处理意见
+    // await：阻塞代码执行，等待异步函数closeAlert执行完成
+    await closeAlert(tableData.value,selectedEventIds.value, handleOpinion.value,handleUser)
+    console.log('tableData1',tableData.value)
     // 根据是否为聚合模式采用不同的数据移除策略
     if (isAggregate.value) {
       // 聚合模式：从树形结构中移除节点
@@ -797,11 +761,7 @@ const closeCurrentAlert = async () => {
       // 非聚合模式：从平面数组中移除
       removeNodesFromArray(tableData.value, selectedEventIds.value)
     }
-    const handleUser = sessionStorage.getItem('user')
-    // 调用关闭告警接口
-    // 参数：选中的告警ID列表和处理意见
-    // await：阻塞代码执行，等待异步函数closeAlert执行完成
-    await closeAlert(selectedEventIds.value, handleOpinion.value,handleUser)
+    console.log('tableData2',tableData.value)
     // 清空选中行数组
     selectedRows.value = []
     // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
@@ -848,32 +808,78 @@ const closeCurrentAlert = async () => {
 
 // 从树形结构中移除节点的辅助函数
 const removeNodesFromTree = (treeData, eventIdsToRemove) => {
+  if (!tableRef.value) return
+
+  const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
+  console.log('lazyTreeNodeMap',lazyTreeNodeMap)
+  console.log('treeData',treeData)
   for (let i = treeData.length - 1; i >= 0; i--) {
     const node = treeData[i]
+    console.log('node',node)
+    const parentNode = lazyTreeNodeMap[node.event_id]
+    console.log('parentNode1',parentNode)
 
-    // 如果当前节点需要被移除
-    if (eventIdsToRemove.includes(node.event_id)) {
-      treeData.splice(i, 1)
-      continue
-    }
+    // 如果是根节点（聚合模式下的主机节点）
+    if (node.isHostNode) {
+      // 检查根节点本身是否需要被移除
+      if (eventIdsToRemove.includes(node.event_id)) {
+        console.log('移除根节点',node)
+        // 根节点本身需要关闭：移除整个根节点及其所有子节点
+        treeData.splice(i, 1)
+        continue
+      }
+      console.log('执行到这了。。。。。' +
+        '')
+      // 处理子节点的移除
+      if (node._cachedChildren && node._cachedChildren.length > 0) {
+        // 从 children 数组中移除需要关闭的子节点
+        for (let j = node._cachedChildren.length - 1; j >= 0; j--) {
+          const child = node._cachedChildren[j]
+          if (eventIdsToRemove.includes(child.event_id)) {
+            console.log('移除子节点:', child.event_id)
+            node._cachedChildren.splice(j, 1)
+            parentNode.splice(j, 1)
+            console.log('parentNode2',parentNode)
+          }
+        }
 
-    // 递归处理子节点
-    if (node.children && node.children.length > 0) {
-      removeNodesFromTree(node.children, eventIdsToRemove)
+        // 如果缓存数组为空，删除该属性
+        if (node._cachedChildren.length === 0) {
+          delete node._cachedChildren
+        }
+      }
+      // 更新根节点的统计信息
+      updateRootNodeStatistics(node)
 
-      // 如果子节点都被移除了，清理空的children数组
-      if (node.children.length === 0) {
-        delete node.children
+      // 检查是否应该移除根节点（当所有子节点都被移除后）
+      const hasChildren = (node.children && node.children.length > 0) ||
+        (node._cachedChildren && node._cachedChildren.length > 0)
+
+      if (!hasChildren) {
+        // 所有子节点都已被移除，删除根节点
+        console.log('所有子节点已关闭，移除根节点:', node.event_id)
+        treeData.splice(i, 1)
       }
 
-      // 更新根节点的统计信息
-      if (node.isHostNode) {
-        updateRootNodeStatistics(node)
+    } else {
+      console.log('非根节点:', node.event_id)
+      // 非根节点的处理（如果是普通节点）
+      if (eventIdsToRemove.includes(node.event_id)) {
+        treeData.splice(i, 1)
+        continue
+      }
+
+      // 递归处理子节点
+      if (node.children && node.children.length > 0) {
+        removeNodesFromTree(node.children, eventIdsToRemove)
+
+        // 如果子节点都被移除了，清理空的 children 数组
+        if (node.children.length === 0) {
+          delete node.children
+        }
       }
     }
   }
-  // 第二步：清理没有子节点的根节点
-  cleanupEmptyRootNodes(treeData)
 }
 
 // 清理空根节点的函数
@@ -969,89 +975,6 @@ const toggleRowExpansion = async (row) => {
 const isRowExpanded = (row) => {
   return expandedRows.value.has(row.event_id)
 }
-
-
-// 聚合模式下计算子节点的独立序号
-// const getChildNodeIndex = (row) => {
-//   // 非聚合模式直接返回空字符串
-//   if (!isAggregate.value) return ''
-//
-//   // 获取当前页的展平数据（包含所有节点）
-//   const flattenedData = []
-//
-//   const flattenTree = (nodes) => {
-//     nodes.forEach(node => {
-//       // 将当前节点加入数组
-//       flattenedData.push(node)
-//       if (node.children && node.children.length > 0) {
-//         // 递归处理子节点
-//         flattenTree(node.children)
-//       }
-//     })
-//   }
-//   // 展平当前页的所有数据
-//   flattenTree(currentPageData.value)
-//
-//   // 只为子节点分配序号
-//   let childIndex = 1
-//   for (let i = 0; i < flattenedData.length; i++) {
-//     const currentNode = flattenedData[i]
-//
-//     // 跳过根节点
-//     if (currentNode.children && currentNode.children.length > 0) {
-//       continue
-//     }
-//
-//     // 找到目标子节点
-//     if (currentNode.event_id === row.event_id) {
-//       return childIndex
-//     }
-//
-//     // 子节点序号递增
-//     childIndex++
-//   }
-//
-//   return ''
-// }
-// 在组件卸载时清理状态
-// const getChildNodeIndex = (row) => {
-//   // 非聚合模式直接返回空字符串
-//   if (!isAggregate.value) return ''
-//
-//   // 找到当前行所属的根节点
-//   const findRootNode = (data, targetRow) => {
-//     for (const node of data) {
-//       if (node.children && node.children.length > 0) {
-//         // 检查目标行是否在当前根节点的子节点中
-//         if (node.children.some(child => child.event_id === targetRow.event_id)) {
-//           return node
-//         }
-//         // 递归检查子节点
-//         const found = findRootNode(node.children, targetRow)
-//         if (found) return found
-//       }
-//     }
-//     return null
-//   }
-//
-//   // 在当前页数据中找到根节点
-//   const rootNode = findRootNode(currentPageData.value, row)
-//
-//   if (!rootNode || !rootNode.children) {
-//     return ''
-//   }
-//
-//   // 在当前根节点的子节点中计算序号（从1开始）
-//   let childIndex = 1
-//   for (const child of rootNode.children) {
-//     if (child.event_id === row.event_id) {
-//       return childIndex
-//     }
-//     childIndex++
-//   }
-//
-//   return ''
-// }
 // 优化聚合模式下子节点序号计算（支持懒加载）
 const getChildNodeIndex = (row) => {
   // 非聚合模式直接返回空字符串
@@ -1131,7 +1054,7 @@ const syncParentChildSelection = () => {
 
     allParents.forEach(parent => {
       const isParentSelected = currentSelection.some(row => row.event_id === parent.event_id)
-
+      console.log(`isParentSelected: ${isParentSelected}`)
       // 获取子节点
       let childNodes = []
       if (parent.children && parent.children.length > 0) {
@@ -1139,9 +1062,12 @@ const syncParentChildSelection = () => {
       } else if (parent._cachedChildren) {
         childNodes = parent._cachedChildren
       }
+      console.log('childNodes',childNodes)
       const selectedChildren = childNodes.filter(child =>
         currentSelection.some(selected => selected.event_id === child.event_id)
       )
+      console.log('selectedChildren',selectedChildren)
+      // console.log('已选中子节点:', selectedEventIds.value)
       console.log(`父节点 ${parent.event_id}: 选中=${isParentSelected}, 子节点总数=${childNodes.length}, 已选中子节点=${selectedChildren.length}`)
 
       if (isParentSelected) {
@@ -1157,6 +1083,7 @@ const syncParentChildSelection = () => {
         console.log('设置父节点半选状态:', parent.event_id)
         // Element Plus 会自动处理半选状态的显示
       }
+      console.log('已选中子节点:', selectedEventIds.value)
     })
   }
   finally {
@@ -1166,7 +1093,6 @@ const syncParentChildSelection = () => {
       console.log('同步完成')
     }, 0)
   }
-
 }
 // 新增：处理子节点选择变化影响父节点状态的函数
 const updateParentNodeState = (childNode) => {

@@ -82,6 +82,7 @@ const getCloseableSelectedRows = () => {
 // 表格当前选中行的event_id的数组：数组中的每一项代表一个选中的行的event_id
 export const selectedEventIds = computed(() => {
   const closeableRows = getCloseableSelectedRows()
+  console.log('closeableRows',closeableRows)
 // 获取表格当前选中行的数组中每一项的event_id：
   // ？：该操作符号用于安全访问selectedRows.value，防止数组为空时抛出错误；
   // map：返回一个新数组，数组中的每一项是selectedRows.value中每一项的event_id
