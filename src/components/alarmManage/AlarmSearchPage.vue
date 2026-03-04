@@ -293,6 +293,7 @@ const clearSearch = () => {
 // 存储当前显示的提示框实例
 const messageInstance = ref(null)
 const batchClose = async () => {
+
   // 检查选中的节点中是否有状态为"已关闭"的告警
   const closedRows = selectedRows.value.filter(row => row.state === '已关闭')
   if (closedRows.length > 0) {

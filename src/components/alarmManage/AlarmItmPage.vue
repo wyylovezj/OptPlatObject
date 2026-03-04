@@ -78,6 +78,9 @@ watch(isAggregate, async (newVal, oldVal) => {
   if (newVal === oldVal) return
   globalLoading.value = true
   try {
+    // 清空当前选择行
+    selectedRows.value = []
+    tableRef.value?.clearSelection()
     // 清除展开状态
     clearExpandStates()
     await initTableData()
@@ -107,6 +110,9 @@ const handleAggregateChange = async () => {
   // 立即显示加载状态
   loading.value = true
   try {
+    // 清空当前选择行
+    selectedRows.value = []
+    tableRef.value?.clearSelection()
     // 清除展开状态
     clearExpandStates()
 
@@ -240,7 +246,7 @@ const handleSelectAll = async () => {
 
     // 显示警告消息
     messageInstance.value = ElMessage.warning({
-      message: `请展开所有根节点后再进行批量关闭操作`,
+      message: `请展开所有根节点后再进行批量选择操作`,
       duration: 3000,
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
@@ -312,12 +318,37 @@ const handleSelectAll = async () => {
 }
 
 // 反选功能函数
-const handleReverseSelection = () => {
+const handleReverseSelection = async () => {
   // 非聚合模式
   if (!isAggregate.value) {
     const allRows = currentPageData.value
     allRows.forEach((row) => {
       tableRef.value?.toggleRowSelection(row, !selectedRows.value.some((selected) => selected.event_id === row.event_id))
+    })
+    return
+  }
+  // 获取当前页的所有根节点
+  const allRootNodes = currentPageData.value.filter(row => row.hasChildren)
+
+  // 检查是否有根节点未被展开
+  const unexpandedRootNodes = allRootNodes.filter(rootNode => !expandedRows.value.has(rootNode.event_id))
+
+  // 如果有未展开的根节点，提示用户
+  if (unexpandedRootNodes.length > 0) {
+    // 如果已有消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `请展开所有根节点后再进行批量选择操作`,
+      duration: 3000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
     })
     return
   }
