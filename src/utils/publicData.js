@@ -263,6 +263,16 @@ export const refresh = throttle(async () => {
     isAggregate.value = currentAggregateState
     if (isAggregate.value) {
       tableData.value = convertAlarmDataToTreeOptimized(tableData.value)
+      // 新增：在聚合模式下，等待 DOM 更新后更新懒加载节点映射表
+      // 这个需要在下一个 tick 执行，确保表格已经准备好
+      import('vue').then(({ nextTick }) => {
+        nextTick(() => {
+          // 尝试从全局查找并调用 updateLazyTreeNodeMap 函数
+          // 由于该函数在组件内部定义，我们需要通过其他方式触发
+          // 这里我们通过触发自定义事件或者直接操作 lazyTreeNodeMap
+          updateLazyNodeMapAfterRefresh()
+        })
+      })
     }
     // 重新开启动画，确保动画开始时间相同，频率一致
     blinkTrigger.value = true
@@ -276,7 +286,40 @@ export const refresh = throttle(async () => {
     }
   }
 }, 300)
+// 新增：刷新后更新懒加载节点映射表的辅助函数
+const updateLazyNodeMapAfterRefresh = () => {
+  if (!tableRef.value || !tableRef.value.store || !tableRef.value.store.states.lazyTreeNodeMap) {
+    return
+  }
 
+  const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
+
+  // 遍历所有根节点，更新其子节点数据
+  tableData.value.forEach(rootNode => {
+    if (rootNode.hasChildren && rootNode._cachedChildren) {
+      const eventId = rootNode.event_id
+
+      // 检查该根节点是否已在懒加载映射表中（即是否被展开过）
+      if (lazyTreeNodeMap[eventId]) {
+        // 已存在：更新子节点数据
+        console.log(`[刷新] 更新根节点 ${eventId} 的子节点数据，数量：${rootNode._cachedChildren.length}`)
+
+        // 替换懒加载映射表中的子节点数据
+        lazyTreeNodeMap[eventId] = [...rootNode._cachedChildren]
+
+        // 对子节点进行排序
+        lazyTreeNodeMap[eventId].sort((a, b) => {
+          const severityOrder = { "严重": 2, "一般": 1 }
+          const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
+          if (severityDiff !== 0) return severityDiff
+          return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
+        })
+      }
+    }
+  })
+
+  console.log('[刷新] lazyTreeNodeMap 更新完成')
+}
 /**
  * 处理表格级别属性排序变化
  * @param order - 表格传入的界别字段排序参数，ascending为升序，descending为降序

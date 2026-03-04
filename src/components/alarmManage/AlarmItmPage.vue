@@ -41,12 +41,12 @@ const initTableData = async () => {
     if (isAggregate.value) {
       // 聚合模式：转换为树形数据
       tableData.value = convertAlarmDataToTreeOptimized(sortedData)
-      // 如果不是懒加载模式，对子节点进行排序
-      tableData.value.forEach(rootNode => {
-        if (rootNode.children && rootNode.children.length > 0) {
-          rootNode.children.sort((a, b) => (a.index || 0) - (b.index || 0))
-        }
-      })
+      // // 如果不是懒加载模式，对子节点进行排序
+      // tableData.value.forEach(rootNode => {
+      //   if (rootNode.children && rootNode.children.length > 0) {
+      //     rootNode.children.sort((a, b) => (a.index || 0) - (b.index || 0))
+      //   }
+      // })
     } else {
       // 非聚合模式：使用原始数据
       tableData.value = sortedData
@@ -83,6 +83,7 @@ const loadTreeNode = (row, treeNode, resolve) => {
       console.log('children:', children)
       tableData.value = tableData.value.map(node => {
         if (node.event_id === row.event_id) {
+          // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
           node.children = children
         }
         return node
@@ -493,26 +494,26 @@ const handleRowSelect = (selection,row) => {
   console.log('行选择事件结束:selectedRows',selectedRows.value)
 }
 // 新增：处理父节点取消选择的函数
-const handleParentNodeDeselection = (deselectedParent) => {
-  if (!isAggregate.value) return
-
-  console.log('处理父节点取消选择:', deselectedParent.event_id)
-
-  let childNodes = []
-  if (deselectedParent.children && deselectedParent.children.length > 0) {
-    childNodes = deselectedParent.children
-  } else if (deselectedParent._cachedChildren) {
-    childNodes = deselectedParent._cachedChildren
-  }
-
-  console.log(`取消父节点 ${deselectedParent.event_id} 的 ${childNodes.length} 个子节点选择`)
-
-  // 取消所有子节点的选择
-  childNodes.forEach(child => {
-    console.log('取消子节点选择:', child.event_id)
-    tableRef.value?.toggleRowSelection(child, false)
-  })
-}
+// const handleParentNodeDeselection = (deselectedParent) => {
+//   if (!isAggregate.value) return
+//
+//   console.log('处理父节点取消选择:', deselectedParent.event_id)
+//
+//   let childNodes = []
+//   if (deselectedParent.children && deselectedParent.children.length > 0) {
+//     childNodes = deselectedParent.children
+//   } else if (deselectedParent._cachedChildren) {
+//     childNodes = deselectedParent._cachedChildren
+//   }
+//
+//   console.log(`取消父节点 ${deselectedParent.event_id} 的 ${childNodes.length} 个子节点选择`)
+//
+//   // 取消所有子节点的选择
+//   childNodes.forEach(child => {
+//     console.log('取消子节点选择:', child.event_id)
+//     tableRef.value?.toggleRowSelection(child, false)
+//   })
+// }
 // 辅助函数：根据子节点ID找到父节点
 const findParentNode = (childEventId) => {
   for (const node of tableData.value) {
@@ -950,7 +951,7 @@ const getLatestTime = (children) => {
 }
 // 添加防循环标志
 let isSyncingSelection = false
-// 展开状态管理：使用 Set 数据结构存储已展开行的 event_i，自动去重，查找效率高
+// 展开状态管理：使用 Set 数据结构存储已展开行的 event_id，自动去重，查找效率高
 const expandedRows = ref(new Set())
 
 // 切换行展开和折叠状态
@@ -965,10 +966,10 @@ const toggleRowExpansion = async (row) => {
     tableRef.value?.toggleRowExpansion(row, false)
   } else {
     // 展开逻辑
-    // 展开前先同步图标闪烁状态
-    blinkTrigger.value = false
     // 等待DOM更新完成
     await nextTick()
+    // 展开前先同步图标闪烁状态
+    blinkTrigger.value = false
     // 添加到展开集合
     expandedRows.value.add(row.event_id)
     // 调用表格组件展开方法
@@ -1076,7 +1077,6 @@ const syncParentChildSelection = () => {
         currentSelection.some(selected => selected.event_id === child.event_id)
       )
       console.log('selectedChildren',selectedChildren)
-      // console.log('已选中子节点:', selectedEventIds.value)
       console.log(`父节点 ${parent.event_id}: 选中=${isParentSelected}, 子节点总数=${childNodes.length}, 已选中子节点=${selectedChildren.length}`)
 
       if (isParentSelected) {
