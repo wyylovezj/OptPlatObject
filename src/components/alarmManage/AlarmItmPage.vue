@@ -943,6 +943,11 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
           // 限制为前 50 条
           rootNode.children = cachedChildren.slice(0, 50)
           console.log(`更新根节点 ${eventId} 的 children，数量：${rootNode.children.length}`)
+          // 更新懒加载映射表中的子节点数据为最新的_cachedChildren
+          if (lazyTreeNodeMap[eventId]) {
+            lazyTreeNodeMap[eventId] = [...cachedChildren.slice(0, 50)]
+            console.log(`更新懒加载映射表 ${eventId}，数量：${cachedChildren.length}`)
+          }
         }
       })
     })
