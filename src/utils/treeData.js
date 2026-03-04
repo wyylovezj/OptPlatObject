@@ -102,7 +102,9 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
     return {
       total: children.length, // 总子项数量
       critical: children.filter((a) => a.severity === '严重').length, // 严重级别的子项数量
+      important: children.filter((a) => a.severity === '重要').length, // 严重级别的子项数量
       normal: children.filter((a) => a.severity === '一般').length, // 一般级别的子项数量
+      ordinary: children.filter((a) => a.severity === '普通').length, // 一般级别的子项数量
       processed: children.filter((a) => a.state === '已分派' || a.state === '已关闭').length, // 已处理状态的子项数量（包括已分派和已关闭）
       unprocessed: children.filter((a) => a.state === '未处理').length, // 未处理状态的子项数量
     }
@@ -154,7 +156,7 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
       category: "/",
       object: "/",
       ip: "/",
-      alarm_details: `(总计: ${stats.total}, 严重: ${stats.critical}, 一般: ${stats.normal})`,
+      alarm_details: `(总计: ${stats.total}, 严重: ${stats.critical},重要: ${stats.important},一般: ${stats.normal},普通: ${stats.ordinary})`,
       occurrenceTime: getLatestTime(sortedChildren),
       processingTime: "/",
       hasChildren: sortedChildren.length > 0,

@@ -1022,15 +1022,17 @@ const removeNodesFromArray = (arrayData, eventIdsToRemove) => {
 const updateRootNodeStatistics = (rootNode) => {
   if (rootNode.children && rootNode.children.length > 0) {
     const stats = {
-      total: rootNode.children.length,
-      critical: rootNode.children.filter(child => child.severity === '严重').length,
-      normal: rootNode.children.filter(child => child.severity === '一般').length,
-      processed: rootNode.children.filter(child => child.state === '已分派' || child.state === '已关闭').length,
-      unprocessed: rootNode.children.filter(child => child.state === '未处理').length,
+      total: rootNode._cachedChildren.length,
+      critical: rootNode._cachedChildren.filter(child => child.severity === '严重').length,
+      important: rootNode._cachedChildren.filter(child => child.severity === '重要').length,
+      normal: rootNode._cachedChildren.filter(child => child.severity === '一般').length,
+      ordinary: rootNode._cachedChildren.filter(child => child.severity === '普通').length,
+      processed: rootNode._cachedChildren.filter(child => child.state === '已分派' || child.state === '已关闭').length,
+      unprocessed: rootNode._cachedChildren.filter(child => child.state === '未处理').length,
     }
 
     rootNode.statistics = stats
-    rootNode.alarm_details = `(总计: ${stats.total}, 严重: ${stats.critical}, 一般: ${stats.normal})`
+    rootNode.alarm_details = `(总计：${stats.total}, 严重：${stats.critical},重要：${stats.important},一般：${stats.normal},普通：${stats.ordinary})`
 
     // 更新根节点的最高级别和最新时间
     rootNode.severity = getHighestSeverity(rootNode.children)
