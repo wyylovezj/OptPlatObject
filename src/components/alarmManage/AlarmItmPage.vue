@@ -24,7 +24,7 @@ import {
   messageInstance,
   blinkTrigger,
   sortSeverity,
-  handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery, isAggregate
+  handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery, isAggregate,
 } from '@/utils/publicData.js'
 
 /**
@@ -71,46 +71,7 @@ const initTableData = async () => {
   }
 }
 
-// 懒加载子节点的处理函数
-const loadTreeNode = (row, treeNode, resolve) => {
-  console.log('加载子节点:', row.event_id)
-  // 模拟异步加载延迟
-  setTimeout(() => {
-    try {
-      console.log('row:', row)
-      // 获取缓存的子节点数据
-      const children = loadLazyChildren(row)
-      console.log('children:', children)
-      tableData.value = tableData.value.map(node => {
-        if (node.event_id === row.event_id) {
-          // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
-          node.children = children
-        }
-        return node
-      })
-      console.log('tableData:', tableData.value)
-      if (children && children.length > 0) {
-        // 对子节点进行排序
-        const sortedChildren = [...children].sort((a, b) => {
-          // 按严重级别和时间排序
-          const severityOrder = { "严重": 2, "一般": 1 }
-          const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
-          if (severityDiff !== 0) return severityDiff
 
-          return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
-        })
-
-        console.log(`加载了 ${sortedChildren.length} 个子节点`)
-        resolve(sortedChildren)
-      } else {
-        resolve([])
-      }
-    } catch (error) {
-      console.error('加载子节点失败:', error)
-      resolve([])
-    }
-  }, 300) // 300ms 模拟网络延迟
-}
 // 监听 isAggregate 变化，自动重新加载数据
 watch(isAggregate, async (newVal, oldVal) => {
 
@@ -226,7 +187,7 @@ const handleOptimizedParentSelection = (parentRow, isSelected) => {
 }
 
 // 全选功能函数
-const handleSelectAll = () => {
+const handleSelectAll = async () => {
   if (!isAggregate.value) {
     // 非聚合模式优化逻辑
     const currentSelection = tableRef.value?.getSelectionRows() || []
@@ -261,6 +222,31 @@ const handleSelectAll = () => {
       })
     }
 
+    return
+  }
+  // 获取当前页的所有根节点
+  const allRootNodes = currentPageData.value.filter(row => row.hasChildren)
+
+  // 检查是否有根节点未被展开
+  const unexpandedRootNodes = allRootNodes.filter(rootNode => !expandedRows.value.has(rootNode.event_id))
+
+  // 如果有未展开的根节点，提示用户
+  if (unexpandedRootNodes.length > 0) {
+    // 如果已有消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `请展开所有根节点后再进行批量关闭操作`,
+      duration: 3000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
     return
   }
   // 聚合模式下的全选逻辑
@@ -750,6 +736,7 @@ const closeCurrentAlert = async () => {
     if (selectedRows.value.length === 0) {
       selectedRows.value.push(currentRow.value)
     }
+
     // 重要：在修改 tableData 之前先获取选中的 event IDs，使用闭包保存快照
     const eventIdsToClose = selectedRows.value
       .filter(row => !(isAggregate.value && row.hasChildren))
@@ -832,6 +819,11 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
       // 检查根节点本身是否需要被移除
       if (eventIdsToRemove.includes(node.event_id)) {
         console.log('移除根节点',node)
+        // 清除该根节点的展开状态记录
+        if (expandedRows.value.has(node.event_id)) {
+          expandedRows.value.delete(node.event_id)
+          console.log('已清除根节点展开状态记录:', node.event_id)
+        }
         // 根节点本身需要关闭：移除整个根节点及其所有子节点
         treeData.splice(i, 1)
         continue
@@ -868,6 +860,11 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
       if (!hasChildren) {
         // 所有子节点都已被移除，删除根节点
         console.log('所有子节点已关闭，移除根节点:', node.event_id)
+        // 清除该根节点的展开状态记录
+        if (expandedRows.value.has(node.event_id)) {
+          expandedRows.value.delete(node.event_id)
+          console.log('已清除展开状态记录:', node.event_id)
+        }
         treeData.splice(i, 1)
       }
 
@@ -892,6 +889,50 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
   }
 }
 
+// 懒加载子节点的处理函数
+const loadTreeNode = (row, treeNode, resolve) => {
+  // const id = row.event_id
+  // recordNodes.set(id, { row, treeNode, resolve })
+  console.log('loadTreeNode:', row)
+  console.log('加载子节点:', row.event_id)
+  // 模拟异步加载延迟
+  setTimeout(() => {
+    try {
+      console.log('row:', row)
+      // 获取缓存的子节点数据
+      const children = loadLazyChildren(row)
+      console.log('children:', children)
+      // 限制加载数量为前 50 条
+      tableData.value = tableData.value.map(node => {
+        if (node.event_id === row.event_id) {
+          // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
+          node.children = children
+        }
+        return node
+      })
+      console.log('tableData:', tableData.value)
+      if (children && children.length > 0) {
+        // 对子节点进行排序
+        const sortedChildren = [...children].sort((a, b) => {
+          // 按严重级别和时间排序
+          const severityOrder = { "严重": 2, "一般": 1 }
+          const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
+          if (severityDiff !== 0) return severityDiff
+
+          return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
+        })
+
+        console.log(`加载了 ${sortedChildren.length} 个子节点`)
+        resolve(sortedChildren)
+      } else {
+        resolve([])
+      }
+    } catch (error) {
+      console.error('加载子节点失败:', error)
+      resolve([])
+    }
+  }, 300) // 300ms 模拟网络延迟
+}
 // 清理空根节点的函数
 const cleanupEmptyRootNodes = (treeData) => {
   for (let i = treeData.length - 1; i >= 0; i--) {
@@ -1056,7 +1097,8 @@ const syncParentChildSelection = () => {
     const currentSelection = tableRef.value.getSelectionRows()
     console.log('当前选中行:', currentSelection.map(row => ({
       id: row.event_id,
-      type: row.hasChildren ? 'parent' : 'child'
+      type: row.hasChildren ? 'parent' : 'child',
+      root: row.hasChildren ? row : ''
     })))
 
     // 找出所有根节点（无论是否选中）
@@ -1194,6 +1236,8 @@ const batchUpdateSelection = (operations) => {
 }
 onUnmounted(() => {
   clearExpandStates()
+  // 页面刷新时清空根节点缓存
+  // recordNodes.clear()
 })
 </script>
 
@@ -1344,22 +1388,6 @@ onUnmounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
-<!--          <template #default="scope">-->
-<!--            <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">-->
-<!--              <el-dropdown trigger="click">-->
-<!--                <el-button type="primary" :icon="Edit"></el-button>>-->
-<!--                <template #dropdown>-->
-<!--                  <el-dropdown-menu style="user-select: none">-->
-<!--                    <el-dropdown-item @click="handleView(scope.row)" style="color: #409EFF;font-weight: bold" >查看</el-dropdown-item>-->
-<!--                    <el-dropdown-item v-if="scope.row.state === '已关闭'" disabled @click="handleClose(scope.row)">关闭</el-dropdown-item>-->
-<!--                    <el-dropdown-item v-else @click="handleClose(scope.row)" style="color: #409EFF;font-weight: bold">关闭</el-dropdown-item>-->
-<!--                    <el-dropdown-item v-if="scope.row.state === '已关闭' || scope.row.state === '已分派'" disabled @click="handleCreateTicket(scope.row)">触发工单</el-dropdown-item>-->
-<!--                    <el-dropdown-item v-else @click="handleCreateTicket(scope.row)" style="color: #409EFF;font-weight: bold">触发工单</el-dropdown-item>-->
-<!--                  </el-dropdown-menu>-->
-<!--                </template>-->
-<!--              </el-dropdown>-->
-<!--            </div>-->
-<!--          </template>-->
           <template #default="scope">
             <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">
               <el-dropdown trigger="click">

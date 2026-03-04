@@ -291,22 +291,42 @@ const clearSearch = () => {
 
 // 批量关闭功能
 // 存储当前显示的提示框实例
-let messageInstance = null
+const messageInstance = ref(null)
 const batchClose = async () => {
+  // 检查选中的节点中是否有状态为"已关闭"的告警
+  const closedRows = selectedRows.value.filter(row => row.state === '已关闭')
+  if (closedRows.length > 0) {
+    // 如果已有消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `选中的 ${closedRows.length} 条告警状态为"已关闭"，不允许再次关闭`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+    return
+  }
   if (selectedRows.value.length === 0) {
     // 如果已有提示框在显示，先关闭它
-    if (messageInstance) {
+    if (messageInstance.value) {
       // 关闭所有消息
       ElMessage.closeAll()
       // 使用setTimeout给DOM更新留出时间
       await new Promise(resolve => setTimeout(resolve, 0));
     }
-    messageInstance = ElMessage.warning({
+    messageInstance.value = ElMessage.warning({
       message: '请先选择要关闭的数据',
       duration: 1000,
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
-        messageInstance = null
+        messageInstance.value = null
       }
     })
     return

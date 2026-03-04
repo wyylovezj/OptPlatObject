@@ -1,10 +1,12 @@
 import { searchData } from '@/api/interface.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
-import { convertAlarmDataToTreeOptimized } from '@/utils/treeData.js'
+import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 
 
+// 存储树的根节点的引用
+// export const recordNodes = new Map()
 // 表格组件实例的引用
 export const tableRef = ref(null)
 
@@ -234,6 +236,12 @@ export const throttle = (fn, delay) => {
     }
   }
 }
+// 手动触发懒加载根节点
+// const refreshNode = () => {
+//   recordNodes.forEach(({ row, treeNode, resolve }) => {
+//     loadTreeNode(row, treeNode, resolve)
+//   })
+// }
 
 // 搜索按钮、刷新按钮查询数据,增加了节流控制
 export const refresh = throttle(async () => {
@@ -271,12 +279,16 @@ export const refresh = throttle(async () => {
           // 由于该函数在组件内部定义，我们需要通过其他方式触发
           // 这里我们通过触发自定义事件或者直接操作 lazyTreeNodeMap
           updateLazyNodeMapAfterRefresh()
+          // if (recordNodes.size > 0) {
+          //   refreshNode()
+          // }
         })
       })
     }
     // 重新开启动画，确保动画开始时间相同，频率一致
     blinkTrigger.value = true
     currentPage.value = 1
+
   }
   finally {
     loading.value = false
@@ -294,19 +306,29 @@ const updateLazyNodeMapAfterRefresh = () => {
 
   const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
 
+  console.log('1111',lazyTreeNodeMap)
   // 遍历所有根节点，更新其子节点数据
   tableData.value.forEach(rootNode => {
     if (rootNode.hasChildren && rootNode._cachedChildren) {
       const eventId = rootNode.event_id
-
+      console.log('tableData:', tableData.value)
       // 检查该根节点是否已在懒加载映射表中（即是否被展开过）
       if (lazyTreeNodeMap[eventId]) {
         // 已存在：更新子节点数据
         console.log(`[刷新] 更新根节点 ${eventId} 的子节点数据，数量：${rootNode._cachedChildren.length}`)
-
+        // 获取缓存的子节点数据
+        const children = loadLazyChildren(rootNode)
+        console.log('children:', children)
+        tableData.value = tableData.value.map(node => {
+          if (node.event_id === rootNode.event_id) {
+            // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
+            node.children = children
+          }
+          return node
+        })
         // 替换懒加载映射表中的子节点数据
-        lazyTreeNodeMap[eventId] = [...rootNode._cachedChildren]
-
+        // lazyTreeNodeMap[eventId] = [...rootNode._cachedChildren]
+        lazyTreeNodeMap[eventId] = children
         // 对子节点进行排序
         lazyTreeNodeMap[eventId].sort((a, b) => {
           const severityOrder = { "严重": 2, "一般": 1 }
