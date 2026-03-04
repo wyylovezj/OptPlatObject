@@ -839,12 +839,14 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
   const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
   console.log('lazyTreeNodeMap',lazyTreeNodeMap)
   console.log('treeData',treeData)
+  // 记录需要更新的根节点
+  const rootNodesToUpdate = new Set()
+
   for (let i = treeData.length - 1; i >= 0; i--) {
     const node = treeData[i]
     console.log('node',node)
     const parentNode = lazyTreeNodeMap[node.event_id]
     console.log('parentNode1',parentNode)
-
     // 如果是根节点（聚合模式下的主机节点）
     if (node.isHostNode) {
       // 检查根节点本身是否需要被移除
@@ -863,23 +865,35 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
         '')
       // 处理子节点的移除
       if (node._cachedChildren && node._cachedChildren.length > 0) {
+        let hasChanges = false
         // 从 children 数组中移除需要关闭的子节点
         for (let j = node._cachedChildren.length - 1; j >= 0; j--) {
           const child = node._cachedChildren[j]
           if (eventIdsToRemove.includes(child.event_id)) {
             console.log('移除子节点:', child.event_id)
             node._cachedChildren.splice(j, 1)
+            hasChanges = true
             console.log('parentNode',parentNode)
-            parentNode.splice(j, 1)
+            if (j < parentNode.length) {
+              parentNode.splice(j, 1)
+            }
             console.log('parentNode2',parentNode)
             console.log('parentNode3',tableData.value)
           }
         }
+        // 如果有变化，标记需要更新
+        if (hasChanges) {
+          rootNodesToUpdate.add(node.event_id)
 
-        // 如果缓存数组为空，删除该属性
-        if (node._cachedChildren.length === 0) {
-          delete node._cachedChildren
+          // 如果缓存数组为空，删除该属性
+          if (node._cachedChildren.length === 0) {
+            delete node._cachedChildren
+          }
         }
+        // 如果缓存数组为空，删除该属性
+        // if (node._cachedChildren.length === 0) {
+        //   delete node._cachedChildren
+        // }
       }
       // 更新根节点的统计信息
       updateRootNodeStatistics(node)
@@ -917,6 +931,21 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
         }
       }
     }
+  }
+  // 强制更新有变化的根节点的 children 引用，触发响应式更新
+  if (rootNodesToUpdate.size > 0) {
+    nextTick(() => {
+      rootNodesToUpdate.forEach(eventId => {
+        const rootNode = treeData.find(node => node.event_id === eventId)
+        if (rootNode && rootNode._cachedChildren) {
+          // 重新赋值 children，触发响应式更新
+          const cachedChildren = [...rootNode._cachedChildren]
+          // 限制为前 50 条
+          rootNode.children = cachedChildren.slice(0, 50)
+          console.log(`更新根节点 ${eventId} 的 children，数量：${rootNode.children.length}`)
+        }
+      })
+    })
   }
 }
 

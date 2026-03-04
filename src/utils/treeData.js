@@ -190,7 +190,7 @@ export function loadLazyChildren(node) {
   if (node._cachedChildren && node._cachedChildren.length > 0) {
     // return node._cachedChildren;
     // 限制返回数量为前 50 条
-    return node._cachedChildren.slice(0, 50)
+    return node._cachedChildren.slice(0, 50);
   }
 
   // 如果没有缓存数据，返回空数组（理论上不应该发生）
