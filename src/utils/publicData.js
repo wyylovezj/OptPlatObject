@@ -331,7 +331,7 @@ const updateLazyNodeMapAfterRefresh = () => {
         lazyTreeNodeMap[eventId] = children
         // 对子节点进行排序
         lazyTreeNodeMap[eventId].sort((a, b) => {
-          const severityOrder = { "严重": 2, "一般": 1 }
+          const severityOrder = { "严重": 3,"重要":2,"一般": 1,"普通": 0 }
           const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
           if (severityDiff !== 0) return severityDiff
           return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)

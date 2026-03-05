@@ -448,7 +448,6 @@ const handleSizeChange = (size) => {
     // 将响应式变量blinkTrigger的值设置为true，用于重启闪烁效果，同步闪烁效果
     blinkTrigger.value = true
   })
-
 }
 
 /**
@@ -794,6 +793,7 @@ const closeCurrentAlert = async () => {
     tableRef.value?.clearSelection()
     // 重置模态框状态，关闭确认对话框
     DialogVisibleClose.value = false
+    await nextTick()
     // 重置处理意见
     handleOpinion.value = ''
     // 显示成功提示消息
@@ -890,10 +890,6 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
             delete node._cachedChildren
           }
         }
-        // 如果缓存数组为空，删除该属性
-        // if (node._cachedChildren.length === 0) {
-        //   delete node._cachedChildren
-        // }
       }
       // 更新根节点的统计信息
       updateRootNodeStatistics(node)
@@ -963,32 +959,45 @@ const loadTreeNode = (row, treeNode, resolve) => {
   // 模拟异步加载延迟
   setTimeout(() => {
     try {
+
       console.log('row:', row)
       // 获取缓存的子节点数据
       const children = loadLazyChildren(row)
       console.log('children:', children)
-      // 限制加载数量为前 50 条
-      tableData.value = tableData.value.map(node => {
-        if (node.event_id === row.event_id) {
-          // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
-          node.children = children
-        }
-        return node
-      })
       console.log('tableData:', tableData.value)
       if (children && children.length > 0) {
         // 对子节点进行排序
         const sortedChildren = [...children].sort((a, b) => {
           // 按严重级别和时间排序
-          const severityOrder = { "严重": 2, "一般": 1 }
+          const severityOrder = { "严重": 3,"重要":2,"一般": 1,"普通": 0 }
           const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
           if (severityDiff !== 0) return severityDiff
 
           return new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
         })
-
+        // 限制为前 50 条
+        const limitedSortedChildren = sortedChildren.slice(0, 50)
+        // 限制加载数量为前 50 条
+        tableData.value = tableData.value.map(node => {
+          if (node.event_id === row.event_id) {
+            // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
+            node.children = limitedSortedChildren
+          }
+          return node
+        })
+        // 在 resolve 之前，确保 blinkTrigger 为 true，使子节点与根节点闪烁同步
+        // 先关闭闪烁
+        blinkTrigger.value = false
         console.log(`加载了 ${sortedChildren.length} 个子节点`)
         resolve(sortedChildren)
+        // 等待 DOM 更新后，再开启闪烁，这样所有子节点的动画会同步
+        nextTick(() => {
+          // 短暂延迟后重新开启闪烁，确保所有子节点都已渲染
+          setTimeout(() => {
+            blinkTrigger.value = true
+            console.log('懒加载完成，同步闪烁状态')
+          }, 50)
+        })
       } else {
         resolve([])
       }
@@ -998,17 +1007,7 @@ const loadTreeNode = (row, treeNode, resolve) => {
     }
   }, 300) // 300ms 模拟网络延迟
 }
-// 清理空根节点的函数
-const cleanupEmptyRootNodes = (treeData) => {
-  for (let i = treeData.length - 1; i >= 0; i--) {
-    const node = treeData[i]
 
-    // 如果是根节点且没有子节点，则删除
-    if (node.isHostNode && (!node.children || node.children.length === 0)) {
-      treeData.splice(i, 1)
-    }
-  }
-}
 // 从平面数组中移除节点的辅助函数
 const removeNodesFromArray = (arrayData, eventIdsToRemove) => {
   for (let i = arrayData.length - 1; i >= 0; i--) {

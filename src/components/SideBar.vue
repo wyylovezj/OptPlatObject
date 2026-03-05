@@ -66,7 +66,7 @@ function routeTo(path) {
           </template>
           <el-menu-item @click="routeTo('/toolsManagement/tools')" index="2-1">工具库</el-menu-item>
         </el-sub-menu>
-        <el-sub-menu index="3">
+<!--        <el-sub-menu index="3">
           <template #title>
             <el-icon>
               <svg class="icon" aria-hidden="true">
@@ -76,7 +76,7 @@ function routeTo(path) {
             <span class="menu">运维工具</span>
           </template>
           <el-menu-item @click="routeTo" index="3-1">参数配置</el-menu-item>
-        </el-sub-menu>
+        </el-sub-menu>-->
       </el-menu>
     </el-col>
   </el-row>

@@ -16,7 +16,7 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
  */
   function compareSeverity(a, b) {
     // 定义严重程度顺序映射，将文本转换为数值进行比较
-    const severityOrder = { "严重": 2, "一般": 1 };
+    const severityOrder = { "严重": 3,"重要":2,"一般": 1,"普通": 0 };
     // 通过比较数值来确定严重程度的顺序
     // 使用b减a是为了实现降序排列（严重程度高的排在前面）
     return severityOrder[a] - severityOrder[b];
