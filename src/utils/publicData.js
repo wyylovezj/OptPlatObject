@@ -401,7 +401,7 @@ export const handleSortChange = ({ order }) => {
   } else if (order === 'ascending') {
     // 升序：按严重程度升序（一般->重要->严重），时间升序
     tableData.value.sort((a, b) => {
-      const severityOrder = { "一般": 1, "重要": 2, "严重": 3 }
+      const severityOrder = { "普通": 0,"一般": 1, "重要": 2, "严重": 3 }
       const severityDiff = severityOrder[a.severity] - severityOrder[b.severity]
       if (severityDiff === 0) {
         // 严重程度相同时，按时间升序排列（较早的时间在前）
