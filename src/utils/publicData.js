@@ -236,12 +236,35 @@ export const throttle = (fn, delay) => {
     }
   }
 }
-// 手动触发懒加载根节点
-// const refreshNode = () => {
-//   recordNodes.forEach(({ row, treeNode, resolve }) => {
-//     loadTreeNode(row, treeNode, resolve)
-//   })
-// }
+/**
+ * 对根节点进行排序（按照级别和发生时间）
+ * @param {Array} rootNodes - 根节点数组
+ */
+export const sortRootNodes = (rootNodes) => {
+  rootNodes.sort((a, b) => {
+    // 先按严重级别排序（严重 > 重要 > 一般 > 普通）
+    const severityOrder = { "严重": 3, "重要": 2, "一般": 1, "普通": 0 }
+    const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
+
+    if (severityDiff !== 0) {
+      return severityDiff
+    }
+
+    // 如果级别相同，按发生时间降序排序（最新的在前）
+    const timeDiff = new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
+    if (timeDiff !== 0) {
+      return timeDiff
+    }
+
+    // 如果级别和时间都相同，空主机名放在最后
+    if (a.system_name === "/" && b.system_name !== "/") return 1
+    if (a.system_name !== "/" && b.system_name === "/") return -1
+    if (a.system_name === "/" && b.system_name === "/") return 0
+
+    // 最后按主机名字母顺序排序
+    return a.system_name.localeCompare(b.system_name)
+  })
+}
 
 // 搜索按钮、刷新按钮查询数据,增加了节流控制
 export const refresh = throttle(async () => {
@@ -271,6 +294,8 @@ export const refresh = throttle(async () => {
     isAggregate.value = currentAggregateState
     if (isAggregate.value) {
       tableData.value = convertAlarmDataToTreeOptimized(tableData.value)
+      // 对根节点进行排序（按照级别和发生时间）
+      sortRootNodes(tableData.value)
       // 新增：在聚合模式下，等待 DOM 更新后更新懒加载节点映射表
       // 这个需要在下一个 tick 执行，确保表格已经准备好
       import('vue').then(({ nextTick }) => {

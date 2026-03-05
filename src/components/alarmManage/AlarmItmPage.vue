@@ -24,13 +24,22 @@ import {
   messageInstance,
   blinkTrigger,
   sortSeverity,
-  handleSortChange, dataDictionary, user, orderModel, refresh, isFilter, searchQuery, isAggregate,
+  handleSortChange,
+  dataDictionary,
+  user,
+  orderModel,
+  refresh,
+  isFilter,
+  searchQuery,
+  isAggregate,
+  sortRootNodes
 } from '@/utils/publicData.js'
 
 /**
  * 初始化表格数据：获取当前查询参数下的告警列表数据，此时数据还未渲染到表格，仅仅是保存在数组中，后续将通过currentPage计算属性进行分页处理
  * @returns {Promise<void>}
  */
+
 const initTableData = async () => {
   try {
     // 获取所有数据
@@ -41,6 +50,8 @@ const initTableData = async () => {
     if (isAggregate.value) {
       // 聚合模式：转换为树形数据
       tableData.value = convertAlarmDataToTreeOptimized(sortedData)
+      // 对根节点进行排序（按照级别和发生时间）
+      sortRootNodes(tableData.value)
       // // 如果不是懒加载模式，对子节点进行排序
       // tableData.value.forEach(rootNode => {
       //   if (rootNode.children && rootNode.children.length > 0) {

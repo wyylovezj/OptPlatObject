@@ -62,15 +62,22 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
  * @returns {string} 返回最高严重级别，可能的值为"严重"或"一般"
  */
   function getHighestSeverity(children) {
-    // 使用reduce方法遍历数组，比较每个报警的严重级别
+    // 定义严重程度顺序映射，数值越大表示级别越高
+    const severityOrder = { "严重": 4, "重要": 3, "一般": 2, "普通": 1 }
+
+    // 如果没有子节点，返回默认级别
+    if (!children || children.length === 0) {
+      return "普通"
+    }
+
+    // 使用 reduce 方法遍历数组，找出最高严重级别
     return children.reduce((highest, alarm) => {
-      // 如果当前报警级别为"严重"，直接返回"严重"
-      if (alarm.severity === "严重") return "严重";
-      // 如果当前最高级别已经是"严重"，保持返回"严重"
-      if (highest === "严重") return "严重";
-      // 否则返回当前报警的级别
-      return alarm.severity;
-    }, "一般"); // 初始最高级别设为"一般"
+      const currentLevel = severityOrder[alarm.severity] || 0
+      const highestLevel = severityOrder[highest] || 0
+
+      // 如果当前报警级别高于已知最高级别，更新最高级别
+      return currentLevel > highestLevel ? alarm.severity : highest
+    }, "普通") // 初始最高级别设为"普通"
   }
 
   // 辅助函数：获取最近时间
@@ -172,13 +179,35 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
   });
 
   // 对根节点按主机名排序（空主机名放在最后）
+  // treeData.sort((a, b) => {
+  //   if (a.system_name === "/" && b.system_name !== "/") return 1;
+  //   if (a.system_name !== "/" && b.system_name === "/") return -1;
+  //   if (a.system_name === "/" && b.system_name === "/") return 0;
+  //   return a.system_name.localeCompare(b.system_name);
+  // });
   treeData.sort((a, b) => {
-    if (a.system_name === "/" && b.system_name !== "/") return 1;
-    if (a.system_name !== "/" && b.system_name === "/") return -1;
-    if (a.system_name === "/" && b.system_name === "/") return 0;
-    return a.system_name.localeCompare(b.system_name);
-  });
+    // 先按严重级别排序（严重 > 重要 > 一般 > 普通）
+    const severityOrder = { "严重": 3, "重要": 2, "一般": 1, "普通": 0 }
+    const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
 
+    if (severityDiff !== 0) {
+      return severityDiff
+    }
+
+    // 如果级别相同，按发生时间降序排序（最新的在前）
+    const timeDiff = new Date(b.occurrenceTime) - new Date(a.occurrenceTime)
+    if (timeDiff !== 0) {
+      return timeDiff
+    }
+
+    // 如果级别和时间都相同，空主机名放在最后
+    if (a.system_name === "/" && b.system_name !== "/") return 1
+    if (a.system_name !== "/" && b.system_name === "/") return -1
+    if (a.system_name === "/" && b.system_name === "/") return 0
+
+    // 最后按主机名字母顺序排序
+    return a.system_name.localeCompare(b.system_name)
+  })
   return treeData;
 }
 
