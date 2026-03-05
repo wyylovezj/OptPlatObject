@@ -481,6 +481,11 @@ const handleSelectionChange = (selection) => {
     console.log('跳过选择变更处理，正在同步中...')
     return
   }
+  // 如果是刚处理完行选择，跳过这次同步（避免与 handleRowSelect 冲突）
+  if (isRowSelectProcessing) {
+    console.log('跳过选择变更处理，正在处理行选择...')
+    return
+  }
   // selection是表格组件selection-change事件传递的参数，表示当前选中行的数组
   // 将响应式变量selectedRows的值更新为新的选中行数组，selectedRows绑定到表格组件的选中行属性
   selectedRows.value = selection
@@ -493,32 +498,48 @@ const handleSelectionChange = (selection) => {
     }, 100)
   }
 }
+// 新增：标记是否正在处理行选择事件
+let isRowSelectProcessing = false
 // 新增：自定义行选择处理函数
 const handleRowSelect = (selection,row) => {
   console.log('行选择事件:', row.event_id, row.hasChildren)
   console.log('行选择事件:',selectedEventIds.value)
-  // 更新全局选中状态
+  // 设置处理中标志，防止 handleSelectionChange 干扰
+  isRowSelectProcessing = true
+  // 将响应式变量selectedRows的值更新为新的选中行数组，selectedRows绑定到表格组件的选中行属性
   selectedRows.value = selection
-  // 在聚合模式下，如果是根节点被选中，需要特殊处理
-  if (isAggregate.value) {
-    if (row.hasChildren) {
-      // 父节点选择处理
-      const isSelected = selection.includes(row)
-      // 使用优化的处理函数
-      handleOptimizedParentSelection(row, isSelected)
-    } else {
-      // // 子节点选择处理 - 独立处理
-      // handleChildNodeSelection(selection, row)
-      // 子节点处理保持原有逻辑
-      setTimeout(() => {
-        if (!isSyncingSelection) {
-          updateParentNodeState(row)
-        }
-      }, 10)
+
+  try {
+    // 更新全局选中状态
+    // selectedRows.value = selection
+    // 在聚合模式下，如果是根节点被选中，需要特殊处理
+    if (isAggregate.value) {
+      if (row.hasChildren) {
+        // 父节点选择处理
+        const isSelected = selection.includes(row)
+        // 使用优化的处理函数
+        handleOptimizedParentSelection(row, isSelected)
+      } else {
+        // // 子节点选择处理 - 独立处理
+        // handleChildNodeSelection(selection, row)
+        // 子节点处理保持原有逻辑
+        setTimeout(() => {
+          if (!isSyncingSelection) {
+            updateParentNodeState(row)
+          }
+        }, 10)
+      }
     }
+    console.log('行选择事件结束:',selectedEventIds.value)
+    console.log('行选择事件结束:selectedRows',selectedRows.value)
   }
-  console.log('行选择事件结束:',selectedEventIds.value)
-  console.log('行选择事件结束:selectedRows',selectedRows.value)
+  finally {
+    // 延迟释放标志位，让 handleSelectionChange 能够正常更新 selectedRows
+    setTimeout(() => {
+      isRowSelectProcessing = false
+      console.log('行选择处理完成，解锁 handleSelectionChange')
+    }, 50)
+  }
 }
 // 新增：处理父节点取消选择的函数
 // const handleParentNodeDeselection = (deselectedParent) => {
