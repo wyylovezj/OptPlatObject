@@ -298,8 +298,8 @@ export const refresh = throttle(async () => {
       sortRootNodes(tableData.value)
       // 新增：在聚合模式下，等待 DOM 更新后更新懒加载节点映射表
       // 这个需要在下一个 tick 执行，确保表格已经准备好
-      import('vue').then(({ nextTick }) => {
-        nextTick(() => {
+      await import('vue').then(({ nextTick }) => {
+        return nextTick(() => {
           // 尝试从全局查找并调用 updateLazyTreeNodeMap 函数
           // 由于该函数在组件内部定义，我们需要通过其他方式触发
           // 这里我们通过触发自定义事件或者直接操作 lazyTreeNodeMap
@@ -310,10 +310,28 @@ export const refresh = throttle(async () => {
         })
       })
     }
-    // 重新开启动画，确保动画开始时间相同，频率一致
-    blinkTrigger.value = true
-    currentPage.value = 1
 
+    // 重新开启动画，确保动画开始时间相同，频率一致
+    // 在聚合模式下，需要额外等待以确保所有根节点和子节点的 DOM 都已更新完成
+    if (isAggregate.value) {
+      await import('vue').then(({ nextTick }) => {
+        return nextTick(() => {
+          // 短暂延迟后重新开启闪烁，确保所有根节点和子节点的 DOM 都已更新完成
+          // 包括已展开的子节点也完成渲染
+          return new Promise(resolve => {
+            setTimeout(() => {
+              blinkTrigger.value = true
+              console.log('[刷新] 同步开启所有根节点和子节点闪烁')
+              resolve()
+            }, 150)
+          })
+        })
+      })
+    } else {
+      // 非聚合模式直接开启闪烁
+      blinkTrigger.value = true
+    }
+    currentPage.value = 1
   }
   finally {
     loading.value = false
@@ -324,7 +342,7 @@ export const refresh = throttle(async () => {
   }
 }, 300)
 // 新增：刷新后更新懒加载节点映射表的辅助函数
-const updateLazyNodeMapAfterRefresh = () => {
+const updateLazyNodeMapAfterRefresh = async () => {
   if (!tableRef.value || !tableRef.value.store || !tableRef.value.store.states.lazyTreeNodeMap) {
     return
   }
@@ -366,6 +384,10 @@ const updateLazyNodeMapAfterRefresh = () => {
   })
 
   console.log('[刷新] lazyTreeNodeMap 更新完成')
+  // 等待 DOM 更新完成
+  await import('vue').then(({ nextTick }) => {
+    return nextTick()
+  })
 }
 /**
  * 处理表格级别属性排序变化

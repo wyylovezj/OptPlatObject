@@ -76,7 +76,7 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
       const highestLevel = severityOrder[highest] || 0
 
       // 如果当前报警级别高于已知最高级别，更新最高级别
-      return currentLevel > highestLevel ? alarm.severity : highest
+        return currentLevel > highestLevel ? alarm.severity : highest
     }, "普通") // 初始最高级别设为"普通"
   }
 

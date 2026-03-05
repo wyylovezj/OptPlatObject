@@ -883,9 +883,10 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
           if (eventIdsToRemove.includes(child.event_id)) {
             console.log('移除子节点:', child.event_id)
             node._cachedChildren.splice(j, 1)
+            node.children.splice(j, 1)
             hasChanges = true
             console.log('parentNode',parentNode)
-            if (j < parentNode.length) {
+            if (parentNode && j < parentNode.length) {
               parentNode.splice(j, 1)
             }
             console.log('parentNode2',parentNode)
@@ -915,6 +916,7 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
         // 清除该根节点的展开状态记录
         if (expandedRows.value.has(node.event_id)) {
           expandedRows.value.delete(node.event_id)
+
           console.log('已清除展开状态记录:', node.event_id)
         }
         treeData.splice(i, 1)
@@ -1030,33 +1032,44 @@ const removeNodesFromArray = (arrayData, eventIdsToRemove) => {
 
 // 更新根节点统计信息
 const updateRootNodeStatistics = (rootNode) => {
-  if (rootNode.children && rootNode.children.length > 0) {
+  if (rootNode.children && rootNode.children.length > 0 || rootNode._cachedChildren && rootNode._cachedChildren.length > 0) {
     const stats = {
-      total: rootNode._cachedChildren.length,
-      critical: rootNode._cachedChildren.filter(child => child.severity === '严重').length,
-      important: rootNode._cachedChildren.filter(child => child.severity === '重要').length,
-      normal: rootNode._cachedChildren.filter(child => child.severity === '一般').length,
-      ordinary: rootNode._cachedChildren.filter(child => child.severity === '普通').length,
-      processed: rootNode._cachedChildren.filter(child => child.state === '已分派' || child.state === '已关闭').length,
-      unprocessed: rootNode._cachedChildren.filter(child => child.state === '未处理').length,
+      total: rootNode._cachedChildren ? rootNode._cachedChildren.length : 0,
+      critical: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '严重').length : 0,
+      important: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '重要').length : 0,
+      normal: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '一般').length : 0,
+      ordinary: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '普通').length : 0,
+      processed: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.state === '已分派' || child.state === '已关闭').length : 0,
+      unprocessed: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.state === '未处理').length : 0,
     }
 
     rootNode.statistics = stats
     rootNode.alarm_details = `(总计：${stats.total}, 严重：${stats.critical},重要：${stats.important},一般：${stats.normal},普通：${stats.ordinary})`
 
     // 更新根节点的最高级别和最新时间
-    rootNode.severity = getHighestSeverity(rootNode.children)
-    rootNode.occurrenceTime = getLatestTime(rootNode.children)
+    rootNode.severity = getHighestSeverity(rootNode._cachedChildren)
+    rootNode.occurrenceTime = getLatestTime(rootNode._cachedChildren)
   }
 }
 
 // 获取最高级别（从 treeData.js 中提取的逻辑）
 const getHighestSeverity = (children) => {
+  // 定义严重程度顺序映射，数值越大表示级别越高
+  const severityOrder = { "严重": 4, "重要": 3, "一般": 2, "普通": 1 }
+
+  // 如果没有子节点，返回默认级别
+  if (!children || children.length === 0) {
+    return "普通"
+  }
+
+  // 使用 reduce 方法遍历数组，找出最高严重级别
   return children.reduce((highest, alarm) => {
-    if (alarm.severity === "严重") return "严重"
-    if (highest === "严重") return "严重"
-    return alarm.severity
-  }, "一般")
+    const currentLevel = severityOrder[alarm.severity] || 0
+    const highestLevel = severityOrder[highest] || 0
+
+    // 如果当前报警级别高于已知最高级别，更新最高级别
+    return currentLevel > highestLevel ? alarm.severity : highest
+  }, "普通") // 初始最高级别设为"普通"
 }
 
 // 获取最新时间（从 treeData.js 中提取的逻辑）
