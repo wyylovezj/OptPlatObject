@@ -562,6 +562,68 @@ const handleRowSelect = (selection,row) => {
 //     tableRef.value?.toggleRowSelection(child, false)
 //   })
 // }
+/**
+ * 处理表头全选框点击事件
+ * 在聚合模式下检查根节点展开状态，若全部展开则执行默认全选逻辑
+ */
+const handleSelectAllHeader = async (selection) => {
+  console.log('表头全选框被点击')
+
+  // 非聚合模式：直接执行默认全选逻辑
+  // 非聚合模式：不干预，让 Element Plus 自动处理
+  // Element Plus 的 @select-all 事件会自动完成全选/取消全选
+  if (!isAggregate.value) {
+    console.log('非聚合模式，由 Element Plus 自动处理全选')
+    // 只需要更新 selectedRows 即可
+    selectedRows.value = selection
+    return
+  }
+
+  // 聚合模式：先检查根节点展开状态
+  const allRootNodes = currentPageData.value.filter(row => row.hasChildren)
+  const unexpandedRootNodes = allRootNodes.filter(rootNode => !expandedRows.value.has(rootNode.event_id))
+
+  // 如果有未展开的根节点，提示用户
+  if (unexpandedRootNodes.length > 0) {
+    // 阻止默认的全选行为
+    // 注意：Element Plus 的 select-all 事件无法直接阻止，我们通过不执行后续操作来实现
+
+    // 如果已有消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `请展开所有根节点后再进行批量选择操作`,
+      duration: 3000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+
+    // 重要：恢复表格的选中状态到点击前的状态
+    // 因为 select-all 事件已经触发了全选/取消全选，我们需要撤销这个操作
+    nextTick(() => {
+      tableRef.value?.clearSelection()
+      // 恢复之前的选中状态
+      if (selectedRows.value.length > 0) {
+        selectedRows.value.forEach(row => {
+          tableRef.value?.toggleRowSelection(row, true)
+        })
+      }
+    })
+
+    return
+  }
+
+  // 所有根节点都已展开，执行默认的全选逻辑
+  console.log('所有根节点已展开，执行默认全选逻辑')
+  // 只需要更新 selectedRows 即可
+  selectedRows.value = selection
+}
 // 辅助函数：根据子节点ID找到父节点
 const findParentNode = (childEventId) => {
   for (const node of tableData.value) {
@@ -1398,7 +1460,7 @@ onUnmounted(() => {
         :load="loadTreeNode"
         @select="handleRowSelect"
         :select-on-indeterminate="false"
-      >
+        @select-all="handleSelectAllHeader">
         <el-table-column type="selection" reserve-selection min-width="2%" :resizable="false" />
 <!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->
         <!-- 自定义展开列 -->
