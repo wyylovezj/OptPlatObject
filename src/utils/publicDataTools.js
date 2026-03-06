@@ -3,6 +3,43 @@ import { ref } from 'vue'
 
 const userGroup = ['weiyangyang']
 
+// 目录树模式
+export const toolSTree = [
+  {
+    id: 1,
+    label: '工具库',
+    children: [
+      {
+        id: 2,
+        label: '系统工具',
+        children: [
+          {
+            id: 21,
+            label: '工单导出'
+          },
+          {
+            id: 22,
+            label: '账号解锁'
+          }
+        ]
+      },
+      {
+        id: 3,
+        label: '网络工具',
+        children: [
+          {
+            id: 31,
+            label: '脚本下发'
+          },
+          {
+            id: 32,
+            label: '自动巡检'
+          },
+        ]
+      },
+    ],
+  },
+]
 export const isAdmin = (user) => {
   console.log(user)
   return userGroup.includes(user);
@@ -26,30 +63,7 @@ export const UnlockAccountDataModel = ref(
 // 接口地址
 export const exportIp = ref(window.APP_CONFIG?.EXPORTER_IP || 'default-port');
 // 当前选中的节点
-export const selectedNode = ref({
-      id: 1,
-      label: '工具库',
-      children: [
-        {
-          id: 2,
-          label: '系统工具',
-          children: [
-            {
-              id: 4,
-              label: '工单导出'
-            },
-            {
-              id: 5,
-              label: '域账号解锁'
-            }
-          ]
-        },
-        {
-          id: 3,
-          label: '网络工具'
-        }
-      ]
-})
+export const selectedNode = ref(toolSTree[0])
 // 目录树点击事件
 export const handleNodeClick = (data) => {
   selectedNode.value = data

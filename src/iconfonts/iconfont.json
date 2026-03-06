@@ -6,6 +6,13 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "20834553",
+      "name": "Python",
+      "font_class": "Python",
+      "unicode": "e891",
+      "unicode_decimal": 59537
+    },
+    {
       "icon_id": "43964628",
       "name": "账号解锁",
       "font_class": "zhanghaojiesuo",

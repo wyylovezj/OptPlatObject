@@ -213,50 +213,69 @@ export const exportOrderFile = async (data, percentageInfo) => {
     });
 
     console.log("response", response.data.task_id);
-    let timeout;
-
-    if (timeout) {
-      clearTimeout(timeout);
-    }
+    let progressTimer = null;
+    const taskId = response.data.data.task_id;
 
     return new Promise((resolve) => {
-      timeout = setInterval(async () => {
-        const response2 = await axios.get(`${exportIp.value}/api/itsm/export_progress/${response.data.data.task_id}`);
-        console.log("response", response2.data);
-        percentageInfo.percentage = response2.data.data.progress;
-        if (response2.data.status === 'failed') {
-          clearInterval(timeout);
-          percentageInfo.percentage = response2.data.data.status;
-          resolve(null);
-        }
-        if (response2.data.status === 'completed') {
-          clearInterval(timeout);
-          // 下载Excel文件
-          try {
-            const datetime = new Date();
-            const formattedDatetime =
-              datetime.getFullYear().toString() +
-              (datetime.getMonth() + 1).toString().padStart(2, '0') + // 月份从0开始，需要+1
-              datetime.getDate().toString().padStart(2, '0') +
-              datetime.getHours().toString().padStart(2, '0') +
-              datetime.getMinutes().toString().padStart(2, '0');
-              datetime.getSeconds().toString().padStart(2, '0'); // 添加秒
-            const downloadResponse = await axios.get(`${exportIp.value}/api/itsm/export_download/${response.data.data.task_id}`, {
-              responseType: 'blob' // 设置响应类型为blob
-            });
-            const url = window.URL.createObjectURL(new Blob([downloadResponse.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `工单导出-${formattedDatetime}.xlsx`); // 设置下载文件名
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            // 返回完成状态
-            resolve(true); // 使用 resolve 返回值
-          } catch (downloadError) {
-            console.error('下载文件失败:', downloadError);
-            resolve(null); // 失败时返回 null 或其他值
+      progressTimer = setInterval(async () => {
+        try {
+          const response2 = await axios.get(`${exportIp.value}/api/itsm/export_progress/${taskId}`);
+          console.log("response", response2.data);
+          percentageInfo.percentage = response2.data.data.progress;
+          if (response2.data.status === 'failed') {
+            clearInterval(progressTimer);
+            progressTimer = null;
+            percentageInfo.percentage = response2.data.data.status;
+            resolve(null);
           }
+          if (response2.data.status === 'completed') {
+            clearInterval(progressTimer);
+            progressTimer = null;
+            // 关键：使用 taskId 作为锁的 key，确保每个任务只下载一次
+            const downloadLockKey = `downloading_${taskId}`;
+            // 检查是否正在下载
+            if (window[downloadLockKey]) {
+              console.warn(`任务 ${taskId} 正在下载中`);
+              resolve(true);
+              return;
+            }
+            // 下载Excel文件
+            try {
+              // 设置下载锁
+              window[downloadLockKey] = true;
+              const datetime = new Date();
+              const formattedDatetime =
+                datetime.getFullYear().toString() +
+                (datetime.getMonth() + 1).toString().padStart(2, '0') + // 月份从0开始，需要+1
+                datetime.getDate().toString().padStart(2, '0') +
+                datetime.getHours().toString().padStart(2, '0') +
+                datetime.getMinutes().toString().padStart(2, '0') +
+              datetime.getSeconds().toString().padStart(2, '0'); // 添加秒
+              const downloadResponse = await axios.get(`${exportIp.value}/api/itsm/export_download/${taskId}`, {
+                responseType: 'blob' // 设置响应类型为blob
+              });
+              const url = window.URL.createObjectURL(new Blob([downloadResponse.data]));
+              const link = document.createElement('a');
+              link.href = url;
+              link.setAttribute('download', `工单导出-${formattedDatetime}.xlsx`); // 设置下载文件名
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              // 释放下载锁
+              delete window[downloadLockKey];
+              // 返回完成状态
+              resolve(true); // 使用 resolve 返回值
+            } catch (downloadError) {
+              console.error('下载文件失败:', downloadError);
+              delete window[downloadLockKey];
+              resolve(false); // 失败时返回 null 或其他值
+            }
+          }
+        }
+        catch (error) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+          throw new Error(error.response?.data?.message || '服务器连接失败');
         }
       }, 1000);
     });

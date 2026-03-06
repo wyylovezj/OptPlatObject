@@ -9,10 +9,11 @@ import ToolItem from '@/components/toolsManage/ToolItem.vue'
 <template>
   <div class="tools-page">
     <ToolDirectory></ToolDirectory>
-    <div class="toolsItemPage">
+    <ToolItem></ToolItem>
+<!--    <div class="toolsItemPage">-->
 <!--      <ToolsHeader></ToolsHeader>-->
-      <ToolItem></ToolItem>
-    </div>
+<!--      <ToolItem></ToolItem>-->
+<!--    </div>-->
   </div>
 </template>
 
@@ -21,8 +22,8 @@ import ToolItem from '@/components/toolsManage/ToolItem.vue'
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  height: 100%;
   box-sizing: border-box;
+  height: 100%;
 }
 .toolsItemPage {
   flex: 1;

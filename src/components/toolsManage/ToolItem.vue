@@ -1,13 +1,13 @@
 <script setup>
-import { searchQuery, user } from '@/utils/publicData.js'
+import { currentPage, tableData, user } from '@/utils/publicData.js'
 import { ref, computed } from 'vue'
-import { WorkOrderDataModel, selectedNode, containsLabel, UnlockAccountDataModel,isAdmin } from '@/utils/publicDataTools.js'
+import { WorkOrderDataModel, containsLabel, UnlockAccountDataModel,isAdmin } from '@/utils/publicDataTools.js'
 import { exportOrderFile, unlockAccountInterface } from '@/api/interface.js'
 import { CircleCheckFilled,CircleCloseFilled } from '@element-plus/icons-vue'
 
 // 定义一个计算属性，判断是否有 el-card 需要显示
 const hasVisibleCards = computed(() => {
-  return containsLabel('工单导出') || containsLabel('账号解锁') // 可以继续添加其他卡片的判断条件
+  return containsLabel('工单导出') || containsLabel('账号解锁') || containsLabel('脚本下发') // 可以继续添加其他卡片的判断条件
 })
 // 模态框可视状态
 const dialogVisible = ref({
@@ -67,11 +67,16 @@ const exportWorkOrder = async () => {
       exportDisabled.value.exporterOrder = true
       dialogVisible.value.OrderExporter = false
       percentageVisible.value.exporterOrder = true
+      percentageInfo.value.percentage = 0
+      percentageInfo.value.status = ''
       try {
         const status = await exportOrderFile(WorkOrderDataModel.value, percentageInfo.value)
         if (status) {
-          exportDisabled.value.exporterOrder = false
+          percentageInfo.value.status = ''
+        } else {
+          percentageInfo.value.status = 'failed'
         }
+        exportDisabled.value.exporterOrder = false
       }
       catch(error) {
         console.error(error)
@@ -186,89 +191,148 @@ const handleAccountInput = (value) => {
 
 <template>
   <div class="toolsItem">
-    <el-card v-if="containsLabel('工单导出')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
-      <!-- 卡片主体内容 -->
-      <div class="card-content">
-        <!-- 上部分：2:1 比例 -->
-        <div class="top-section">
-          <!-- 左侧：1:2 比例 -->
-          <div class="left-part">
-            <div class="circle-image">
-              <!-- 圆形框内显示 SVG 图片 -->
-              <svg class="icon" aria-hidden="true">
-                <use xlink:href="#icon-xiazaiwenjian_24"></use>
-              </svg>
+    <div class="content-wrapper">
+      <div class="card-container"  v-if="hasVisibleCards">
+        <el-card v-if="containsLabel('工单导出')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-xiazaiwenjian_24"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>工单导出</p>
+              </div>
             </div>
-          </div>
-          <!-- 右侧：1:2 比例 -->
-          <div class="right-part">
-            <p>工单导出</p>
-          </div>
-        </div>
-        <!-- 下部分：按钮 -->
-        <div class="bottom-section">
-          <div v-if="percentageVisible.exporterOrder" class="demo-progress" style="flex: 3; width: 100%">
-            <el-progress
-              :text-inside="true"
-              :stroke-width="20"
-              :percentage="percentageInfo.percentage"
-              striped
-              status="success"
-              :striped-flow="percentageInfo.percentage > 0 && percentageInfo.percentage < 100"
-            >
-              <span v-if="percentageInfo.percentage === 0 && percentageInfo.status === ''" style="color: #6cbc45; font-weight: bold">导出功能已就绪！</span>
-              <span v-if="percentageInfo.percentage === 100 && percentageInfo.status === ''" style="color: #ffffff; font-weight: bold">导出已完成！</span>
-              <span v-if="percentageInfo.status === 'failed'" style="color: #d32323; font-weight: bold">导出失败，服务异常！</span>
-            </el-progress>
-          </div>
-          <div style="flex: 1; display: flex; justify-content: flex-end">
-            <el-button
-              type="primary"
-              :disabled="exportDisabled.exporterOrder"
-              @click="
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div v-if="percentageVisible.exporterOrder" class="demo-progress" style="flex: 3; width: 100%">
+                <el-progress
+                  :text-inside="true"
+                  :stroke-width="20"
+                  :percentage="percentageInfo.percentage"
+                  striped
+                  status="success"
+                  :striped-flow="percentageInfo.percentage > 0 && percentageInfo.percentage < 100"
+                >
+                  <span v-if="exportDisabled.exporterOrder && percentageInfo.percentage === 0 && percentageInfo.status === ''" style="color: #ffd04b; font-weight: bold">正在创建导出任务...</span>
+                  <span v-else-if="percentageInfo.percentage === 0 && percentageInfo.status === ''" style="color: #6cbc45; font-weight: bold">导出功能已就绪！</span>
+                  <span v-else-if="percentageInfo.percentage === 100 && percentageInfo.status === ''" style="color: #ffffff; font-weight: bold">导出已完成！</span>
+                  <span v-else-if="percentageInfo.status === 'failed'" style="color: #d32323; font-weight: bold">导出失败，服务异常！</span>
+                </el-progress>
+              </div>
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button
+                  type="primary"
+                  :disabled="exportDisabled.exporterOrder"
+                  @click="
                 dialogVisible.OrderExporter = true;
                 percentageInfo.percentage = 0;
               "
-            >
-              导出
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </el-card>
-    <el-card v-if="containsLabel('账号解锁') && isAdmin(user)" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
-      <!-- 卡片主体内容 -->
-      <div class="card-content">
-        <!-- 上部分：2:1 比例 -->
-        <div class="top-section">
-          <!-- 左侧：1:2 比例 -->
-          <div class="left-part">
-            <div class="circle-image">
-              <!-- 圆形框内显示 SVG 图片 -->
-              <svg class="icon" aria-hidden="true">
-                <use xlink:href="#icon-zhanghaojiesuo"></use>
-              </svg>
+                >
+                  导出
+                </el-button>
+              </div>
             </div>
           </div>
-          <!-- 右侧：1:2 比例 -->
-          <div class="right-part">
-            <p>账号解锁</p>
+        </el-card>
+        <el-card v-if="containsLabel('账号解锁') && isAdmin(user)" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-zhanghaojiesuo"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>账号解锁</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div :class="responseData.unlock.status" style="flex: 3; width: 100%; font-size: 15px; text-align: center; margin-top: 5px;">
+                <span style="vertical-align: middle;margin-right: 3px">{{ responseData.unlock.message }}</span>
+                <el-icon v-if="responseData.unlock.status === 'success'" :size="17" style="vertical-align: middle"><CircleCheckFilled /></el-icon>
+                <el-icon v-if="responseData.unlock.status === 'fail'" :size="17" style="vertical-align: middle"><CircleCloseFilled /></el-icon>
+              </div>
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="primary" :disabled="exportDisabled.unlockAccount" @click="dialogVisible.unlockAccount = true"> 解锁 </el-button>
+              </div>
+            </div>
           </div>
+        </el-card>
+        <el-card v-if="containsLabel('脚本下发')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-Python"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>脚本下发</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button
+                  type="primary"
+                  :disabled="exportDisabled.exporterOrder"
+                  @click="
+                dialogVisible.OrderExporter = true;
+                percentageInfo.percentage = 0;
+              "
+                >
+                  创建任务
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
+      </div>
+      <el-empty v-if="!hasVisibleCards" description="无匹配数据" style="width: 100%; height: 90%" />
+      <!-- 下方分页：显示总数、每页条数、页码导航 -->
+      <div  class="pagination-section">
+        <!--  显示总数  -->
+        <div class="total-count">
+          <span style="line-height: 20px">共 {{ tableData.length }} 条</span>
         </div>
-        <!-- 下部分：按钮 -->
-        <div class="bottom-section">
-          <div :class="responseData.unlock.status" style="flex: 3; width: 100%; font-size: 15px; text-align: center; margin-top: 5px;">
-            <span style="vertical-align: middle;margin-right: 3px">{{ responseData.unlock.message }}</span>
-            <el-icon v-if="responseData.unlock.status === 'success'" :size="17" style="vertical-align: middle"><CircleCheckFilled /></el-icon>
-            <el-icon v-if="responseData.unlock.status === 'fail'" :size="17" style="vertical-align: middle"><CircleCloseFilled /></el-icon>
-          </div>
-          <div style="flex: 1; display: flex; justify-content: flex-end">
-            <el-button type="primary" :disabled="exportDisabled.unlockAccount" @click="dialogVisible.unlockAccount = true"> 解锁 </el-button>
-          </div>
+        <div  class="pagination-nav">
+          <!--  页码导航  -->
+          <el-pagination
+            background
+            v-model:current-page="currentPage"
+            :page-size="pageSize"
+            :total="tableData.length"
+            layout="prev, pager, next"
+            @current-change="handleCurrentChange"
+          />
         </div>
       </div>
-    </el-card>
-    <el-empty v-if="!hasVisibleCards" description="无匹配数据" style="width: 100%; height: 100%" />
+    </div>
 
     <el-dialog
       v-model="dialogVisible.OrderExporter"
@@ -411,19 +475,53 @@ const handleAccountInput = (value) => {
 .toolsItem {
   flex: 1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: flex-start;
+  gap: 15px;
+  align-items: stretch;
   user-select: none;
   border: #dcdfe6 solid 1px;
   padding: 15px 30px;
   background-color: #ffffff;
   border-radius: 10px;
+  box-sizing: border-box;
+  min-height: 0; /* 允许正确收缩 */
+}
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-height: 0; /* 允许 flex 子项正确收缩 */
+}
+.card-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 列，每列等宽 */
+  grid-template-rows: repeat(4, 1fr); /* 4 行 */
+  gap: 15px; /* 行列间距 */
+  height: 90%;
+}
+.pagination-section {
+  flex: 0 0 auto; /* 不放大，不缩小，自适应高度 */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  padding: 10px 0;
+  box-sizing: border-box;
+  min-height: 40px; /* 设置最小高度防止过度压缩 */
+}
+.total-count {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+}
+.pagination-nav {
+  display: flex;
+  align-items: center;
 }
 .el-card {
-  flex: 0 0 25%; /* 宽度为父容器的 1/5 */
-  height: 25%; /* 高度为父容器的 1/4 */
+  width: 100%;
   border: 1.5px solid #dcdfe6;
+  min-height: 0;
 }
 
 /* 整体卡片内容容器 */
@@ -431,6 +529,7 @@ const handleAccountInput = (value) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 /* 上部分：占据 2/3 高度 */

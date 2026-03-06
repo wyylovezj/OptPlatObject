@@ -2,7 +2,7 @@
 import { ref, markRaw,watch  } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete,CirclePlusFilled,RemoveFilled,Refresh } from '@element-plus/icons-vue'
-import { handleNodeClick, selectedNode } from '@/utils/publicDataTools.js'
+import { handleNodeClick, selectedNode, toolSTree } from '@/utils/publicDataTools.js'
 
 // 目录树实例
 const treeRef2 = ref(null)
@@ -41,38 +41,7 @@ watch(filterText, (val) => {
   selectedNode.value = filteredTree[0]
   console.log(filteredTree)
 })
-const dataSource = ref([
-  {
-    id: 1,
-    label: '工具库',
-    children: [
-      {
-        id: 2,
-        label: '系统工具',
-        children: [
-          {
-            id: 21,
-            label: '工单导出'
-          },
-          {
-            id: 22,
-            label: '账号解锁'
-          }
-        ]
-      },
-      {
-        id: 3,
-        label: '网络工具',
-        children: [
-          {
-            id: 21,
-            label: '脚本下发'
-          },
-        ]
-      },
-    ],
-  },
-])
+const dataSource = ref(toolSTree)
 // 构建父子关系映射
 const buildParentMap = (nodes, parentMap = {}) => {
   nodes.forEach(node => {
@@ -226,44 +195,10 @@ const highlightText = (text, keyword) => {
       check-on-click-node
       @node-click="handleNodeClick"
     >
-      <template #default="{ node, data }">
+      <template #default="{ node }">
         <div class="custom-tree-node">
           <!-- 使用 v-html 渲染高亮文本 -->
           <span v-html="highlightText(node.label, filterText)"></span>
-<!--          <span>{{ node.label }}</span>-->
-<!--          <div>-->
-<!--            <el-button-->
-<!--              v-if="node.level < 3"-->
-<!--              type="primary"-->
-<!--              link-->
-<!--              @click.stop="append(data)">-->
-<!--              <el-icon :size="15">-->
-<!--                <CirclePlusFilled/>-->
-<!--              </el-icon>-->
-<!--            </el-button>-->
-<!--            <el-button-->
-<!--              v-if="node.level === 1"-->
-<!--              type="primary"-->
-<!--              link-->
-<!--              @click.stop="refresh(node, data)"-->
-<!--              style="margin-left: 0 "-->
-<!--            >-->
-<!--              <el-icon :size="15">-->
-<!--                <Refresh />-->
-<!--              </el-icon>-->
-<!--            </el-button>-->
-<!--            <el-button-->
-<!--              v-if="node.level > 1 && (!data.children || data.children.length === 0)"-->
-<!--              type="danger"-->
-<!--              link-->
-<!--              @click.stop="remove(node, data)"-->
-<!--              style="margin-left: 0 "-->
-<!--            >-->
-<!--              <el-icon :size="15">-->
-<!--                <RemoveFilled />-->
-<!--              </el-icon>-->
-<!--            </el-button>-->
-<!--          </div>-->
         </div>
       </template>
     </el-tree>
