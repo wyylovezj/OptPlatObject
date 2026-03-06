@@ -885,9 +885,11 @@ const closeCurrentAlert = async () => {
     selectedRows.value = []
     // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
     tableRef.value?.clearSelection()
-    // 重置模态框状态，关闭确认对话框
-    DialogVisibleClose.value = false
-    await nextTick()
+
+    await nextTick(() => {
+      // 重置模态框状态，关闭确认对话框
+      DialogVisibleClose.value = false
+    })
     // 重置处理意见
     handleOpinion.value = ''
     // 显示成功提示消息
