@@ -51,18 +51,24 @@ const dataSource = ref([
         label: '系统工具',
         children: [
           {
-            id: 4,
+            id: 21,
             label: '工单导出'
           },
           {
-            id: 5,
+            id: 22,
             label: '账号解锁'
           }
         ]
       },
       {
         id: 3,
-        label: '网络工具'
+        label: '网络工具',
+        children: [
+          {
+            id: 21,
+            label: '脚本下发'
+          },
+        ]
       },
     ],
   },
