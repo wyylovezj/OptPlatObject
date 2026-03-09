@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-01-28 09:29:55
  */
-import { ref,watch } from 'vue'
+import { ref,watch,onMounted } from 'vue'
 import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
@@ -334,7 +334,9 @@ const batchClose = async () => {
   }
   DialogVisibleClose.value = true
 }
-
+onMounted(() => {
+  clearSearch()
+})
 </script>
 
 <template>

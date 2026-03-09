@@ -164,6 +164,11 @@ const syncExpandStates = async () => {
 onMounted(async () => {
   // 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
   await initTableData()
+  // 清空当前选择行
+  selectedRows.value = []
+  tableRef.value?.clearSelection()
+  // 重置到第一页
+  currentPage.value = 1
   if (sessionStorage.getItem('user')) {
     user.value = sessionStorage.getItem('user')
     orderModel.value.createUser = user.value
