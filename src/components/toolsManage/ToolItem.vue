@@ -1085,6 +1085,12 @@ const customUpload = async (options) => {
           });
           console.log('上传进度：', response.data);
           echoData.value = response.data.data;
+          // 如果状态为 complete，终止定时器
+          if (response.data.status === 'complete') {
+            clearInterval(progressTimer)
+            progressTimers.delete(taskId)
+            console.log('任务完成，已清除定时器')
+          }
         } catch (error) {
           console.error('Error clearing progress timer:', error)
         }
