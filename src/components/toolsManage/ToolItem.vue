@@ -970,6 +970,14 @@ const handleFileChange = (file, fileList) => {
     fileUploadDataModel.value.fileList = []
     return
   }
+  // 重置打字机状态，准备打印新任务
+  stopTypewriter()
+  typewriterLines.value = []
+  currentLineIndex.value = 0
+  currentCharIndex.value = 0
+  allTypewriterLines = []
+  hasStartedTyping = false
+
   // 同步更新数据模型中的文件列表
   fileUploadDataModel.value.fileList = fileList
 }
