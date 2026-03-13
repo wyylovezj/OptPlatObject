@@ -13,7 +13,7 @@ import {
 import { CircleCheckFilled, CircleCloseFilled, UploadFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { computed, ref,onBeforeUnmount } from 'vue'
+import { computed, ref,onBeforeUnmount,watch } from 'vue'
 import * as XLSX from 'xlsx'
 
 // 定义一个计算属性，判断是否有 el-card 需要显示
@@ -640,6 +640,206 @@ const uploadProgress = ref(0)
 const uploadStatus = ref('') // success, exception, warning
 // 使用 Map 存储多个定时器，key 为 taskId，value 为定时器 ID
 const progressTimers = new Map()
+
+// 打字机效果相关状态
+const typewriterLines = ref([])
+const currentLineIndex = ref(0)
+const currentCharIndex = ref(0)
+const isTyping = ref(false)
+const typewriterSpeed = 20 // 打字速度 (毫秒/字符)
+const lineDelay = 50 // 行间距延迟 (毫秒)
+let typewriterTimer = null
+let allTypewriterLines = [] // 缓存所有需要显示的行
+let hasStartedTyping = false // 标记是否已经开始打字
+
+// 生成需要显示的所有行（包含所有回显内容，带分组信息）
+const generateTypewriterContent = (echoDataParam) => {
+  const lines = []
+
+  if (!echoDataParam || echoDataParam.length === 0) {
+    return lines
+  }
+
+  // 任务详情部分
+  if (echoDataParam.length >= 1 && echoDataParam[0]) {
+    if (echoDataParam[0].taskId) {
+      lines.push({ group: 'task', type: 'info', text: `任务 ID：${echoDataParam[0].taskId}` })
+    }
+    if (echoDataParam[0].createTaskTime) {
+      lines.push({ group: 'task', type: 'info', text: `创建时间：${echoDataParam[0].createTaskTime}` })
+    }
+    if (echoDataParam[0].fileName) {
+      lines.push({ group: 'task', type: 'info', text: `文件名：${echoDataParam[0].fileName}` })
+    }
+    if (echoDataParam[0].netWorkDeviceIP?.length >= 1) {
+      lines.push({ group: 'task', type: 'info', text: `网络设备 IP：` })
+      echoDataParam[0].netWorkDeviceIP.forEach((ip) => {
+        lines.push({ group: 'task', type: 'command', text: `  ${ip}` })
+      })
+    }
+  }
+
+  // 文件上传部分
+  if (echoDataParam.length >= 2 && echoDataParam[1]) {
+    if (echoDataParam[1].fileName) {
+      lines.push({ group: 'upload', type: 'info', text: `文件名：${echoDataParam[1].fileName}` })
+    }
+    if (echoDataParam[1].progress) {
+      lines.push({ group: 'upload', type: 'status', text: `上传结果：${echoDataParam[1].progress}` })
+    }
+  }
+
+  // 登录堡垒机部分
+  if (echoDataParam.length >= 3 && echoDataParam[2]) {
+    if (echoDataParam[2].bastionHostUser) {
+      lines.push({ group: 'login', type: 'info', text: `堡垒机用户：${echoDataParam[2].bastionHostUser}` })
+    }
+    if (echoDataParam[2].progress) {
+      lines.push({ group: 'login', type: 'status', text: `登录结果：${echoDataParam[2].progress}` })
+    }
+  }
+
+  // 脚本下发执行部分
+  if (echoDataParam.length >= 4 && echoDataParam[3]) {
+    if (echoDataParam[3].fileName) {
+      lines.push({ group: 'execute', type: 'info', text: `脚本文件：${echoDataParam[3].fileName}` })
+    }
+
+    if (echoDataParam[3].progress?.length >= 1) {
+      echoDataParam[3].progress.forEach((item) => {
+        if (item.netWorkDeviceIP) {
+          lines.push({ group: 'execute', type: 'info', text: `$ 网络设备 IP: ${item.netWorkDeviceIP}` })
+        }
+
+        if (item.progress?.length >= 1 && item.progress) {
+          item.progress.forEach((itemCmd) => {
+            if (itemCmd.command) {
+              lines.push({ group: 'execute', type: 'command', text: `${itemCmd.command}` })
+            }
+            if (itemCmd.result) {
+              lines.push({ group: 'execute', type: 'result', text: `  ${itemCmd.result}` })
+            }
+          })
+        }
+
+        if (item.status) {
+          lines.push({ group: 'execute', type: 'status', text: `执行结果：${item.status}` })
+        }
+      })
+    }
+  }
+
+  // 任务执行结果部分
+  if (echoDataParam.length >= 5 && echoDataParam[4]) {
+    if (echoDataParam[4].status?.success?.length >= 1) {
+      lines.push({ group: 'result', type: 'info', text: `执行成功：` })
+      echoDataParam[4].status.success.forEach((item) => {
+        lines.push({ group: 'result', type: 'result', text: `  ${item}` })
+      })
+    }
+    if (echoDataParam[4].status?.fail?.length >= 1) {
+      lines.push({ group: 'result', type: 'info', text: `执行失败：` })
+      echoDataParam[4].status.fail.forEach((item) => {
+        lines.push({ group: 'result', type: 'result', text: `  ${item}` })
+      })
+    }
+  }
+
+  return lines
+}
+
+// 打字机效果启动函数
+const startTypewriter = (echoDataParam) => {
+  if (isTyping.value || hasStartedTyping) return
+
+  // 只在开始时生成一次内容
+  allTypewriterLines = generateTypewriterContent(echoDataParam)
+  if (allTypewriterLines.length === 0) return
+
+  typewriterLines.value = []
+  currentLineIndex.value = 0
+  currentCharIndex.value = 0
+  isTyping.value = true
+  hasStartedTyping = true
+
+  typeNextCharacter()
+}
+
+// 逐字打印
+const typeNextCharacter = () => {
+  if (currentLineIndex.value >= allTypewriterLines.length) {
+    isTyping.value = false
+    return
+  }
+
+  const currentLine = allTypewriterLines[currentLineIndex.value]
+
+  if (currentCharIndex.value <= currentLine.text.length) {
+    // 确保当前行存在
+    if (!typewriterLines.value[currentLineIndex.value]) {
+      typewriterLines.value[currentLineIndex.value] = {
+        group: currentLine.group,
+        type: currentLine.type,
+        text: ''
+      }
+    }
+
+    // 添加下一个字符（如果还有字符）
+    if (currentCharIndex.value < currentLine.text.length) {
+      typewriterLines.value[currentLineIndex.value].text += currentLine.text[currentCharIndex.value]
+      currentCharIndex.value++
+
+      typewriterTimer = setTimeout(() => {
+        typeNextCharacter()
+      }, typewriterSpeed)
+    } else {
+      // 当前行完成，换下一行
+      currentLineIndex.value++
+      currentCharIndex.value = 0
+
+      if (currentLineIndex.value < allTypewriterLines.length) {
+        typewriterTimer = setTimeout(() => {
+          typeNextCharacter()
+        }, lineDelay)
+      } else {
+        isTyping.value = false
+      }
+    }
+  }
+}
+
+// 停止打字机效果
+const stopTypewriter = () => {
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer)
+    typewriterTimer = null
+  }
+  isTyping.value = false
+}
+
+// 重置打字机状态
+// const resetTypewriter = () => {
+//   stopTypewriter()
+//   typewriterLines.value = []
+//   currentLineIndex.value = 0
+//   currentCharIndex.value = 0
+//   allTypewriterLines = []
+//   hasStartedTyping = false
+// }
+
+// 监听 echoData 变化，自动启动打字机效果
+watch(
+  () => echoData.value,
+  (newEchoData) => {
+    if (newEchoData && newEchoData.length > 0 && !hasStartedTyping) {
+      setTimeout(() => {
+        startTypewriter(newEchoData)
+      }, 300)
+    }
+  },
+  { deep: true }
+)
+
 // 文件上传前的校验
 const beforeUpload = (file) => {
   if (!file) return false
@@ -812,6 +1012,7 @@ onBeforeUnmount(() => {
     console.log(`清理任务 ${taskId} 的定时器`)
   })
   progressTimers.clear()
+  stopTypewriter()
 })
 </script>
 
@@ -1233,60 +1434,168 @@ onBeforeUnmount(() => {
         center
         append-to-body
       >
+<!--        <el-scrollbar height="730px">-->
+<!--          <el-timeline style="width: 500px">-->
+<!--            <el-timeline-item timestamp="任务详情" placement="top">-->
+<!--              <el-card>-->
+<!--                <p v-if="echoData.length >= 1 && echoData[0]?.taskId">任务ID：{{ echoData[0].taskId }}</p>-->
+<!--                <p v-if="echoData.length >= 1 && echoData[0]?.createTaskTime">创建时间：{{ echoData[0].createTaskTime }}</p>-->
+<!--                <p v-if="echoData.length >= 1 && echoData[0]?.fileName">文件名：{{ echoData[0].fileName }}</p>-->
+<!--                <p v-if="echoData.length >= 1 && echoData[0]?.netWorkDeviceIP?.length >= 1">网络设备IP：</p>-->
+<!--                <ul v-if="echoData.length >= 1 && echoData[0]?.netWorkDeviceIP?.length >= 1" style="list-style-type: none;">-->
+<!--                  <li v-for="(item) in echoData[0]?.netWorkDeviceIP" :key="item">{{ item }}</li>-->
+<!--                </ul>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
+<!--            <el-timeline-item timestamp="文件上传" placement="top">-->
+<!--              <el-card>-->
+<!--                <p v-if="echoData.length >= 2 && echoData[1]?.fileName">文件名：{{ echoData[1].fileName }}</p>-->
+<!--                <p v-if="echoData.length >= 2 && echoData[1]?.progress">上传结果：{{ echoData[1].progress }}</p>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
+<!--            <el-timeline-item timestamp="登录堡垒机" placement="top">-->
+<!--              <el-card>-->
+<!--                <p v-if="echoData.length >= 3 && echoData[2]?.bastionHostUser">堡垒机用户：{{ echoData[2].bastionHostUser}}</p>-->
+<!--                <p v-if="echoData.length >= 3 && echoData[2]?.progress">登录结果：{{ echoData[2].progress}}</p>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
+<!--            <el-timeline-item timestamp="脚本下发执行" placement="top">-->
+<!--              <el-card>-->
+<!--                <p v-if="echoData.length >= 3 && echoData[3]?.fileName">脚本文件：{{ echoData[3].fileName }}</p>-->
+<!--                <template v-if="echoData.length >= 3 && echoData[3]?.progress?.length >= 1">-->
+<!--                  <div class="shell-console">-->
+<!--                    <div v-for="(line, index) in typewriterLines" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.length - 1 }">-->
+<!--                      <p v-if="line.type === 'info'" class="shell-info">-->
+<!--                        {{ line.text }}-->
+<!--                      </p>-->
+<!--                      <p v-else-if="line.type === 'command'" class="shell-command">-->
+<!--                        {{ line.text }}-->
+<!--                      </p>-->
+<!--                      <p v-else-if="line.type === 'result'" class="shell-result">-->
+<!--                        {{ line.text }}-->
+<!--                      </p>-->
+<!--                      <p v-else-if="line.type === 'status'" class="shell-status">-->
+<!--                        {{ line.text }}-->
+<!--                      </p>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                </template>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
+<!--            <el-timeline-item timestamp="任务执行结果" placement="top">-->
+<!--              <el-card>-->
+<!--                <p v-if="echoData.length >= 4 && echoData[4]?.status?.success.length >= 1">执行成功：</p>-->
+<!--                <ul v-if="echoData.length >= 4 && echoData[4]?.status?.success.length >= 1" style="list-style-type: none;">-->
+<!--                  <li v-for="item in echoData[4]?.status?.success" :key="item">{{ item }}</li>-->
+<!--                </ul>-->
+<!--                <p v-if="echoData.length >= 4 && echoData[4]?.status?.fail?.length >= 1">执行失败：</p>-->
+<!--                <ul v-if="echoData.length >= 4 && echoData[4]?.status?.fail.length >= 1" style="list-style-type: none;">-->
+<!--                  <li v-for="item in echoData[4]?.status?.fail" :key="item">{{ item }}</li>-->
+<!--                </ul>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
+<!--          </el-timeline>-->
+<!--        </el-scrollbar>-->
         <el-scrollbar height="730px">
           <el-timeline style="width: 500px">
             <el-timeline-item timestamp="任务详情" placement="top">
               <el-card>
-                <p v-if="echoData.length >= 1 && echoData[0]?.taskId">任务ID：{{ echoData[0].taskId }}</p>
-                <p v-if="echoData.length >= 1 && echoData[0]?.createTaskTime">创建时间：{{ echoData[0].createTaskTime }}</p>
-                <p v-if="echoData.length >= 1 && echoData[0]?.fileName">文件名：{{ echoData[0].fileName }}</p>
-                <p v-if="echoData.length >= 1 && echoData[0]?.netWorkDeviceIP?.length >= 1">网络设备IP：</p>
-                <ul v-if="echoData.length >= 1 && echoData[0]?.netWorkDeviceIP?.length >= 1" style="list-style-type: none;">
-                  <li v-for="(item) in echoData[0]?.netWorkDeviceIP" :key="item">{{ item }}</li>
-                </ul>
+                <div class="shell-console">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'task')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'task').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
               </el-card>
             </el-timeline-item>
             <el-timeline-item timestamp="文件上传" placement="top">
               <el-card>
-                <p v-if="echoData.length >= 2 && echoData[1]?.fileName">文件名：{{ echoData[1].fileName }}</p>
-                <p v-if="echoData.length >= 2 && echoData[1]?.progress">上传结果：{{ echoData[1].progress }}</p>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'upload')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'upload')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'upload').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
               </el-card>
             </el-timeline-item>
             <el-timeline-item timestamp="登录堡垒机" placement="top">
               <el-card>
-                <p v-if="echoData.length >= 3 && echoData[2]?.bastionHostUser">堡垒机用户：{{ echoData[2].bastionHostUser}}</p>
-                <p v-if="echoData.length >= 3 && echoData[2]?.progress">登录结果：{{ echoData[2].progress}}</p>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'login')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'login')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'login').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
               </el-card>
             </el-timeline-item>
             <el-timeline-item timestamp="脚本下发执行" placement="top">
               <el-card>
-                <p v-if="echoData.length >= 3 && echoData[3]?.fileName">脚本文件：{{ echoData[3].fileName }}</p>
-                <template v-if="echoData.length >= 3 && echoData[3]?.progress?.length >= 1">
-                  <div class="shell-console">
-                    <div v-for="(item, index) in echoData[3]?.progress" :key="item" class="shell-item" :class="{ 'shell-item-last': index === echoData[3]?.progress.length - 1 }">
-                      <p v-if="item.netWorkDeviceIP" class="shell-info"><span class="shell-prompt">$</span> 网络设备 IP: {{ item.netWorkDeviceIP }}</p>
-                      <template v-if="item.progress?.length >= 1 && item.progress">
-                        <div v-for="itemCmd in item.progress" :key="itemCmd" class="shell-command-block">
-                          <p v-if="itemCmd.command" class="shell-command">{{ itemCmd.command }}</p>
-                          <p v-if="itemCmd.result" class="shell-result">{{ itemCmd.result }}</p>
-                        </div>
-                      </template>
-                      <p v-if="item.status" class="shell-status">执行结果：{{ item.status }}</p>
-                    </div>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'execute')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'execute')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'execute').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
                   </div>
-                </template>
+                </div>
               </el-card>
             </el-timeline-item>
             <el-timeline-item timestamp="任务执行结果" placement="top">
               <el-card>
-                <p v-if="echoData.length >= 4 && echoData[4]?.status?.success.length >= 1">执行成功：</p>
-                <ul v-if="echoData.length >= 4 && echoData[4]?.status?.success.length >= 1" style="list-style-type: none;">
-                  <li v-for="item in echoData[4]?.status?.success" :key="item">{{ item }}</li>
-                </ul>
-                <p v-if="echoData.length >= 4 && echoData[4]?.status?.fail?.length >= 1">执行失败：</p>
-                <ul v-if="echoData.length >= 4 && echoData[4]?.status?.fail.length >= 1" style="list-style-type: none;">
-                  <li v-for="item in echoData[4]?.status?.fail" :key="item">{{ item }}</li>
-                </ul>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'result')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'result')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'result').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
               </el-card>
             </el-timeline-item>
           </el-timeline>
