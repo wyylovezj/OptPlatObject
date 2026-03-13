@@ -651,6 +651,19 @@ const lineDelay = 50 // 行间距延迟 (毫秒)
 let typewriterTimer = null
 let allTypewriterLines = [] // 缓存所有需要显示的行
 let hasStartedTyping = false // 标记是否已经开始打字
+const scrollbarRef = ref(null) // 滚动条实例引用
+// 滚动条滚动到底部
+const scrollToBottom = () => {
+  if (scrollbarRef.value) {
+    // 使用 nextTick 确保 DOM 更新后再滚动
+    setTimeout(() => {
+      const wrapRef = scrollbarRef.value.wrapRef
+      if (wrapRef) {
+        wrapRef.scrollTop = wrapRef.scrollHeight
+      }
+    }, 10)
+  }
+}
 
 // 生成需要显示的所有行（包含所有回显内容，带分组信息）
 const generateTypewriterContent = (echoDataParam) => {
@@ -674,7 +687,7 @@ const generateTypewriterContent = (echoDataParam) => {
     if (echoDataParam[0].netWorkDeviceIP?.length >= 1) {
       lines.push({ group: 'task', type: 'info', text: `网络设备 IP：` })
       echoDataParam[0].netWorkDeviceIP.forEach((ip) => {
-        lines.push({ group: 'task', type: 'command', text: `  ${ip}` })
+        lines.push({ group: 'task', type: 'result', text: `  ${ip}` })
       })
     }
   }
@@ -749,24 +762,60 @@ const generateTypewriterContent = (echoDataParam) => {
 }
 
 // 打字机效果启动函数
+// const startTypewriter = (echoDataParam) => {
+//   // if (isTyping.value || hasStartedTyping) return
+//   // 如果正在打字，先停止
+//   if (isTyping.value) {
+//     stopTypewriter()
+//   }
+//   // 只在开始时生成一次内容
+//   allTypewriterLines = generateTypewriterContent(echoDataParam)
+//   if (allTypewriterLines.length === 0) return
+//
+//   typewriterLines.value = []
+//   currentLineIndex.value = 0
+//   currentCharIndex.value = 0
+//   isTyping.value = true
+//   hasStartedTyping = true
+//
+//   typeNextCharacter()
+// }
+
 const startTypewriter = (echoDataParam) => {
-  if (isTyping.value || hasStartedTyping) return
+  // 生成新的内容
+  const newAllTypewriterLines = generateTypewriterContent(echoDataParam)
+  if (newAllTypewriterLines.length === 0) return
 
-  // 只在开始时生成一次内容
-  allTypewriterLines = generateTypewriterContent(echoDataParam)
-  if (allTypewriterLines.length === 0) return
+  // 如果还没有开始打字，初始化
+  if (!hasStartedTyping) {
+    allTypewriterLines = newAllTypewriterLines
+    typewriterLines.value = []
+    currentLineIndex.value = 0
+    currentCharIndex.value = 0
+    isTyping.value = true
+    hasStartedTyping = true
+    typeNextCharacter()
+    return
+  }
 
-  typewriterLines.value = []
-  currentLineIndex.value = 0
-  currentCharIndex.value = 0
-  isTyping.value = true
-  hasStartedTyping = true
+  // 更新所有行为最新数据（始终使用最新数据）
+  allTypewriterLines = newAllTypewriterLines
 
-  typeNextCharacter()
+  // 如果正在打字，继续打
+  if (isTyping.value) {
+    // 不需要做任何事，让 typeNextCharacter 继续打就行
+    return
+  }
+
+  // 如果已经打完当前行，但还有新行，继续打
+  if (currentLineIndex.value < allTypewriterLines.length) {
+    isTyping.value = true
+    typeNextCharacter()
+  }
 }
-
 // 逐字打印
 const typeNextCharacter = () => {
+  // 检查是否还有未打印的行
   if (currentLineIndex.value >= allTypewriterLines.length) {
     isTyping.value = false
     return
@@ -774,39 +823,83 @@ const typeNextCharacter = () => {
 
   const currentLine = allTypewriterLines[currentLineIndex.value]
 
-  if (currentCharIndex.value <= currentLine.text.length) {
-    // 确保当前行存在
-    if (!typewriterLines.value[currentLineIndex.value]) {
-      typewriterLines.value[currentLineIndex.value] = {
-        group: currentLine.group,
-        type: currentLine.type,
-        text: ''
-      }
+  // 如果当前行在 typewriterLines 中不存在，创建它（打一行分配一行）
+  if (!typewriterLines.value[currentLineIndex.value]) {
+    typewriterLines.value[currentLineIndex.value] = {
+      group: currentLine.group,
+      type: currentLine.type,
+      text: ''
     }
+  }
 
-    // 添加下一个字符（如果还有字符）
-    if (currentCharIndex.value < currentLine.text.length) {
-      typewriterLines.value[currentLineIndex.value].text += currentLine.text[currentCharIndex.value]
-      currentCharIndex.value++
+  // 添加下一个字符（如果还有字符）
+  if (currentCharIndex.value < currentLine.text.length) {
+    typewriterLines.value[currentLineIndex.value].text += currentLine.text[currentCharIndex.value]
+    currentCharIndex.value++
 
+    typewriterTimer = setTimeout(() => {
+      typeNextCharacter()
+    }, typewriterSpeed)
+  } else {
+    // 当前行完成，换下一行
+    currentLineIndex.value++
+    currentCharIndex.value = 0
+    // 滚动到底部
+    scrollToBottom()
+
+    // 立即检查是否有新行并继续打
+    if (currentLineIndex.value < allTypewriterLines.length) {
       typewriterTimer = setTimeout(() => {
         typeNextCharacter()
-      }, typewriterSpeed)
+      }, lineDelay)
     } else {
-      // 当前行完成，换下一行
-      currentLineIndex.value++
-      currentCharIndex.value = 0
-
-      if (currentLineIndex.value < allTypewriterLines.length) {
-        typewriterTimer = setTimeout(() => {
-          typeNextCharacter()
-        }, lineDelay)
-      } else {
-        isTyping.value = false
-      }
+      isTyping.value = false
     }
   }
 }
+// const typeNextCharacter = () => {
+//   if (currentLineIndex.value >= allTypewriterLines.length) {
+//     isTyping.value = false
+//     return
+//   }
+//
+//   const currentLine = allTypewriterLines[currentLineIndex.value]
+//
+//   if (currentCharIndex.value <= currentLine.text.length) {
+//     // 确保当前行存在
+//     if (!typewriterLines.value[currentLineIndex.value]) {
+//       typewriterLines.value[currentLineIndex.value] = {
+//         group: currentLine.group,
+//         type: currentLine.type,
+//         text: ''
+//       }
+//     }
+//
+//     // 添加下一个字符（如果还有字符）
+//     if (currentCharIndex.value < currentLine.text.length) {
+//       typewriterLines.value[currentLineIndex.value].text += currentLine.text[currentCharIndex.value]
+//       currentCharIndex.value++
+//
+//       typewriterTimer = setTimeout(() => {
+//         typeNextCharacter()
+//       }, typewriterSpeed)
+//     } else {
+//
+//       // 当前行完成，换下一行
+//       currentLineIndex.value++
+//       currentCharIndex.value = 0
+//       // 滚动到底部
+//       scrollToBottom()
+//       if (currentLineIndex.value < allTypewriterLines.length) {
+//         typewriterTimer = setTimeout(() => {
+//           typeNextCharacter()
+//         }, lineDelay)
+//       } else {
+//         isTyping.value = false
+//       }
+//     }
+//   }
+// }
 
 // 停止打字机效果
 const stopTypewriter = () => {
@@ -831,10 +924,11 @@ const stopTypewriter = () => {
 watch(
   () => echoData.value,
   (newEchoData) => {
-    if (newEchoData && newEchoData.length > 0 && !hasStartedTyping) {
+    if (newEchoData && newEchoData.length > 0) {
+      // 延迟一点时间确保数据已经完全更新
       setTimeout(() => {
         startTypewriter(newEchoData)
-      }, 300)
+      }, 100)
     }
   },
   { deep: true }
@@ -994,7 +1088,7 @@ const customUpload = async (options) => {
         } catch (error) {
           console.error('Error clearing progress timer:', error)
         }
-      },1000)
+      },100)
       // 保存定时器到 Map
       progressTimers.set(taskId, progressTimer)
       console.log('上传成功', response.data)
@@ -1496,7 +1590,7 @@ onBeforeUnmount(() => {
 <!--            </el-timeline-item>-->
 <!--          </el-timeline>-->
 <!--        </el-scrollbar>-->
-        <el-scrollbar height="730px">
+        <el-scrollbar  ref="scrollbarRef" height="730px">
           <el-timeline style="width: 500px">
             <el-timeline-item timestamp="任务详情" placement="top">
               <el-card>
