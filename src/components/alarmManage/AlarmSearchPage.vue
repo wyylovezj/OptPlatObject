@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-01-28 09:29:55
  */
-import { ref,watch,onMounted } from 'vue'
+import { ref,watch,onUnmounted } from 'vue'
 import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
@@ -334,7 +334,48 @@ const batchClose = async () => {
   }
   DialogVisibleClose.value = true
 }
-onMounted(() => {
+const batchCreateTickets = async () => {
+  // 检查选中的节点中是否有状态为"已分派"的告警
+  const closedRows = selectedRows.value.filter(row => row.state === '已分派')
+  if (closedRows.length > 0) {
+    // 如果已有消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `选中的 ${closedRows.length} 条告警状态为"已分派"，不允许再次分派工单`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+    return
+  }
+  if (selectedRows.value.length === 0) {
+    // 如果已有提示框在显示，先关闭它
+    if (messageInstance.value) {
+      // 关闭所有消息
+      ElMessage.closeAll()
+      // 使用setTimeout给DOM更新留出时间
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    messageInstance.value = ElMessage.warning({
+      message: '请先选择要分派的数据',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+    return
+  }
+  console.log('batchCreateTickets')
+}
+onUnmounted(() => {
   clearSearch()
 })
 </script>
@@ -471,6 +512,7 @@ onMounted(() => {
           <el-button type="primary" @click="refresh">刷新</el-button>
           <el-button type="primary" @click="refresh">搜索</el-button>
           <el-button type="primary" @click="batchClose">批量关闭</el-button>
+          <el-button type="primary" @click="batchCreateTickets">批量触发工单</el-button>
         </div>
       </el-form-item>
     </el-form>

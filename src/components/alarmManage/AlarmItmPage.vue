@@ -164,11 +164,7 @@ const syncExpandStates = async () => {
 onMounted(async () => {
   // 在模版挂载前初始化表格数据，当模版挂载时数据就已经准备好
   await initTableData()
-  // 清空当前选择行
-  selectedRows.value = []
-  tableRef.value?.clearSelection()
-  // 重置到第一页
-  currentPage.value = 1
+
   if (sessionStorage.getItem('user')) {
     user.value = sessionStorage.getItem('user')
     orderModel.value.createUser = user.value
@@ -769,9 +765,10 @@ const handleCreateTicket = (row) => {
   // 获取告警事件ID
   orderModel.value.eventId = row.event_id
   orderModel.value.system_name = row.system_name
-  // 打开查看对话框
+  // 打开触发工单对话框
   dialogVisibleOrder.value = true
 }
+// 触发工单模态框中提交工单按钮回调函数
 const createTicket = async () => {
   try {
     // 当用户名和密码为空时
@@ -1416,6 +1413,11 @@ const batchUpdateSelection = (operations) => {
 }
 onUnmounted(() => {
   clearExpandStates()
+  // 清空当前选择行
+  selectedRows.value = []
+  tableRef.value?.clearSelection()
+  // 重置到第一页
+  currentPage.value = 1
   // 页面刷新时清空根节点缓存
   // recordNodes.clear()
 })

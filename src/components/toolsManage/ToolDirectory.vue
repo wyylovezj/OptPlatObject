@@ -1,8 +1,14 @@
 <script setup>
-import { ref, markRaw,watch  } from 'vue'
+import { ref, markRaw,watch,onMounted  } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete,CirclePlusFilled,RemoveFilled,Refresh } from '@element-plus/icons-vue'
-import { handleNodeClick, selectedNode, toolSTree } from '@/utils/publicDataTools.js'
+import {
+  countLeafNodes,
+  handleNodeClick,
+  leafNodeCount,
+  selectedNode,
+  toolSTree
+} from '@/utils/publicDataTools.js'
 
 // 目录树实例
 const treeRef2 = ref(null)
@@ -60,31 +66,8 @@ const parentMap = buildParentMap(dataSource.value)
 // 目录树筛选函数
 const filterNode = (value, data) => {
   if (!value) {
-    selectedNode.value = {
-      id: 1,
-      label: '工具库',
-      children: [
-        {
-          id: 2,
-          label: '系统工具',
-          children: [
-            {
-              id: 4,
-              label: '工单导出'
-            },
-            {
-              id: 5,
-              label: '域账号解锁'
-            }
-          ]
-        },
-        {
-          id: 3,
-          label: '网络工具'
-        }
-      ]
-    }
-    return true // 无搜索词时显示所有节点
+    // 没有值时，返回根节点
+    return selectedNode.value
   }
 
   // 检查当前节点是否匹配
@@ -173,6 +156,10 @@ const highlightText = (text, keyword) => {
   return text.replace(regex, '<mark>$1</mark>'); // 将匹配的部分用 <mark> 标签包裹
 };
 
+onMounted(() => {
+  selectedNode.value = toolSTree[0]
+  leafNodeCount.value = countLeafNodes(toolSTree[0])
+})
 </script>
 
 <template>
