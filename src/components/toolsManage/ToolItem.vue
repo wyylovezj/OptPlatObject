@@ -1101,6 +1101,8 @@ const customUpload = async (options) => {
           }
         } catch (error) {
           console.error('Error clearing progress timer:', error)
+          clearInterval(progressTimer)
+          progressTimers.delete(taskId)
         }
       },100)
       // 保存定时器到 Map
@@ -1542,68 +1544,6 @@ onBeforeUnmount(() => {
         center
         append-to-body
       >
-<!--        <el-scrollbar height="730px">-->
-<!--          <el-timeline style="width: 500px">-->
-<!--            <el-timeline-item timestamp="任务详情" placement="top">-->
-<!--              <el-card>-->
-<!--                <p v-if="echoData.length >= 1 && echoData[0]?.taskId">任务ID：{{ echoData[0].taskId }}</p>-->
-<!--                <p v-if="echoData.length >= 1 && echoData[0]?.createTaskTime">创建时间：{{ echoData[0].createTaskTime }}</p>-->
-<!--                <p v-if="echoData.length >= 1 && echoData[0]?.fileName">文件名：{{ echoData[0].fileName }}</p>-->
-<!--                <p v-if="echoData.length >= 1 && echoData[0]?.netWorkDeviceIP?.length >= 1">网络设备IP：</p>-->
-<!--                <ul v-if="echoData.length >= 1 && echoData[0]?.netWorkDeviceIP?.length >= 1" style="list-style-type: none;">-->
-<!--                  <li v-for="(item) in echoData[0]?.netWorkDeviceIP" :key="item">{{ item }}</li>-->
-<!--                </ul>-->
-<!--              </el-card>-->
-<!--            </el-timeline-item>-->
-<!--            <el-timeline-item timestamp="文件上传" placement="top">-->
-<!--              <el-card>-->
-<!--                <p v-if="echoData.length >= 2 && echoData[1]?.fileName">文件名：{{ echoData[1].fileName }}</p>-->
-<!--                <p v-if="echoData.length >= 2 && echoData[1]?.progress">上传结果：{{ echoData[1].progress }}</p>-->
-<!--              </el-card>-->
-<!--            </el-timeline-item>-->
-<!--            <el-timeline-item timestamp="登录堡垒机" placement="top">-->
-<!--              <el-card>-->
-<!--                <p v-if="echoData.length >= 3 && echoData[2]?.bastionHostUser">堡垒机用户：{{ echoData[2].bastionHostUser}}</p>-->
-<!--                <p v-if="echoData.length >= 3 && echoData[2]?.progress">登录结果：{{ echoData[2].progress}}</p>-->
-<!--              </el-card>-->
-<!--            </el-timeline-item>-->
-<!--            <el-timeline-item timestamp="脚本下发执行" placement="top">-->
-<!--              <el-card>-->
-<!--                <p v-if="echoData.length >= 3 && echoData[3]?.fileName">脚本文件：{{ echoData[3].fileName }}</p>-->
-<!--                <template v-if="echoData.length >= 3 && echoData[3]?.progress?.length >= 1">-->
-<!--                  <div class="shell-console">-->
-<!--                    <div v-for="(line, index) in typewriterLines" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.length - 1 }">-->
-<!--                      <p v-if="line.type === 'info'" class="shell-info">-->
-<!--                        {{ line.text }}-->
-<!--                      </p>-->
-<!--                      <p v-else-if="line.type === 'command'" class="shell-command">-->
-<!--                        {{ line.text }}-->
-<!--                      </p>-->
-<!--                      <p v-else-if="line.type === 'result'" class="shell-result">-->
-<!--                        {{ line.text }}-->
-<!--                      </p>-->
-<!--                      <p v-else-if="line.type === 'status'" class="shell-status">-->
-<!--                        {{ line.text }}-->
-<!--                      </p>-->
-<!--                    </div>-->
-<!--                  </div>-->
-<!--                </template>-->
-<!--              </el-card>-->
-<!--            </el-timeline-item>-->
-<!--            <el-timeline-item timestamp="任务执行结果" placement="top">-->
-<!--              <el-card>-->
-<!--                <p v-if="echoData.length >= 4 && echoData[4]?.status?.success.length >= 1">执行成功：</p>-->
-<!--                <ul v-if="echoData.length >= 4 && echoData[4]?.status?.success.length >= 1" style="list-style-type: none;">-->
-<!--                  <li v-for="item in echoData[4]?.status?.success" :key="item">{{ item }}</li>-->
-<!--                </ul>-->
-<!--                <p v-if="echoData.length >= 4 && echoData[4]?.status?.fail?.length >= 1">执行失败：</p>-->
-<!--                <ul v-if="echoData.length >= 4 && echoData[4]?.status?.fail.length >= 1" style="list-style-type: none;">-->
-<!--                  <li v-for="item in echoData[4]?.status?.fail" :key="item">{{ item }}</li>-->
-<!--                </ul>-->
-<!--              </el-card>-->
-<!--            </el-timeline-item>-->
-<!--          </el-timeline>-->
-<!--        </el-scrollbar>-->
         <el-scrollbar  ref="scrollbarRef" height="730px">
           <el-timeline style="width: 500px">
             <el-timeline-item timestamp="任务详情" placement="top">
