@@ -5,7 +5,7 @@ const userGroup = ['weiyangyang']
 
 
 // 卡片数组，新增的卡片放在这里
-export const cards = ["工单导出", "账号解锁", "脚本下发"]
+export const cards = ["工单导出", "账号解锁", "脚本下发","堡垒机账号解锁"]
 // 目录树模式，新增的目录放在这里
 export const toolSTree = [
   {
@@ -23,6 +23,10 @@ export const toolSTree = [
           {
             id: 22,
             label: '账号解锁'
+          },
+          {
+            id: 23,
+            label: '堡垒机账号解锁'
           }
         ]
       },

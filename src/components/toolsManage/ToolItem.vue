@@ -422,6 +422,11 @@ const fileUploadRules = ref({
     },
   ],
 })
+
+// 处理堡垒机账号解锁按钮点击事件
+const handleUnlock = () => {
+  window.open('https://www.baidu.com', '_blank')
+}
 // 导入
 // 导入ip上传器实例
 const inputFile = ref(null)
@@ -857,49 +862,6 @@ const typeNextCharacter = () => {
     }
   }
 }
-// const typeNextCharacter = () => {
-//   if (currentLineIndex.value >= allTypewriterLines.length) {
-//     isTyping.value = false
-//     return
-//   }
-//
-//   const currentLine = allTypewriterLines[currentLineIndex.value]
-//
-//   if (currentCharIndex.value <= currentLine.text.length) {
-//     // 确保当前行存在
-//     if (!typewriterLines.value[currentLineIndex.value]) {
-//       typewriterLines.value[currentLineIndex.value] = {
-//         group: currentLine.group,
-//         type: currentLine.type,
-//         text: ''
-//       }
-//     }
-//
-//     // 添加下一个字符（如果还有字符）
-//     if (currentCharIndex.value < currentLine.text.length) {
-//       typewriterLines.value[currentLineIndex.value].text += currentLine.text[currentCharIndex.value]
-//       currentCharIndex.value++
-//
-//       typewriterTimer = setTimeout(() => {
-//         typeNextCharacter()
-//       }, typewriterSpeed)
-//     } else {
-//
-//       // 当前行完成，换下一行
-//       currentLineIndex.value++
-//       currentCharIndex.value = 0
-//       // 滚动到底部
-//       scrollToBottom()
-//       if (currentLineIndex.value < allTypewriterLines.length) {
-//         typewriterTimer = setTimeout(() => {
-//           typeNextCharacter()
-//         }, lineDelay)
-//       } else {
-//         isTyping.value = false
-//       }
-//     }
-//   }
-// }
 
 // 停止打字机效果
 const stopTypewriter = () => {
@@ -910,15 +872,6 @@ const stopTypewriter = () => {
   isTyping.value = false
 }
 
-// 重置打字机状态
-// const resetTypewriter = () => {
-//   stopTypewriter()
-//   typewriterLines.value = []
-//   currentLineIndex.value = 0
-//   currentCharIndex.value = 0
-//   allTypewriterLines = []
-//   hasStartedTyping = false
-// }
 
 // 监听 echoData 变化，自动启动打字机效果
 watch(
@@ -1252,6 +1205,35 @@ onBeforeUnmount(() => {
               <div style="flex: 1; display: flex; justify-content: flex-end">
                 <el-button type="primary" :disabled="exportDisabled.ScriptDistribute" @click="dialogVisible.ScriptDistribute = true">
                   创建任务
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
+        <el-card v-if="containsLabel('堡垒机账号解锁')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-Python"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>堡垒机账号解锁</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="primary" @click="handleUnlock">
+                  解锁
                 </el-button>
               </div>
             </div>
@@ -1821,26 +1803,26 @@ onBeforeUnmount(() => {
   font-size: 13px;
   padding: 16px;
   border-radius: 6px;
-  line-height: 1.6;
+  line-height: 1.4;
   overflow-x: auto;
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
 }
 
 .shell-item {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
   border-bottom: 1px solid #3c3c3c;
 }
 
 .shell-item-last {
   margin-bottom: 0;
   padding-bottom: 0;
-  border-bottom: none;
+  border-bottom: 1px solid #3c3c3c;
 }
 
 .shell-info {
   color: #569cd6;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 
 .shell-prompt {
@@ -1850,26 +1832,27 @@ onBeforeUnmount(() => {
 }
 
 .shell-command-block {
-  margin: 8px 0;
+  margin: 4px 0;
   padding-left: 12px;
   border-left: 2px solid #3c3c3c;
 }
 
 .shell-command {
   color: #ce9178;
-  margin: 4px 0;
+  margin: 2px 0;
   font-weight: 500;
 }
 
 .shell-result {
   color: #6a9955;
-  margin: 4px 0;
+  margin: 2px 0;
   padding-left: 20px;
 }
 
 .shell-status {
   color: #dcdcaa;
-  margin-top: 8px;
+  margin-top: 2px;
+  margin-bottom: 2px;
   font-weight: 500;
 }
 
