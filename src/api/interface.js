@@ -177,11 +177,10 @@ export const searchData = async (searchQuery) => {
  * @returns {Promise} - 返回一个Promise，解析为响应数据
  * @throws {Error} - 如果关闭告警失败，抛出错误
  */
-export const closeAlert = async (tableData,selectedEventIds, handleOpinion, handleUser) => {
+export const closeAlert = async (selectedEventIds, handleOpinion, handleUser) => {
   try {
     // 发送POST请求到后端API以关闭告警
     const response = await axios.post(`${serverIp.value}/closeAlarm`, {
-      tableData,
       selectedEventIds, // 要关闭的事件ID数组
       handleOpinion, // 处理意见
       handleUser, // 处理人

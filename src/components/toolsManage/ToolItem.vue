@@ -249,9 +249,9 @@ const unlockTypeModel = [
   },
 ]
 
-// 主机名输入即时校验函数
+// 账号输入即时校验函数
 const handleAccountInput = async (value) => {
-  const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
+  const cleanedValue = value.replace(/[^a-zA-Z0-9_]/g, '')
 
   // 如果过滤后的值与原值不同，说明输入了非法字符
   if (cleanedValue !== value) {
@@ -1053,8 +1053,8 @@ const customUpload = async (options) => {
     const day = String(date.getDate()).padStart(2, '0')
     const hours = String(date.getHours()).padStart(2, '0')
     const minutes = String(date.getMinutes()).padStart(2, '0')
-
-    return `${year}-${month}-${day} ${hours}:${minutes}`
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   }
   const timeStamp = new Date()
   fileUploadDataModel.value.createTaskTime = formatDateTime(timeStamp)
