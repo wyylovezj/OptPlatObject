@@ -300,3 +300,20 @@ export const unlockAccountInterface = async (data) => {
     throw new Error(error.response?.data?.message || '服务器连接失败');
   }
 }
+
+// 移动令牌接口
+export const mobileTokenInterface = async (username,passwd,token) => {
+  try {
+    // 发送POST请求
+    const response = await axios.post(`${exportIp.value}/mobileToken `, {
+      username: username,
+      password: passwd,
+      token: token
+    });
+    console.log(response);
+    return response.data;
+  }
+  catch ( error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败');
+  }
+}

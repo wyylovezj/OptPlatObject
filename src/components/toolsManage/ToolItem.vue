@@ -1,5 +1,5 @@
 <script setup>
-import { exportOrderFile, unlockAccountInterface } from '@/api/interface.js'
+import { exportOrderFile, mobileTokenInterface, unlockAccountInterface } from '@/api/interface.js'
 import { currentPage, messageInstance, user } from '@/utils/publicData.js'
 import {
   cards,
@@ -16,6 +16,9 @@ import { ElMessage } from 'element-plus'
 import { computed, ref,onBeforeUnmount,watch } from 'vue'
 import * as XLSX from 'xlsx'
 
+
+// 表单验证定时器
+let validateTimer = null
 // 定义一个计算属性，判断是否有 el-card 需要显示
 const hasVisibleCards = computed(() => {
   return cards.some((card) => containsLabel(card))
@@ -26,6 +29,7 @@ const dialogVisible = ref({
   unlockAccount: false, // 域账号解锁模态框可视状态
   ScriptDistribute: false, // 脚本下发模态框可视状态
   standardOutputVisible: false, // 脚本下发模态框内嵌标准输出模态框可视状态
+  mobileToken: false, // 移动令牌模态框可视状态
 })
 const buttonVisible = ref({
   taskDetails: false,  //脚本下发后任务详情按钮显示状态
@@ -103,6 +107,14 @@ const exportWorkOrder = async () => {
         console.error(error)
       }
     } else {
+      if  (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (exporterForm.value) {
+          exporterForm.value.clearValidate()
+        }
+      }, 2000)
       console.log('error submit!', fields)
     }
   })
@@ -196,6 +208,14 @@ const unlockAccount = async () => {
         exportDisabled.value.unlockAccount = false
       }
     } else {
+      if  (validateTimer) {
+      clearTimeout(validateTimer)
+    }
+      validateTimer = setTimeout(() => {
+        if (unlockAccountForm.value) {
+          unlockAccountForm.value.clearValidate()
+        }
+      }, 2000)
       console.log('error submit!', fields)
     }
   })
@@ -233,6 +253,87 @@ const uploadFiles = async () => {
         // exportDisabled.value.unlockAccount = false
       }
     } else {
+      if  (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (fileUpload.value) {
+          fileUpload.value.clearValidate()
+        }
+      }, 2000)
+      console.log('error submit!', fields)
+    }
+  })
+}
+const mobileTokenLogin = async () => {
+  if (!mobileToken.value) return
+  await mobileToken.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        if (fileUploadDataModel.value.bastionHostUser === '' || fileUploadDataModel.value.bastionHostPasswd === '') {
+          if (messageInstance.value) {
+            ElMessage.closeAll()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+          }
+          // 显示警告消息
+          messageInstance.value = ElMessage.warning({
+            message: `堡垒机用户或密码不能为空`,
+            duration: 1000,
+            onClose: () => {
+              messageInstance.value = null
+            },
+          })
+        }
+        else {
+          const bastionHostUser = fileUploadDataModel.value.bastionHostUser
+          const bastionHostPassword = fileUploadDataModel.value.bastionHostPasswd
+          const mobileToken = fileUploadDataModel.value.mobileToken
+          console.log('bastionHostPassword',bastionHostPassword)
+          const response = await mobileTokenInterface(bastionHostUser, bastionHostPassword, mobileToken)
+          if (response.status === 'success') {
+            if (messageInstance.value) {
+              ElMessage.closeAll()
+              await new Promise((resolve) => setTimeout(resolve, 0))
+            }
+            // 显示警告消息
+            messageInstance.value = ElMessage.success({
+              message: `堡垒机登录成功！`,
+              offset: window.innerHeight / 2 - 100,
+              duration: 1000,
+              onClose: () => {
+                messageInstance.value = null
+              },
+            })
+            fileUploadDataModel.value.mobileToken = ''
+          } else {
+            if (messageInstance.value) {
+              ElMessage.closeAll()
+              await new Promise((resolve) => setTimeout(resolve, 0))
+            }
+            // 显示警告消息
+            messageInstance.value = ElMessage.error({
+              message: `${response.message}`,
+              offset: window.innerHeight / 2 - 100,
+              duration: 1000,
+              onClose: () => {
+                messageInstance.value = null
+              },
+            })
+          }
+        }
+      } catch (error) {
+        console.log(error.message)
+        fileUploadDataModel.value.mobileToken = ''
+      }
+    } else {
+      if  (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (mobileToken.value) {
+          mobileToken.value.clearValidate()
+        }
+      }, 2000)
       console.log('error submit!', fields)
     }
   })
@@ -362,10 +463,44 @@ const netWorkDevicePasswd = async (value) => {
   }
   fileUploadDataModel.value.netWorkDevicePasswd = cleanedValue
 }
+// 脚本下发移动令牌输入即时校验函数
+const handleMobileToken = async (value) => {
+  const cleanedValue = value.replace(/\D/g, '').slice(0, 8)
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入8位数字`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  fileUploadDataModel.value.mobileToken = cleanedValue
+}
 // 脚本下发表单实例
 const fileUpload = ref(null)
+// 移动令牌表单实例
+const mobileToken = ref(null)
+
 // 脚本下发上传器实例
 const uploadFile = ref(null)
+const mobileTokenRules = ref({
+  mobileToken: [
+    {
+      required: true,
+      message: '请输入移动令牌',
+      trigger: 'change',
+    },
+  ],
+})
 // 脚本下发模态框中表单校验规则
 const fileUploadRules = ref({
   bastionHostUser: [
@@ -872,14 +1007,21 @@ const stopTypewriter = () => {
   isTyping.value = false
 }
 
-
+// 监听 echoData 变化，自动启动打字机效果
+let watchEchoDataTimer = null
 // 监听 echoData 变化，自动启动打字机效果
 watch(
   () => echoData.value,
   (newEchoData) => {
     if (newEchoData && newEchoData.length > 0) {
       // 延迟一点时间确保数据已经完全更新
-      setTimeout(() => {
+      // 清除之前的定时器，避免重复触发
+      if (watchEchoDataTimer) {
+        clearTimeout(watchEchoDataTimer)
+      }
+
+      // 延迟一点时间确保数据已经完全更新
+      watchEchoDataTimer = setTimeout(() => {
         startTypewriter(newEchoData)
       }, 100)
     }
@@ -1076,6 +1218,11 @@ onBeforeUnmount(() => {
   })
   progressTimers.clear()
   stopTypewriter()
+  // 新增：清理 watch 中的定时器
+  if (watchEchoDataTimer) {
+    clearTimeout(watchEchoDataTimer)
+    watchEchoDataTimer = null
+  }
 })
 </script>
 
@@ -1203,6 +1350,9 @@ onBeforeUnmount(() => {
             <!-- 下部分：按钮 -->
             <div class="bottom-section">
               <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="danger" :disabled="exportDisabled.ScriptDistribute" @click="dialogVisible.ScriptDistribute = true">
+                  历史任务
+                </el-button>
                 <el-button type="primary" :disabled="exportDisabled.ScriptDistribute" @click="dialogVisible.ScriptDistribute = true">
                   创建任务
                 </el-button>
@@ -1220,7 +1370,7 @@ onBeforeUnmount(() => {
                 <div class="circle-image">
                   <!-- 圆形框内显示 SVG 图片 -->
                   <svg class="icon" aria-hidden="true">
-                    <use xlink:href="#icon-Python"></use>
+                    <use xlink:href="#icon-zhanghaojiesuo"></use>
                   </svg>
                 </div>
               </div>
@@ -1396,14 +1546,14 @@ onBeforeUnmount(() => {
     <el-dialog
       v-model="dialogVisible.ScriptDistribute"
       title="脚本下发"
-      width="45%"
+      width="50%"
       center
       :show-close="false"
       :close-on-click-modal="false"
       @close="
         () => {
           dialogVisible.ScriptDistribute = false
-          // fileUploadDataModel.reset()
+          fileUploadDataModel.reset()
         }
       "
     >
@@ -1429,6 +1579,9 @@ onBeforeUnmount(() => {
             @input="bastionHostPasswd"
             clearable
           />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="dialogVisible.mobileToken = true">移动令牌</el-button>
         </el-form-item>
         <el-form-item label="网络设备用户" prop="netWorkDeviceUser">
           <el-input
@@ -1498,11 +1651,6 @@ onBeforeUnmount(() => {
               <div class="el-upload__tip">支持上传 txt 文件，且不超过 10MB</div>
             </template>
           </el-upload>
-          <!-- 显示上传进度 -->
-          <!--          <div v-if="uploadProgress > 0" class="progress-container">
-            <el-progress :percentage="uploadProgress" :status="uploadStatus" />
-            <span>{{ uploadProgress }}%</span>
-          </div>-->
         </el-form-item>
         <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap">
           <el-button type="primary" @click="uploadFiles">确认</el-button>
@@ -1630,6 +1778,47 @@ onBeforeUnmount(() => {
             </el-timeline-item>
           </el-timeline>
         </el-scrollbar>
+      </el-dialog>
+      <el-dialog
+        v-model="dialogVisible.mobileToken"
+        top="200px"
+        width="300px"
+        title="移动令牌"
+        center
+        append-to-body
+      >
+        <el-form
+          :model="fileUploadDataModel"
+          ref="mobileToken"
+          label-position="right"
+          label-width="auto"
+          :rules="mobileTokenRules"
+          style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+        >
+          <el-form-item label="移动令牌" prop="mobileToken">
+            <el-input
+              v-model="fileUploadDataModel.mobileToken"
+              style="width: 200px"
+              placeholder="请输入移动令牌"
+              maxlength="15"
+              type="text"
+              @input="handleMobileToken"
+              clearable
+            />
+          </el-form-item>
+          <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap">
+            <el-button type="primary" @click="mobileTokenLogin">确认</el-button>
+            <el-button
+              type="primary"
+              @click="
+              dialogVisible.mobileToken = false;
+              // 清空数据模型
+              fileUploadDataModel.mobileToken = '';
+            "
+            >取消</el-button
+            >
+          </div>
+        </el-form>
       </el-dialog>
     </el-dialog>
   </div>

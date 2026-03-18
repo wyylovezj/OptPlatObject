@@ -72,6 +72,7 @@ export const fileUploadDataModel = ref(
     netWorkDeviceUser: '', // 设备用户
     netWorkDevicePasswd: '', // 设备密码
     createTaskTime: '', // 任务创建时间
+    mobileToken: '', // 移动端令牌
     reset: function() {
       this.bastionHostUser = '';
       this.bastionHostPasswd = '';
@@ -80,6 +81,7 @@ export const fileUploadDataModel = ref(
       this.netWorkDeviceUser = '';
       this.netWorkDevicePasswd = '';
       this.createTaskTime = '';
+      this.mobileToken = '';
     }
   }
 )
@@ -117,7 +119,7 @@ export const containsLabel = (labelName) => {
   if (!selectedNode.value) return false;
 
   // 检查当前节点的label是否包含传入的label名称
-  if (selectedNode.value.label.includes(labelName)) {
+  if (selectedNode.value.label === labelName) {
     return true;
   }
 
@@ -125,7 +127,7 @@ export const containsLabel = (labelName) => {
   const checkChildren = (children) => {
     if (!children || !Array.isArray(children)) return false;
     for (let child of children) {
-      if (child.label.includes(labelName)) {
+      if (child.label === labelName) {
         return true;
       }
       // 递归检查子节点的子节点
