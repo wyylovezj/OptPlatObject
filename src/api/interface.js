@@ -305,12 +305,27 @@ export const unlockAccountInterface = async (data) => {
 export const mobileTokenInterface = async (username,passwd,token) => {
   try {
     // 发送POST请求
-    const response = await axios.post(`${exportIp.value}/mobileToken `, {
+    const response = await axios.post(`${serverIp.value}/mobileToken `, {
       username: username,
       password: passwd,
       token: token
     });
     console.log(response);
+    return response.data;
+  }
+  catch ( error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败');
+  }
+}
+// 历史任务查询接口
+export const historyTask = async (execUser,execTime) => {
+  try {
+    // 发送POST请求
+    const response = await axios.post(`${serverIp.value}/historyTask `, {
+      username: execUser,
+      execute_time: execTime,
+    });
+    console.log(response.data);
     return response.data;
   }
   catch ( error) {

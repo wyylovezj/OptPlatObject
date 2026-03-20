@@ -63,6 +63,7 @@ export const UnlockAccountDataModel = ref(
     username: '', // 用户名
   }
 )
+// 脚本下发请求的数据模型
 export const fileUploadDataModel = ref(
   {
     bastionHostUser: '', // 堡垒机用户
@@ -86,6 +87,16 @@ export const fileUploadDataModel = ref(
   }
 )
 
+export const historyFileUploadDataModel = ref(
+  {
+    execUser: '',  // 执行人
+    execTime: [], // 执行时间
+    reset: function() {
+      this.execUser = '';
+      this.execTime = [];
+    }
+  }
+)
 // 接口地址
 export const exportIp = ref(window.APP_CONFIG?.EXPORTER_IP || 'default-port');
 // 当前选中的节点

@@ -1,22 +1,383 @@
 <script setup>
-import { exportOrderFile, mobileTokenInterface, unlockAccountInterface } from '@/api/interface.js'
-import { currentPage, messageInstance, user } from '@/utils/publicData.js'
+import { exportOrderFile, mobileTokenInterface, unlockAccountInterface,historyTask } from '@/api/interface.js'
+import { currentPage, messageInstance, searchQuery, user } from '@/utils/publicData.js'
 import {
   cards,
   containsLabel, echoData,
-  fileUploadDataModel,
+  fileUploadDataModel, historyFileUploadDataModel,
   isAdmin,
   leafNodeCount,
   UnlockAccountDataModel,
-  WorkOrderDataModel
+  WorkOrderDataModel,
 } from '@/utils/publicDataTools.js'
 import { CircleCheckFilled, CircleCloseFilled, UploadFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import { computed, ref,onBeforeUnmount,watch } from 'vue'
+import { ElMessage,ElButton,ElTableV2, ElAutoResizer } from 'element-plus'
+import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
+import { Search } from '@element-plus/icons-vue'
 
 
+
+
+
+// 历史任务表格列定义
+const baseColumns = [
+  {
+    key: 'index',
+    title: '序号',
+    dataKey: 'index',
+    width: 80,
+    align: 'center',
+  },
+  {
+    key: 'execute_time',
+    title: '创建日期',
+    dataKey: 'execute_time',
+    width: 200,
+    align: 'center',
+  },
+  {
+    key: 'task_name',
+    title: '任务号',
+    dataKey: 'task_name',
+    align: 'center',
+  },
+  {
+    key: 'user',
+    title: '执行人',
+    dataKey: 'user',
+    align: 'center',
+  },
+  {
+    key: 'taskDetail',
+    title: '任务详情',
+    dataKey: 'taskDetail',
+    align: 'center',
+    cellRenderer: ({ rowData }) => {
+      return h(
+        ElButton,
+          {
+            type: 'primary',
+            size: 'small',
+            style: {
+              padding: '5px 10px',
+            },
+            onClick: (event) => {
+              event.stopPropagation()
+              // 导出当前行的历史任务日志
+              viewTaskDetail(rowData)
+            },
+          },
+          { default: () => '查看' }
+      )
+    },
+  },
+  {
+    key: 'exportFile',
+    title: '导出',
+    dataKey: 'exportFile',
+    align: 'center',
+    cellRenderer: ({ rowData }) => {
+      return h(
+        ElButton,
+        {
+          type: 'success',
+          size: 'small',
+          style: {
+            padding: '5px 10px',
+          },
+          onClick: (event) => {
+            event.stopPropagation()
+            // 导出当前行的历史任务日志
+            exportHistoryTaskLog(rowData)
+          },
+        },
+        { default: () => '导出' }
+      )
+    },
+  },
+]
+// 动态计算列宽
+// 根据父容器宽度动态计算列宽的函数
+const getColumns = (parentWidth) => {
+  // 1. 计算固定宽度列的总宽（序号列已设置 width: 80）
+  const fixedWidth = baseColumns.reduce((sum, col) => sum + (col.width || 0), 0);
+
+  // 2. 找出需要自适应的列（没有设置 width 的列）
+  const autoColumns = baseColumns.filter(col => col.width === undefined);
+
+  // 3. 计算每列的自适应宽度（按 2:1:1 比例分配）
+  if (autoColumns.length > 0 && parentWidth > fixedWidth) {
+    // 可分配的剩余宽度
+    const availableWidth = parentWidth - fixedWidth;
+
+    // 权重分配：task_name 权重 2，其他列权重 1
+    const weightMap = {
+      'task_name': 2,
+      'execute_time': 1,
+      'user': 1,
+    };
+
+    // 计算总权重
+    const totalWeight = autoColumns.reduce((sum, col) => {
+      return sum + (weightMap[col.key] || 1);
+    }, 0);
+
+    // 计算每个权重单位的宽度
+    const widthPerWeight = availableWidth / totalWeight;
+
+    // 4. 返回计算后的列配置
+    return baseColumns.map(col => {
+      if (col.width === undefined) {
+        // 按权重分配宽度
+        const weight = weightMap[col.key] || 1;
+        return {
+          ...col,
+          width: Math.max(100, Math.floor(weight * widthPerWeight)) // 最小宽度 100
+        };
+      } else {
+        // 已有固定宽度的列保持不变
+        return col;
+      }
+    });
+  }
+
+  // 默认情况：返回原始列配置
+  return baseColumns.map(col => ({
+    ...col,
+    width: col.width || 150
+  }));
+};
+// 历史任务表格数据
+const data = ref([])
+
+// 查看任务详情
+const viewTaskDetail = (rowData) => {
+  console.log('查看任务详情:', rowData)
+  // 打开任务详情模态框
+  dialogVisible.value.historyStandardOutputVisible = true
+  console.log('查看任务详情:', rowData)
+  // 这里可以根据 rowData 加载具体的任务回显数据
+  // 直接设置回显数据，不使用打字机效果
+  if (rowData.data_echo) {
+    // 生成所有需要显示的行
+    allTypewriterLines = generateTypewriterContent(rowData.data_echo)
+    // 直接赋值给 typewriterLines，一次性显示所有内容
+    typewriterLines.value = allTypewriterLines.map(line => ({
+      group: line.group,
+      type: line.type,
+      text: line.text
+    }))
+    // 重置打字机状态标记
+    currentLineIndex.value = allTypewriterLines.length
+    currentCharIndex.value = 0
+    isTyping.value = false
+    hasStartedTyping = true
+    // 历史任务直接启用导出按钮
+    // exportLogDisabled.value = false
+  }
+  else {
+    // 如果没有回显数据，禁用导出按钮
+    // exportLogDisabled.value = true
+    typewriterLines.value = []
+  }
+  // 例如：echoData.value = rowData.echoData
+}
+
+// 导出任务日志到文件
+const exportTaskLog = async () => {
+  if (typewriterLines.value.length === 0) {
+    ElMessage.warning('没有可导出的日志内容')
+    return
+  }
+
+  // 生成日志文本内容
+  let logContent = ''
+  const timestamp = new Date().toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).replace(/\//g, '-')
+
+  logContent += `任务日志导出时间：${timestamp}\n`
+  logContent += '='.repeat(80) + '\n\n'
+
+  // 按分组整理日志
+  const groups = ['task', 'upload', 'login', 'execute', 'result']
+  const groupNames = {
+    task: '【任务详情】',
+    upload: '【文件上传】',
+    login: '【登录堡垒机】',
+    execute: '【脚本下发执行】',
+    result: '【任务执行结果】'
+  }
+
+  groups.forEach(group => {
+    const groupLines = typewriterLines.value.filter(l => l.group === group)
+    if (groupLines.length > 0) {
+      logContent += `${groupNames[group]}\n`
+      logContent += '-'.repeat(60) + '\n'
+
+      groupLines.forEach(line => {
+        logContent += `${line.text}\n`
+      })
+
+      logContent += '\n'
+    }
+  })
+
+  logContent += '='.repeat(80) + '\n'
+  logContent += '导出完成\n'
+
+  // 创建 Blob 并下载
+  const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  // 尝试从 typewriterLines 中获取任务 ID
+  const taskLines = typewriterLines.value.filter(l => l.group === 'task' && l.type === 'info' && l.text.includes('任务 ID'))
+  let taskId = ''
+  if (taskLines.length > 0) {
+    taskId = taskLines[0].text.split('任务 ID：')[1] || ''
+  }
+
+  // 文件名格式：日期_任务 UUID.txt
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const fileName = taskId ? `${datePart}_${taskId}.txt` : `任务日志_${timestamp.replace(/[:\s]/g, '')}.txt`
+  link.download = fileName
+  link.click()
+  window.URL.revokeObjectURL(url)
+  if (messageInstance.value) {
+    ElMessage.closeAll()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  // 显示警告消息
+  messageInstance.value = ElMessage.success({
+    message: `日志导出成功`,
+    duration: 1000,
+    onClose: () => {
+      messageInstance.value = null
+    },
+  })
+}
+
+// 导出历史任务日志
+const exportHistoryTaskLog = async (rowData) => {
+  console.log('导出历史任务日志:', rowData)
+
+  if (!rowData.data_echo || rowData.data_echo.length === 0) {
+    ElMessage.warning('该任务没有可导出的日志内容')
+    return
+  }
+
+  // 生成需要显示的所有行
+  const allTypewriterLines = generateTypewriterContent(rowData.data_echo)
+
+  if (allTypewriterLines.length === 0) {
+    ElMessage.warning('该任务没有可导出的日志内容')
+    return
+  }
+
+  // 生成日志文本内容
+  let logContent = ''
+  const timestamp = new Date().toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).replace(/\//g, '-')
+
+  logContent += `任务号：${rowData.task_name || '未知'}\n`
+  logContent += `执行用户：${rowData.user || '未知'}\n`
+  logContent += `创建日期：${rowData.execute_time || '未知'}\n`
+  logContent += `导出时间：${timestamp}\n`
+  logContent += '='.repeat(80) + '\n\n'
+
+  // 按分组整理日志
+  const groups = ['task', 'upload', 'login', 'execute', 'result']
+  const groupNames = {
+    task: '【任务详情】',
+    upload: '【文件上传】',
+    login: '【登录堡垒机】',
+    execute: '【脚本下发执行】',
+    result: '【任务执行结果】'
+  }
+
+  groups.forEach(group => {
+    const groupLines = allTypewriterLines.filter(l => l.group === group)
+    if (groupLines.length > 0) {
+      logContent += `${groupNames[group]}\n`
+      logContent += '-'.repeat(60) + '\n'
+
+      groupLines.forEach(line => {
+        logContent += `${line.text}\n`
+      })
+
+      logContent += '\n'
+    }
+  })
+
+  logContent += '='.repeat(80) + '\n'
+  logContent += '导出完成\n'
+
+  // 创建 Blob 并下载
+  const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  // 从 data_echo 中获取任务 ID
+  let taskId = ''
+  if (rowData.data_echo && rowData.data_echo.length >= 1 && rowData.data_echo[0]) {
+    taskId = rowData.data_echo[0].taskId || ''
+  }
+
+  // 文件名格式：日期_任务 UUID.txt
+  const datePart = new Date(rowData.execute_time || Date.now()).toISOString().slice(0, 10).replace(/-/g, '')
+  const fileName = taskId ? `${datePart}_${taskId}.txt` : `历史任务日志_${rowData.task_name || timestamp.replace(/[:\s]/g, '')}.txt`
+  link.download = fileName
+  link.click()
+  window.URL.revokeObjectURL(url)
+
+  if (messageInstance.value) {
+    ElMessage.closeAll()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  // 显示警告消息
+  messageInstance.value = ElMessage.success({
+    message: `日志导出成功`,
+    duration: 1000,
+    onClose: () => {
+      messageInstance.value = null
+    },
+  })
+}
+// 初始化历史任务表格（模态框打开时调用）
+const initHistoryTaskTable = async () => {
+  try {
+    const execUser = historyFileUploadDataModel.value.execUser
+    const execTime = historyFileUploadDataModel.value.execTime
+    const responseData = await historyTask(execUser, execTime)
+    if (responseData.status === 'success') {
+      data.value = responseData?.data || []
+      // 为数据添加序号（从 1 开始）
+      data.value = data.value.map((item, index) => ({
+        ...item,
+        index: index + 1,
+      }))
+    } else {
+      ElMessage.error('获取历史任务数据失败')
+    }
+  }
+  catch (error){
+    ElMessage.error('获取历史任务数据失败:',error)
+  }
+}
 // 表单验证定时器
 let validateTimer = null
 // 定义一个计算属性，判断是否有 el-card 需要显示
@@ -29,7 +390,9 @@ const dialogVisible = ref({
   unlockAccount: false, // 域账号解锁模态框可视状态
   ScriptDistribute: false, // 脚本下发模态框可视状态
   standardOutputVisible: false, // 脚本下发模态框内嵌标准输出模态框可视状态
-  mobileToken: false, // 移动令牌模态框可视状态
+  mobileToken: false, // 移动令牌模态框可视
+  historyScriptDistribute: false, // 历史任务模态框可视状态
+  historyStandardOutputVisible: false, // 历史任务详情模态框可视状态
 })
 const buttonVisible = ref({
   taskDetails: false,  //脚本下发后任务详情按钮显示状态
@@ -70,7 +433,7 @@ const disabledStartDate = (time) => {
   if (WorkOrderDataModel.value.endTime) {
     const endTime = new Date(WorkOrderDataModel.value.endTime)
     const thirtyOneDaysBefore = new Date(endTime)
-    thirtyOneDaysBefore.setDate(thirtyOneDaysBefore.getDate() - 30) // 结束时间往前推31天
+    thirtyOneDaysBefore.setDate(thirtyOneDaysBefore.getDate() - 31) // 结束时间往前推31天
     return time.getTime() < thirtyOneDaysBefore.getTime() || time.getTime() > endTime.getTime()
   }
   return false // 如果没有设置结束时间，则不禁用任何日期
@@ -79,6 +442,8 @@ const disabledStartDate = (time) => {
 const disabledEndDate = (time) => {
   if (WorkOrderDataModel.value.startTime) {
     const startTime = new Date(WorkOrderDataModel.value.startTime)
+    // 将开始时间的时分秒设置为 0，只比较日期
+    startTime.setHours(0, 0, 0, 0)
     const thirtyOneDaysAfter = new Date(startTime)
     thirtyOneDaysAfter.setDate(thirtyOneDaysAfter.getDate() + 30) // 结束时间往前推31天
     return time.getTime() > thirtyOneDaysAfter.getTime() || time.getTime() < startTime.getTime()
@@ -562,6 +927,11 @@ const fileUploadRules = ref({
 const handleUnlock = () => {
   window.open('https://www.baidu.com', '_blank')
 }
+// 脚本下发历史任务时间格式
+const defaultTime = ref([
+  new Date(2000, 1, 1, 0, 0, 0),
+  new Date(2000, 2, 1, 23, 59, 59),
+])
 // 导入
 // 导入ip上传器实例
 const inputFile = ref(null)
@@ -782,16 +1152,18 @@ const uploadStatus = ref('') // success, exception, warning
 const progressTimers = new Map()
 
 // 打字机效果相关状态
-const typewriterLines = ref([])
-const currentLineIndex = ref(0)
-const currentCharIndex = ref(0)
-const isTyping = ref(false)
+const typewriterLines = ref([]) // 已打印的行
+const currentLineIndex = ref(0) // 当前行索引
+const currentCharIndex = ref(0) // 当前字符索引
+const isTyping = ref(false) // 是否正在打字
 const typewriterSpeed = 20 // 打字速度 (毫秒/字符)
 const lineDelay = 50 // 行间距延迟 (毫秒)
-let typewriterTimer = null
+let typewriterTimer = null  // 打字机定时器
 let allTypewriterLines = [] // 缓存所有需要显示的行
 let hasStartedTyping = false // 标记是否已经开始打字
 const scrollbarRef = ref(null) // 滚动条实例引用
+// 导出按钮禁用状态
+const exportLogDisabled = ref(true)
 // 滚动条滚动到底部
 const scrollToBottom = () => {
   if (scrollbarRef.value) {
@@ -958,6 +1330,9 @@ const typeNextCharacter = () => {
   // 检查是否还有未打印的行
   if (currentLineIndex.value >= allTypewriterLines.length) {
     isTyping.value = false
+    // 打印完成，启用导出按钮
+    exportLogDisabled.value = false
+    console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
     return
   }
 
@@ -994,6 +1369,9 @@ const typeNextCharacter = () => {
       }, lineDelay)
     } else {
       isTyping.value = false
+      // 打印完成，启用导出按钮
+      exportLogDisabled.value = false
+      console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
     }
   }
 }
@@ -1350,7 +1728,7 @@ onBeforeUnmount(() => {
             <!-- 下部分：按钮 -->
             <div class="bottom-section">
               <div style="flex: 1; display: flex; justify-content: flex-end">
-                <el-button type="danger" :disabled="exportDisabled.ScriptDistribute" @click="dialogVisible.ScriptDistribute = true">
+                <el-button type="danger" @click="dialogVisible.historyScriptDistribute = true">
                   历史任务
                 </el-button>
                 <el-button type="primary" :disabled="exportDisabled.ScriptDistribute" @click="dialogVisible.ScriptDistribute = true">
@@ -1417,6 +1795,7 @@ onBeforeUnmount(() => {
       title="工单导出"
       width="20%"
       center
+      destroy-on-close
       :show-close="false"
       @close="
         () => {
@@ -1489,6 +1868,7 @@ onBeforeUnmount(() => {
       title="账号解锁"
       width="20%"
       center
+      destroy-on-close
       :show-close="false"
       @close="
         () => {
@@ -1549,11 +1929,21 @@ onBeforeUnmount(() => {
       width="50%"
       center
       :show-close="false"
+      destroy-on-close
       :close-on-click-modal="false"
       @close="
         () => {
           dialogVisible.ScriptDistribute = false
           fileUploadDataModel.reset()
+          netWorkDeviceIP = []
+          typewriterLines = []
+          currentLineIndex = 0
+          currentCharIndex = 0
+          allTypewriterLines = []
+          hasStartedTyping = false
+          isTyping = false
+          exportLogDisabled = true
+          buttonVisible.taskDetails = false
         }
       "
     >
@@ -1673,6 +2063,233 @@ onBeforeUnmount(() => {
         title="任务详情"
         center
         append-to-body
+        destroy-on-close
+        :close-on-click-modal="false"
+      >
+        <el-scrollbar  ref="scrollbarRef" height="680px">
+          <el-timeline style="width: 500px">
+            <el-timeline-item timestamp="任务详情" placement="top">
+              <el-card>
+                <div class="shell-console">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'task')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'task').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
+              </el-card>
+            </el-timeline-item>
+            <el-timeline-item timestamp="文件上传" placement="top">
+              <el-card>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'upload')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'upload')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'upload').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
+              </el-card>
+            </el-timeline-item>
+            <el-timeline-item timestamp="登录堡垒机" placement="top">
+              <el-card>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'login')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'login')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'login').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
+              </el-card>
+            </el-timeline-item>
+            <el-timeline-item timestamp="脚本下发执行" placement="top">
+              <el-card>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'execute')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'execute')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'execute').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
+              </el-card>
+            </el-timeline-item>
+            <el-timeline-item timestamp="任务执行结果" placement="top">
+              <el-card>
+                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'result')">
+                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'result')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'result').length - 1 }">
+                    <p v-if="line.type === 'info'" class="shell-info">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'command'" class="shell-command">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'result'" class="shell-result">
+                      {{ line.text }}
+                    </p>
+                    <p v-else-if="line.type === 'status'" class="shell-status">
+                      {{ line.text }}
+                    </p>
+                  </div>
+                </div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+        </el-scrollbar>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;height: 30px;">
+          <el-button type="success" @click="exportTaskLog"  :disabled="exportLogDisabled">
+            导出日志
+          </el-button>
+        </div>
+      </el-dialog>
+      <el-dialog
+        v-model="dialogVisible.mobileToken"
+        top="200px"
+        width="300px"
+        title="移动令牌"
+        center
+        append-to-body
+      >
+        <el-form
+          :model="fileUploadDataModel"
+          ref="mobileToken"
+          label-position="right"
+          label-width="auto"
+          :rules="mobileTokenRules"
+          style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+        >
+          <el-form-item label="移动令牌" prop="mobileToken">
+            <el-input
+              v-model="fileUploadDataModel.mobileToken"
+              style="width: 200px"
+              placeholder="请输入移动令牌"
+              maxlength="15"
+              type="text"
+              @input="handleMobileToken"
+              clearable
+            />
+          </el-form-item>
+          <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap">
+            <el-button type="primary" @click="mobileTokenLogin">确认</el-button>
+            <el-button
+              type="primary"
+              @click="
+              dialogVisible.mobileToken = false;
+              // 清空数据模型
+              fileUploadDataModel.mobileToken = '';
+            "
+            >取消</el-button
+            >
+          </div>
+        </el-form>
+      </el-dialog>
+    </el-dialog>
+    <!--  脚本下发历史任务模态框  -->
+    <el-dialog
+      v-model="dialogVisible.historyScriptDistribute"
+      title="历史任务"
+      width="55%"
+      height="600px"
+      center
+      destroy-on-close
+      :close-on-click-modal="false"
+      @close="
+        () => {
+          dialogVisible.historyScriptDistribute = false
+          historyFileUploadDataModel.reset()
+        }
+      "
+      @open="initHistoryTaskTable"
+    >
+      <div style="height: 100px;">
+        <el-form :model="historyFileUploadDataModel" ref="fileUpload" :inline="true" label-position="right" label-width="auto">
+          <el-form-item label="执行用户" prop="execUser">
+            <el-input
+              v-model="historyFileUploadDataModel.execUser"
+              style="width: 200px"
+              placeholder="请输入执行用户"
+              maxlength="15"
+              type="text"
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="任务创建时间：" prop="execTime">
+            <el-date-picker
+              v-model="historyFileUploadDataModel.execTime"
+              type="daterange"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              unlink-panels
+              @clear="searchQuery.occurrenceTime = []"
+              :default-time="defaultTime"
+            />
+          </el-form-item>
+          <el-form-item style="flex: none;margin-left: auto;margin-right: 5px;">
+            <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
+              <el-button type="primary" :icon="Search" circle  @click="initHistoryTaskTable" size="default"/>
+            </div>
+          </el-form-item>
+        </el-form>
+      </div>
+      <div style="height: 400px">
+        <el-auto-resizer>
+          <template #default="{ height, width }">
+            <el-table-v2
+              :columns="getColumns(width)"
+              :data="data"
+              :width="width"
+              :height="height"
+              fixed
+            />
+          </template>
+        </el-auto-resizer>
+      </div>
+      <!--   历史任务详情模态框   -->
+      <el-dialog
+        v-model="dialogVisible.historyStandardOutputVisible"
+        top="50px"
+        width="600px"
+        title="任务详情"
+        center
+        append-to-body
+        @close="() => {
+          dialogVisible.historyStandardOutputVisible = false;
+        }"
       >
         <el-scrollbar  ref="scrollbarRef" height="730px">
           <el-timeline style="width: 500px">
@@ -1778,47 +2395,6 @@ onBeforeUnmount(() => {
             </el-timeline-item>
           </el-timeline>
         </el-scrollbar>
-      </el-dialog>
-      <el-dialog
-        v-model="dialogVisible.mobileToken"
-        top="200px"
-        width="300px"
-        title="移动令牌"
-        center
-        append-to-body
-      >
-        <el-form
-          :model="fileUploadDataModel"
-          ref="mobileToken"
-          label-position="right"
-          label-width="auto"
-          :rules="mobileTokenRules"
-          style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
-        >
-          <el-form-item label="移动令牌" prop="mobileToken">
-            <el-input
-              v-model="fileUploadDataModel.mobileToken"
-              style="width: 200px"
-              placeholder="请输入移动令牌"
-              maxlength="15"
-              type="text"
-              @input="handleMobileToken"
-              clearable
-            />
-          </el-form-item>
-          <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap">
-            <el-button type="primary" @click="mobileTokenLogin">确认</el-button>
-            <el-button
-              type="primary"
-              @click="
-              dialogVisible.mobileToken = false;
-              // 清空数据模型
-              fileUploadDataModel.mobileToken = '';
-            "
-            >取消</el-button
-            >
-          </div>
-        </el-form>
       </el-dialog>
     </el-dialog>
   </div>
