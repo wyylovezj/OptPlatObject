@@ -592,7 +592,7 @@ const uploadFiles = async () => {
   await fileUpload.value.validate(async (valid, fields) => {
     if (valid) {
       exportDisabled.value.createTask = true
-
+      exportLogDisabled.value = true
       // dialogVisible.value.ScriptDistribute = false
       try {
         // 重置文件状态，确保可以重新上传
@@ -850,6 +850,7 @@ const handleMobileToken = async (value) => {
   }
   fileUploadDataModel.value.mobileToken = cleanedValue
 }
+
 // 脚本下发表单实例
 const fileUpload = ref(null)
 // 移动令牌表单实例
@@ -901,6 +902,50 @@ const fileUploadRules = ref({
       required: true,
       message: '请输入网络设备IP',
       trigger: 'change',
+    },
+    {
+      validator: async (rule, value, callback) => {
+        if (!value || value.trim() === '') {
+          callback(new Error('请输入网络设备 IP'))
+          return
+        }
+
+        // 使用分隔符分割字符串：分号、逗号、制表符、空格、换行
+        const separators = /[;\t,\n\r]|\s{1,}/g
+        const ipArray = value
+          .split(separators)
+          .map((ip) => ip.trim())
+          .filter((ip) => ip)
+
+        // 验证并过滤有效的 IP 地址
+        const ipRegex = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/
+        const validIPs = ipArray.filter((ip) => ipRegex.test(ip))
+
+        // 找出无效的 IP
+        const invalidIPs = ipArray.filter((ip) => !ipRegex.test(ip))
+
+        // 如果有无效的 IP，返回错误提示
+        if (invalidIPs.length > 0) {
+          callback(new Error(`以下 IP 地址格式不正确：${invalidIPs.join(', ')}`))
+          return
+        }
+
+        // 如果没有有效的 IP，返回错误
+        if (validIPs.length === 0) {
+          callback(new Error('请至少输入一个有效的 IP 地址'))
+          return
+        }
+
+        // 更新内部 IP 数组（去重）
+        netWorkDeviceIP.value = [...new Set(validIPs)]
+        console.log('netWorkDeviceIP', netWorkDeviceIP.value)
+
+        // 校验通过，自动格式化输入值（用分号连接）
+        fileUploadDataModel.value.netWorkDeviceIP = validIPs.join('; ')
+
+        callback()
+      },
+      trigger: 'blur',
     },
   ],
   fileList: [
@@ -1498,22 +1543,22 @@ const customUpload = async (options) => {
   const taskId = crypto.randomUUID()
   console.log('uuid:', taskId)
   // 如果用户在输入框中手动修改了 IP，需要重新解析
-  if (fileUploadDataModel.value.netWorkDeviceIP) {
-    // 使用分隔符分割字符串：分号、逗号、制表符、空格、换行
-    const separators = /[;\t,\n\r]|\s{1,}/g
-    const ipArray = fileUploadDataModel.value.netWorkDeviceIP
-      .split(separators)
-      .map((ip) => ip.trim())
-      .filter((ip) => ip)
-
-    // 验证并过滤有效的 IP 地址
-    const ipRegex = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/
-    const validIPs = ipArray.filter((ip) => ipRegex.test(ip))
-
-    // 去重
-    netWorkDeviceIP.value = [...new Set(validIPs)]
-    console.log('netWorkDeviceIP', netWorkDeviceIP.value)
-  }
+  // if (fileUploadDataModel.value.netWorkDeviceIP!=='') {
+  //   // 使用分隔符分割字符串：分号、逗号、制表符、空格、换行
+  //   const separators = /[;\t,\n\r]|\s{1,}/g
+  //   const ipArray = fileUploadDataModel.value.netWorkDeviceIP
+  //     .split(separators)
+  //     .map((ip) => ip.trim())
+  //     .filter((ip) => ip)
+  //
+  //   // 验证并过滤有效的 IP 地址
+  //   const ipRegex = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/
+  //   const validIPs = ipArray.filter((ip) => ipRegex.test(ip))
+  //
+  //   // 去重
+  //   netWorkDeviceIP.value = [...new Set(validIPs)]
+  //   console.log('netWorkDeviceIP', netWorkDeviceIP.value)
+  // }
   // 清理之前可能存在的同任务定时器
   if (progressTimers.has(taskId)) {
     clearInterval(progressTimers.get(taskId))
@@ -1779,7 +1824,7 @@ onBeforeUnmount(() => {
           <!--  页码导航  -->
           <el-pagination
             background
-            v-model:current-page="currentPage"
+            :current-page="currentCardPage"
             page-size="16"
             :total="leafNodeCount"
             layout="prev, pager, next"
