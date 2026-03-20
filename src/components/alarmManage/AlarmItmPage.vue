@@ -431,7 +431,7 @@ const handleReverseSelection = async () => {
 const pageSize = ref(10)
 
 // 数组：每页可选显示行数
-const pageSizeOptions = [5, 10, 20, 50]
+const pageSizeOptions = [5, 10, 20, 50,100,200]
 
 
 // 计算当前页显示的数据的索引范围
@@ -456,10 +456,10 @@ const handleSizeChange = (size) => {
   // 将响应式变量currentPage的值重置为第一页，currentPage绑定到分页组件的当前页码属性
   currentPage.value = 1
   // 等待DOM更新完成
-  nextTick(() => {
-    // 将响应式变量blinkTrigger的值设置为true，用于重启闪烁效果，同步闪烁效果
+  // nextTick(() => {
+  //   // 将响应式变量blinkTrigger的值设置为true，用于重启闪烁效果，同步闪烁效果
     blinkTrigger.value = true
-  })
+  // })
 }
 
 /**
@@ -1411,6 +1411,13 @@ const batchUpdateSelection = (operations) => {
     }, 0)
   }
 }
+// 查看告警详情中标签页默认值
+const activeName = ref('基本信息')
+
+// 标签页点击事件
+const handleClick = (tab, event) => {
+  console.log(tab, event)
+}
 onUnmounted(() => {
   clearExpandStates()
   // 清空当前选择行
@@ -1656,67 +1663,112 @@ onUnmounted(() => {
       top="15%" title="告警详情"
       width="80%"
       center
-      style="user-select: text"
+      style="user-select: text;height: 300px"
       destroy-on-close
       @close="() => { dialogVisibleView = false }"
     >
-      <el-table
-        :data="[currentRow]"
-        border
-        :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
-        :header-cell-style="{ textAlign: 'center' }"
+      <el-tabs
+        v-model="activeName"
+        type="card"
+        class="demo-tabs"
+        @tab-click="handleClick"
+        style="user-select: none;"
       >
-        <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
-        <el-table-column prop="severity" label="级别" min-width="5%" :resizable="false">
-          <template #default="scope">
+        <el-tab-pane label="基本信息" name="基本信息" style="user-select: text;">
+          <el-table
+            :data="[currentRow]"
+            border
+            :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
+            :header-cell-style="{ textAlign: 'center' }"
+          >
+            <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
+            <el-table-column prop="severity" label="级别" min-width="5%" :resizable="false">
+              <template #default="scope">
             <span
               class="severity-indicator"
               :class="{ 'severity-blink': scope.row.severity === '严重' }"
               :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
             ></span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
-          <template #default="{row}">
-            <span :class="getStateClass(row.state)">{{ row.state }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false">
-          <template #default="{row}">
-            {{ row.system_name || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="category" label="分类" min-width="5%" :resizable="false">
-          <template #default="{row}">
-            {{ row.category || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="object" label="主机名" min-width="10%" :resizable="false">
-          <template #default="{row}">
-            {{ row.object || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="ip" label="IP地址" min-width="10%" :resizable="false">
-          <template #default="{row}">
-            {{ row.ip || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="alarm_details" label="告警描述" min-width="20%" :resizable="false">
-          <template #default="{row}">
-            {{ row.alarm_details || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
-          <template #default="{row}">
-            {{ row.occurrenceTime || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
-          <template #default="{row}">
-            {{ row.processingTime || '/' }}
-          </template>
-        </el-table-column>
-      </el-table>
+              </template>
+            </el-table-column>
+            <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
+              <template #default="{row}">
+                <span :class="getStateClass(row.state)">{{ row.state }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false">
+              <template #default="{row}">
+                {{ row.system_name || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="category" label="分类" min-width="5%" :resizable="false">
+              <template #default="{row}">
+                {{ row.category || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="object" label="主机名" min-width="10%" :resizable="false">
+              <template #default="{row}">
+                {{ row.object || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="ip" label="IP地址" min-width="10%" :resizable="false">
+              <template #default="{row}">
+                {{ row.ip || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="alarm_details" label="告警描述" min-width="20%" :resizable="false">
+              <template #default="{row}">
+                {{ row.alarm_details || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
+              <template #default="{row}">
+                {{ row.occurrenceTime || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
+              <template #default="{row}">
+                {{ row.processingTime || '/' }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="处理过程" name="处理过程" style="user-select: text;">
+          <el-table
+            :data="[currentRow]"
+            border
+            :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
+            :header-cell-style="{ textAlign: 'center' }"
+          >
+            <el-table-column prop="state" label="操作类型" min-width="10%" :resizable="false">
+              <template #default="{row}">
+                <span :class="getStateClass(row.state)">{{ row.state }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="system_name" label="处理时间" min-width="20%" :resizable="false">
+              <template #default="{row}">
+                {{ row.system_name || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="category" label="操作人" min-width="15%" :resizable="false">
+              <template #default="{row}">
+                {{ row.category || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="object" label="相关对象" min-width="15%" :resizable="false">
+              <template #default="{row}">
+                {{ row.object || '/' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="ip" label="处理意见" min-width="40%" :resizable="false">
+              <template #default="{row}">
+                {{ row.ip || '/' }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+
     </el-dialog>
     <!-- 关闭按钮模态框 -->
     <el-dialog
