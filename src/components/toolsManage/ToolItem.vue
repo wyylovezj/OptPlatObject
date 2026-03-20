@@ -764,7 +764,7 @@ const bastionHostUser = async (value) => {
 }
 // 脚本下发网络设备用户输入即时校验函数
 const netWorkDeviceUser = async (value) => {
-  const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
+  const cleanedValue = value.replace(/[^a-zA-Z0-9_]/g, '')
   // 如果过滤后的值与原值不同，说明输入了非法字符
   if (cleanedValue !== value) {
     if (messageInstance.value) {
