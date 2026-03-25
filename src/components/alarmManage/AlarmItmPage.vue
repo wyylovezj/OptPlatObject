@@ -11,7 +11,7 @@ import { closeAlert, getUserGroup, searchData, creatOrder } from '@/api/interfac
 import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
 import { Edit, Plus, Minus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, nextTick, ref, onMounted, watch, onUnmounted } from 'vue'
+import { computed, nextTick, ref, onMounted, watch, onUnmounted, } from 'vue'
 import {
   tableRef,
   loading,
@@ -32,8 +32,104 @@ import {
   isFilter,
   searchQuery,
   isAggregate,
-  sortRootNodes
+  sortRootNodes,
+  debounce, lastScrollTop, startIndex
 } from '@/utils/publicData.js'
+
+
+// 每页条数：默认为10
+const pageSize = ref(10)
+let currentPageSize = 10
+// 计算当前页显示的数据的索引范围
+const currentPageData = computed(() => {
+  // 计算当前页的起始数据的索引：索引从0开始计算
+  const start = (currentPage.value - 1) * pageSize.value
+  // 计算当前页的结束数据的索引
+  const end = start + pageSize.value
+  // 返回当前页的数据的切片
+  console.log('end', new Date().getTime())
+  return tableData.value.slice(start, end)
+})
+// 虚拟滚动相关变量
+const rowHeight = 50 // 每行高度（包括边框），根据实际测量调整
+const visibleRowCount = 20 // 可见区域显示的行数（固定高度 600 / 行高）
+const scrollThreshold = 5 // 每滚动 5 行触发一次更新
+
+// 计算需要渲染的数据片段
+const virtualData = computed(() => {
+  // 计算当前页的起始数据的索引：索引从0开始计算
+  const start = (currentPage.value - 1) * pageSize.value
+  // 计算当前页的结束数据的索引
+  const end = start + pageSize.value
+  // 返回当前页的数据的切片
+  console.log('end', new Date().getTime())// 当 pageSize <= 20 时，渲染所有数据
+  if (pageSize.value <= 20) {
+    return tableData.value.slice(start, end)
+  }
+  if (startIndex.value > 0 && start + startIndex.value + visibleRowCount <= end) {
+    console.log('index', tableData.value.slice(start + startIndex.value, startIndex.value + visibleRowCount))
+
+    // // 更新上次滚动位置
+    // lastScrollTop.value = scrollTop
+    return tableData.value.slice(start + startIndex.value, start + startIndex.value + visibleRowCount)
+  }
+  return tableData.value.slice(start, start + 20)
+})
+
+// 处理表格滚动事件
+const handleTableScroll = (event) => {
+  if (!isAggregate.value && pageSize.value > 20) {
+    // 计算当前应该显示的起始索引（基于滚动距离）
+    const scrollTop = event.scrollTop || event.target?.scrollTop || 0
+
+    // 判断滚动方向
+    const scrollDelta = scrollTop - lastScrollTop.value
+    const isScrollingDown = scrollDelta > 0  // 向下滚动
+    const isScrollingUp = scrollDelta < 0    // 向上滚动
+
+    // lastScrollTop.value = scrollTop
+    if (isScrollingDown) {
+      const newIndex = Math.floor(scrollTop / rowHeight)
+      console.log('向下滚动')
+      console.log('scrollTop',scrollTop)
+      // 只有当滚动距离超过阈值时才更新
+      if (newIndex >= scrollThreshold) {
+        // 计算新的起始索引
+        startIndex.value = Math.min(newIndex + startIndex.value,Math.min(pageSize.value,tableData.value.length)-visibleRowCount)
+      }
+      if (startIndex.value < Math.min(pageSize.value,tableData.value.length) - visibleRowCount) {
+        // 更新上次滚动位置
+        lastScrollTop.value = 300
+        tableRef.value.setScrollTop(300)
+      }
+    }
+    if (isScrollingUp) {
+      console.log('向上滚动')
+      console.log('scrollTop',scrollTop)
+      const newIndex = Math.ceil((lastScrollTop.value - scrollTop) / rowHeight)
+      console.log('newIndex',newIndex)
+      // 只有当滚动距离超过阈值时才更新
+      if (newIndex >= 1) {
+        // 计算新的起始索引
+        startIndex.value = Math.max(startIndex.value - newIndex,0)
+        console.log('startIndex', startIndex.value)
+      }
+      if (startIndex.value === pageSize.value - visibleRowCount) {
+        // 获取当前滚动位置
+        lastScrollTop.value = scrollTop
+      }
+      if (startIndex.value > 0) {
+        tableRef.value.setScrollTop(300)
+      }
+    }
+    // 关键修改：在数据更新前关闭闪烁，更新后再开启，确保同步
+    blinkTrigger.value = false
+    nextTick(() => {
+      blinkTrigger.value = true
+    })
+  }
+}
+
 
 /**
  * 初始化表格数据：获取当前查询参数下的告警列表数据，此时数据还未渲染到表格，仅仅是保存在数组中，后续将通过currentPage计算属性进行分页处理
@@ -428,38 +524,41 @@ const handleReverseSelection = async () => {
 }
 
 // 每页条数：默认为10
-const pageSize = ref(10)
+// const pageSize = ref(10)
 
 // 数组：每页可选显示行数
-const pageSizeOptions = [5, 10, 20, 50,100,200]
+const pageSizeOptions = [10, 20, 50,100,500]
 
 
-// 计算当前页显示的数据的索引范围
-const currentPageData = computed(() => {
-  // 计算当前页的起始数据的索引：索引从0开始计算
-  const start = (currentPage.value - 1) * pageSize.value
-  // 计算当前页的结束数据的索引
-  const end = start + pageSize.value
-  // 返回当前页的数据的切片
-  return tableData.value.slice(start, end)
-})
+
 
 /**
  * 处理每页条数变化
  * @param size - 每页条数
  */
 const handleSizeChange = (size) => {
+  console.log('start', new Date().getTime())
   // 将响应式变量blinkTrigger的值设置为false，用于关闭闪烁效果
   blinkTrigger.value = false
+  if (currentPageSize > pageSize.value) {
+    startIndex.value = 0
+    tableRef.value.setScrollTop(0)
+  }
+  if (currentPageSize < pageSize.value) {
+    lastScrollTop.value = 0
+    tableRef.value.setScrollTop(0)
+  }
+
+  currentPageSize = pageSize.value
   // 将响应式变量pageSize的值更新为新的每页显示数量
   pageSize.value = size
   // 将响应式变量currentPage的值重置为第一页，currentPage绑定到分页组件的当前页码属性
   currentPage.value = 1
   // 等待DOM更新完成
-  // nextTick(() => {
-  //   // 将响应式变量blinkTrigger的值设置为true，用于重启闪烁效果，同步闪烁效果
+  nextTick(() => {
+    // 将响应式变量blinkTrigger的值设置为true，用于重启闪烁效果，同步闪烁效果
     blinkTrigger.value = true
-  // })
+  })
 }
 
 /**
@@ -476,7 +575,7 @@ const handleCurrentChange = (page) => {
  * 处理选择变化事件,用于多行关闭时获取当前选中行
  * @param selection - 当前选中行的数组
  */
-const handleSelectionChange = (selection) => {
+const handleSelectionChange = debounce((selection) => {
   // 防止在同步过程中触发额外的处理
   if (isSyncingSelection) {
     console.log('跳过选择变更处理，正在同步中...')
@@ -498,7 +597,7 @@ const handleSelectionChange = (selection) => {
       syncParentChildSelection()
     }, 100)
   }
-}
+},100)
 // 新增：标记是否正在处理行选择事件
 let isRowSelectProcessing = false
 // 新增：自定义行选择处理函数
@@ -713,6 +812,7 @@ const handleView = (row) => {
   // 将当前选中的行数据保存到响应式变量中
   // 这些数据将被用于查看对话框的内容展示
   currentRow.value = row
+  console.log('查看当前行数据：', row)
   // 打开查看对话框
   dialogVisibleView.value = true
 }
@@ -857,6 +957,9 @@ const createTicket = async () => {
  */
 const closeCurrentAlert = async () => {
   try {
+    // 立即显示表格加载状态
+    loading.value = true
+    console.log('start', new Date().getTime())
     // 单行关闭时将当前行加入到接口保存要关闭的event_id的selectedRows数组中
     // 多行关闭时直接通过表格的selected属性获取选中行。
     if (selectedRows.value.length === 0) {
@@ -869,10 +972,15 @@ const closeCurrentAlert = async () => {
       .map(row => row.event_id)
     console.log('eventIdsToClose',eventIdsToClose)
     const handleUser = sessionStorage.getItem('user')
+    // 重置模态框状态，关闭确认对话框
+    DialogVisibleClose.value = false
+
+    // 等待模态框关闭动画完成
+    await nextTick()
     // 调用关闭告警接口
     // 参数：选中的告警ID列表和处理意见
     // await：阻塞代码执行，等待异步函数closeAlert执行完成
-    await closeAlert(tableData.value,selectedEventIds.value, handleOpinion.value,handleUser)
+    await closeAlert(selectedEventIds.value, handleOpinion.value,handleUser)
     console.log('tableData1',tableData.value)
     // 根据是否为聚合模式采用不同的数据移除策略
     if (isAggregate.value) {
@@ -880,21 +988,23 @@ const closeCurrentAlert = async () => {
       removeNodesFromTree(tableData.value, selectedEventIds.value)
     } else {
       // 非聚合模式：从平面数组中移除
-      removeNodesFromArray(tableData.value, selectedEventIds.value)
+      // removeNodesFromArray(tableData.value, selectedEventIds.value)
+      // 非聚合模式：使用批量过滤替代多次 splice
+      tableData.value = tableData.value.filter(
+        item => !selectedEventIds.value.includes(item.event_id)
+      )
     }
     console.log('tableData2',tableData.value)
     // 清空选中行数组
     selectedRows.value = []
     // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
     tableRef.value?.clearSelection()
-
-    await nextTick(() => {
-      // 重置模态框状态，关闭确认对话框
-      DialogVisibleClose.value = false
-    })
     // 重置处理意见
     handleOpinion.value = ''
+    // 关闭加载状态
+    loading.value = false
     // 显示成功提示消息
+    await nextTick()
     if (messageInstance.value) {
       // 先关闭所有可能存在的消息
       ElMessage.closeAll()
@@ -904,14 +1014,17 @@ const closeCurrentAlert = async () => {
     // 显示成功提示
     messageInstance.value = ElMessage.success({
       message: '告警关闭成功', // 成功提示内容
-      duration: 1000,  // 显示持续时间(毫秒)
+      duration: 1500,  // 显示持续时间(毫秒)
       offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
       onClose: () => {   // 消息关闭时的回调
         messageInstance.value = null   // 清空消息实例引用
       }
     })
+    console.log('endtiime', new Date().getTime())
     // 错误处理部分
   } catch (error) {
+    // 关闭加载状态
+    loading.value = false
     if (messageInstance.value) {
       // 如果已有提示框在显示，先关闭它
       ElMessage.closeAll()
@@ -1110,8 +1223,14 @@ const loadTreeNode = (row, treeNode, resolve) => {
 
 // 从平面数组中移除节点的辅助函数
 const removeNodesFromArray = (arrayData, eventIdsToRemove) => {
+  // for (let i = arrayData.length - 1; i >= 0; i--) {
+  //   if (eventIdsToRemove.includes(arrayData[i].event_id)) {
+  //     arrayData.splice(i, 1)
+  //   }
+  // }
+  const idsToRemoveSet = new Set(eventIdsToRemove)
   for (let i = arrayData.length - 1; i >= 0; i--) {
-    if (eventIdsToRemove.includes(arrayData[i].event_id)) {
+    if (idsToRemoveSet.has(arrayData[i].event_id)) {
       arrayData.splice(i, 1)
     }
   }
@@ -1452,6 +1571,7 @@ onUnmounted(() => {
     </div>
     <!-- 表格 -->
     <div class="table-container">
+
       <!-- 全局加载遮罩 -->
       <div v-if="globalLoading" class="global-loading-overlay">
         <div class="loading-content">
@@ -1461,9 +1581,10 @@ onUnmounted(() => {
       <el-table
         v-if="!globalLoading"
         ref="tableRef"
-        :data="currentPageData"
+        :data="isAggregate?currentPageData:virtualData"
         border
         stripe
+        :row-style="{ height: '50px' }"
         style="width: 100%; font-size: 13px;"
         :cell-style="{ textAlign: 'center' }"
         :header-cell-style="{ textAlign: 'center' }"
@@ -1476,7 +1597,9 @@ onUnmounted(() => {
         :load="loadTreeNode"
         @select="handleRowSelect"
         :select-on-indeterminate="false"
-        @select-all="handleSelectAllHeader">
+        @select-all="handleSelectAllHeader"
+        @scroll="handleTableScroll"
+      >
         <el-table-column type="selection" reserve-selection min-width="2%" :resizable="false" />
 <!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->
         <!-- 自定义展开列 -->
@@ -1518,7 +1641,8 @@ onUnmounted(() => {
               </span>
               <span v-else>
                 <!-- 非聚合模式：正常序号 -->
-                {{ (currentPage - 1) * pageSize + $index + 1 }}
+<!--                {{ (currentPage - 1) * pageSize + $index + 1 }}-->
+                {{ (currentPage - 1) * pageSize + startIndex + $index + 1 }}
               </span>
             </span>
           </template>
@@ -1660,10 +1784,11 @@ onUnmounted(() => {
     <!--    查看按钮模态框  -->
     <el-dialog
       v-model="dialogVisibleView"
-      top="15%" title="告警详情"
+      top="15%"
+      title="告警详情"
       width="80%"
       center
-      style="user-select: text;height: 300px"
+      style="user-select: text;min-height: 300px"
       destroy-on-close
       @close="() => { dialogVisibleView = false }"
     >
@@ -1680,6 +1805,7 @@ onUnmounted(() => {
             border
             :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
             :header-cell-style="{ textAlign: 'center' }"
+            :row-style="{ height: '60px' }"
           >
             <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
             <el-table-column prop="severity" label="级别" min-width="5%" :resizable="false">
@@ -1733,36 +1859,28 @@ onUnmounted(() => {
             </el-table-column>
           </el-table>
         </el-tab-pane>
-        <el-tab-pane label="处理过程" name="处理过程" style="user-select: text;">
+        <el-tab-pane v-if="currentRow.state === '已关闭'" label="处理过程" name="处理过程" style="user-select: text;">
           <el-table
             :data="[currentRow]"
             border
             :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
             :header-cell-style="{ textAlign: 'center' }"
+            :row-style="{ height: '60px' }"
           >
-            <el-table-column prop="state" label="操作类型" min-width="10%" :resizable="false">
+            <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
+            <el-table-column prop="Alarm_Handler" label="处理人" min-width="15%" :resizable="false">
               <template #default="{row}">
-                <span :class="getStateClass(row.state)">{{ row.state }}</span>
+                {{ row.Alarm_Handler || '/' }}
               </template>
             </el-table-column>
-            <el-table-column prop="system_name" label="处理时间" min-width="20%" :resizable="false">
+            <el-table-column prop="processingTime" label="处理时间" min-width="25%" :resizable="false">
               <template #default="{row}">
-                {{ row.system_name || '/' }}
+                {{ row.processingTime || '/' }}
               </template>
             </el-table-column>
-            <el-table-column prop="category" label="操作人" min-width="15%" :resizable="false">
+            <el-table-column prop="alert_remarks" label="处理意见" min-width="50%" :resizable="false">
               <template #default="{row}">
-                {{ row.category || '/' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="object" label="相关对象" min-width="15%" :resizable="false">
-              <template #default="{row}">
-                {{ row.object || '/' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="ip" label="处理意见" min-width="40%" :resizable="false">
-              <template #default="{row}">
-                {{ row.ip || '/' }}
+                {{ row.alert_remarks || '/' }}
               </template>
             </el-table-column>
           </el-table>
@@ -1797,9 +1915,12 @@ onUnmounted(() => {
         <el-button type="primary" @click="closeCurrentAlert">确认</el-button>
         <el-button
           type="primary"
-          @click="
+          @click="async () =>{
             DialogVisibleClose = false;
+            // 等待模态框关闭动画完成
+            await nextTick();
             handleOpinion = ''
+          }
           "
         >取消</el-button>
       </div>

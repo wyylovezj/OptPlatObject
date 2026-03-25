@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-01-28 09:29:55
  */
-import { ref,watch,onUnmounted } from 'vue'
+import { ref,watch,onUnmounted,nextTick } from 'vue'
 import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
@@ -293,16 +293,17 @@ const clearSearch = () => {
 // 存储当前显示的提示框实例
 const messageInstance = ref(null)
 const batchClose = async () => {
-
+  console.log('start', new Date().getTime())
+  // 如果已有提示框在显示，先关闭它
+  if (messageInstance.value) {
+    // 关闭所有消息
+    ElMessage.closeAll()
+    // 使用setTimeout给DOM更新留出时间
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
   // 检查选中的节点中是否有状态为"已关闭"的告警
   const closedRows = selectedRows.value.filter(row => row.state === '已关闭')
   if (closedRows.length > 0) {
-    // 如果已有消息实例，先关闭所有消息
-    if (messageInstance.value) {
-      ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
-
     // 显示警告消息
     messageInstance.value = ElMessage.warning({
       message: `选中的 ${closedRows.length} 条告警状态为"已关闭"，不允许再次关闭`,
@@ -315,13 +316,6 @@ const batchClose = async () => {
     return
   }
   if (selectedRows.value.length === 0) {
-    // 如果已有提示框在显示，先关闭它
-    if (messageInstance.value) {
-      // 关闭所有消息
-      ElMessage.closeAll()
-      // 使用setTimeout给DOM更新留出时间
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
     messageInstance.value = ElMessage.warning({
       message: '请先选择要关闭的数据',
       duration: 1000,
@@ -332,7 +326,10 @@ const batchClose = async () => {
     })
     return
   }
+  console.log('endtime', new Date().getTime())
   DialogVisibleClose.value = true
+  // 等待模态框关闭动画完成
+  await nextTick()
 }
 const batchCreateTickets = async () => {
   // 检查选中的节点中是否有状态为"已分派"的告警

@@ -1,9 +1,13 @@
 import { searchData } from '@/api/interface.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
-import { ref, computed } from 'vue'
+import { ref, computed,nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 
+
+
+export const startIndex = ref(0)
+export const lastScrollTop = ref(0) // 记录上次滚动位置，用于判断滚动方向
 
 // 存储树的根节点的引用
 // export const recordNodes = new Map()
@@ -272,10 +276,12 @@ export const refresh = throttle(async () => {
   stopSpeak()
   // 设置加载标志为true,控制表格加载动画
   loading.value = true
+  await nextTick ()
   // 记录当前聚合状态
   const currentAggregateState = isAggregate.value
   // 关闭告警图形动画
   blinkTrigger.value = false
+
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
   const minDelay = new Promise(resolve => setTimeout(resolve, 300))
   try {
@@ -286,6 +292,11 @@ export const refresh = throttle(async () => {
     ])
     // 对获取的数据进行排序后再赋值给tableData
     tableData.value = data.sort(sortSeverity)
+    startIndex.value = 0
+    lastScrollTop.value = 0
+    if (tableRef.value && tableRef.value.setScrollTop) {
+      tableRef.value.setScrollTop(0)
+    }
     // 重置表格组件中级别列的排序图标为默认状态
     if (tableRef.value) {
       tableRef.value.clearSort()
