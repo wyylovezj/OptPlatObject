@@ -167,7 +167,8 @@ const viewTaskDetail = (rowData) => {
     typewriterLines.value = allTypewriterLines.map(line => ({
       group: line.group,
       type: line.type,
-      text: line.text
+      text: line.text,
+      deviceIp: line.deviceIp  // 新增：保留 deviceIp 字段
     }))
     // 重置打字机状态标记
     currentLineIndex.value = allTypewriterLines.length
@@ -595,6 +596,8 @@ const uploadFiles = async () => {
       exportLogDisabled.value = true
       // dialogVisible.value.ScriptDistribute = false
       try {
+        // 重置打字机状态，准备打印新任务
+        resetTypewriter()
         // 重置文件状态，确保可以重新上传
         if (uploadFile.value && fileUploadDataModel.value.fileList) {
           fileUploadDataModel.value.fileList.forEach(file => {
@@ -1456,16 +1459,25 @@ const generateTypewriterContent = (echoDataParam) => {
   }
 
   // 辅助函数：添加一行或多行（如果文本包含换行符则分割）
-  const addLine = (group, type, text) => {
+  const addLine = (group, type, text, isCommandResult = false,isCommand = false,isNetIP=false,deviceIp=null) => {
     if (!text) return
     // 如果包含换行符，分割成多行
     const textLines = text.split('\n')
     textLines.forEach((line, index) => {
+      let processedLine = line
+      // 如果是命令执行结果的第一行且行首有两个空格，去掉这两个空格
+      if (isCommandResult && index === 0 && line.startsWith('  ')) {
+        processedLine = line.substring(2)
+      }
       lines.push({
         group,
         type,
-        text: line,
-        isOriginalLine: index < textLines.length - 1 // 标记是否是原始行（用于保持格式）
+        text: processedLine,
+        isOriginalLine: index < textLines.length - 1, // 标记是否是原始行（用于保持格式）
+        isCommandResult: isCommandResult, // 标记是否是命令执行结果
+        isCommand: isCommand,// 标记是否是命令
+        isNetIP: isNetIP, // 标记是否是ip
+        deviceIp: deviceIp,// 标记ip
       })
     })
   }
@@ -1513,25 +1525,26 @@ const generateTypewriterContent = (echoDataParam) => {
   if (echoDataParam.length >= 4 && echoDataParam[3]) {
     if (echoDataParam[3].progress?.length >= 1) {
       echoDataParam[3].progress.forEach((item) => {
+        const currentDeviceIp = item.netWorkDeviceIP || 'unknown'
         if (item.netWorkDeviceIP) {
-          addLine('execute', 'info', `网络设备 IP: ${item.netWorkDeviceIP}`)
+          addLine('execute', 'info', `网络设备 IP: ${item.netWorkDeviceIP}`, false,false,true,currentDeviceIp)
         }
 
         if (item.progress?.length >= 1 && item.progress) {
           item.progress.forEach((itemCmd) => {
             if (itemCmd.command) {
-              addLine('execute', 'command', `${itemCmd.command}`)
+              addLine('execute', 'command', `${itemCmd.command}`, false,true,false)
             }
             if (itemCmd.result) {
               // 执行结果保留原始格式，包括换行符
-              addLine('execute', 'result', `  ${itemCmd.result}`)
+              addLine('execute', 'result', `  ${itemCmd.result}`, true,false,false)
             }
           })
         }
 
-        if (item.status) {
-          addLine('execute', 'status', `执行结果：${item.status}`)
-        }
+        // if (item.status) {
+        //   addLine('execute', 'status', `执行结果：${item.status}`)
+        // }
       })
     }
   }
@@ -1553,6 +1566,38 @@ const generateTypewriterContent = (echoDataParam) => {
   }
 
   return lines
+}
+
+// 新增：将 execute 组的行按 deviceIp 分组
+const groupExecuteLines = (lines) => {
+  const executeLines = lines.filter(l => l.group === 'execute')
+  const groups = []
+  let currentGroup = null
+
+  executeLines.forEach((line) => {
+    // 如果当前行有 deviceIp，创建新组
+    if (line.deviceIp) {
+      currentGroup = {
+        deviceIp: line.deviceIp,
+        lines: [line]
+      }
+      groups.push(currentGroup)
+    }
+    // 如果当前行没有 deviceIp 但已经有组了，加入当前组
+    else if (currentGroup) {
+      currentGroup.lines.push(line)
+    }
+    // 如果当前行没有 deviceIp 且还没有组（理论上不应该发生），创建默认组
+    else {
+      currentGroup = {
+        deviceIp: 'default',
+        lines: [line]
+      }
+      groups.push(currentGroup)
+    }
+  })
+
+  return groups
 }
 // 打字机效果启动函数
 // const startTypewriter = (echoDataParam) => {
@@ -1611,20 +1656,54 @@ const typeNextCharacter = () => {
   // 检查是否还有未打印的行
   if (currentLineIndex.value >= allTypewriterLines.length) {
     isTyping.value = false
-    // 打印完成，启用导出按钮
-    exportLogDisabled.value = false
-    console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
+    // 新增：检查 echoData 的 status 是否为 complete
+    const isTaskComplete = echoData.value && echoData.value?.status === 'complete'
+    // 只有当打字机状态为 false 且任务状态为 complete 时，才启用导出按钮
+    if (!isTyping.value && isTaskComplete) {
+      exportLogDisabled.value = false
+      console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
+    }
     return
   }
 
   const currentLine = allTypewriterLines[currentLineIndex.value]
+
+  // 如果是命令执行结果，直接显示完整内容
+  if (currentLine.isCommandResult || currentLine.isCommand || currentLine.isNetIP) {
+    // 直接显示完整行
+    typewriterLines.value[currentLineIndex.value] = {
+      group: currentLine.group,
+      type: currentLine.type,
+      text: currentLine.text,
+      deviceIp: currentLine.deviceIp  // 新增：保留 deviceIp 字段
+    }
+    currentLineIndex.value++
+    currentCharIndex.value = 0
+    scrollToBottom()
+    typeNextCharacter()
+    // 继续处理下一行
+    // if (currentLineIndex.value < allTypewriterLines.length) {
+    //   setTimeout(() => {
+    //
+    //   }, lineDelay)
+    // } else {
+    //   isTyping.value = false
+    //   const isTaskComplete = echoData.value && echoData.value?.status === 'complete'
+    //   if (!isTyping.value && isTaskComplete) {
+    //     exportLogDisabled.value = false
+    //     console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
+    //   }
+    // }
+    return
+  }
 
   // 如果当前行在 typewriterLines 中不存在，创建它（打一行分配一行）
   if (!typewriterLines.value[currentLineIndex.value]) {
     typewriterLines.value[currentLineIndex.value] = {
       group: currentLine.group,
       type: currentLine.type,
-      text: ''
+      text: '',
+      deviceIp: currentLine.deviceIp  // 新增：保留 deviceIp 字段
     }
   }
 
@@ -1650,9 +1729,13 @@ const typeNextCharacter = () => {
       }, lineDelay)
     } else {
       isTyping.value = false
-      // 打印完成，启用导出按钮
-      exportLogDisabled.value = false
-      console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
+      // 新增：检查 echoData 的 status 是否为 complete
+      const isTaskComplete = echoData.value && echoData.value?.status === 'complete'
+      // 只有当打字机状态为 false 且任务状态为 complete 时，才启用导出按钮
+      if (!isTyping.value && isTaskComplete) {
+        exportLogDisabled.value = false
+        console.log('打印完成，导出按钮已启用，exportLogDisabled:', exportLogDisabled.value)
+      }
     }
   }
 }
@@ -1665,14 +1748,22 @@ const stopTypewriter = () => {
   }
   isTyping.value = false
 }
-
+// 重置打字机状态
+const resetTypewriter = () => {
+  stopTypewriter()
+  typewriterLines.value = []
+  currentLineIndex.value = 0
+  currentCharIndex.value = 0
+  allTypewriterLines = []
+  hasStartedTyping = false
+}
 // 监听 echoData 变化，自动启动打字机效果
 let watchEchoDataTimer = null
 // 监听 echoData 变化，自动启动打字机效果
 watch(
   () => echoData.value,
   (newEchoData) => {
-    if (newEchoData && newEchoData.length > 0) {
+    if (newEchoData.data && newEchoData.data.length > 0) {
       // 延迟一点时间确保数据已经完全更新
       // 清除之前的定时器，避免重复触发
       if (watchEchoDataTimer) {
@@ -1681,7 +1772,7 @@ watch(
 
       // 延迟一点时间确保数据已经完全更新
       watchEchoDataTimer = setTimeout(() => {
-        startTypewriter(newEchoData)
+        startTypewriter(newEchoData.data)
       }, 100)
     }
   },
@@ -1740,12 +1831,7 @@ const handleFileChange = (file, fileList) => {
     return
   }
   // 重置打字机状态，准备打印新任务
-  stopTypewriter()
-  typewriterLines.value = []
-  currentLineIndex.value = 0
-  currentCharIndex.value = 0
-  allTypewriterLines = []
-  hasStartedTyping = false
+  resetTypewriter()
 
   // 同步更新数据模型中的文件列表
   fileUploadDataModel.value.fileList = fileList
@@ -1861,7 +1947,7 @@ const customUpload = async (options) => {
             taskId: taskId,
           });
           console.log('上传进度：', response.data);
-          echoData.value = response.data.data;
+          echoData.value = response.data;
           // 如果状态为 complete，终止定时器
           if (response.data.status === 'complete') {
             clearInterval(progressTimer)
@@ -2222,7 +2308,7 @@ onBeforeUnmount(() => {
     <el-dialog
       v-model="dialogVisible.ScriptDistribute"
       title="脚本下发"
-      width="50%"
+      width="1000px"
       center
       :show-close="false"
       destroy-on-close
@@ -2499,24 +2585,52 @@ onBeforeUnmount(() => {
             </el-timeline-item>
             <el-timeline-item timestamp="脚本下发执行" placement="top">
               <el-card>
-                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'execute')">
-                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'execute')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'execute').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
-                      {{ line.text }}
-                    </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
-                      {{ line.text }}
-                    </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
-                      {{ line.text }}
-                    </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
-                      {{ line.text }}
-                    </p>
+                <!-- 按网络设备分组显示 - 遇到有 deviceIp 的行就新建一个 shell-console -->
+                <template v-if="typewriterLines.some(l => l.group === 'execute')">
+                  <div v-for="(group, groupIndex) in groupExecuteLines(typewriterLines)" :key="groupIndex">
+                    <div class="shell-console" style="margin-bottom: 15px;">
+                      <div v-for="(line, index) in group.lines" :key="index" class="shell-item" :class="{ 'shell-item-last': index === group.lines.length - 1 }">
+                        <p v-if="line.type === 'device-header'" class="shell-device-header">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'info'" class="shell-info">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
+                          {{ line.text }}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </template>
               </el-card>
             </el-timeline-item>
+<!--            <el-timeline-item timestamp="脚本下发执行" placement="top">-->
+<!--              <el-card>-->
+<!--                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'execute')">-->
+<!--                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'execute')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'execute').length - 1 }">-->
+<!--                    <p v-if="line.type === 'info'" class="shell-info">-->
+<!--                      {{ line.text }}-->
+<!--                    </p>-->
+<!--                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">-->
+<!--                      {{ line.text }}-->
+<!--                    </p>-->
+<!--                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">-->
+<!--                      {{ line.text }}-->
+<!--                    </p>-->
+<!--&lt;!&ndash;                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">&ndash;&gt;-->
+<!--&lt;!&ndash;                      {{ line.text }}&ndash;&gt;-->
+<!--&lt;!&ndash;                    </p>&ndash;&gt;-->
+<!--                  </div>-->
+<!--                </div>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
             <el-timeline-item timestamp="任务执行结果" placement="top">
               <el-card>
                 <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'result')">
@@ -2686,6 +2800,7 @@ onBeforeUnmount(() => {
         title="任务详情"
         center
         append-to-body
+        destroy-on-close
         @close="() => {
           dialogVisible.historyStandardOutputVisible = false;
         }"
@@ -2752,24 +2867,52 @@ onBeforeUnmount(() => {
                 </div>
               </el-card>
             </el-timeline-item>
+<!--            <el-timeline-item timestamp="脚本下发执行" placement="top">-->
+<!--              <el-card>-->
+<!--                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'execute')">-->
+<!--                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'execute')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'execute').length - 1 }">-->
+<!--                    <p v-if="line.type === 'info'" class="shell-info">-->
+<!--                      {{ line.text }}-->
+<!--                    </p>-->
+<!--                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">-->
+<!--                      {{ line.text }}-->
+<!--                    </p>-->
+<!--                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">-->
+<!--                      {{ line.text }}-->
+<!--                    </p>-->
+<!--&lt;!&ndash;                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">&ndash;&gt;-->
+<!--&lt;!&ndash;                      {{ line.text }}&ndash;&gt;-->
+<!--&lt;!&ndash;                    </p>&ndash;&gt;-->
+<!--                  </div>-->
+<!--                </div>-->
+<!--              </el-card>-->
+<!--            </el-timeline-item>-->
             <el-timeline-item timestamp="脚本下发执行" placement="top">
               <el-card>
-                <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'execute')">
-                  <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'execute')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'execute').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
-                      {{ line.text }}
-                    </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
-                      {{ line.text }}
-                    </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
-                      {{ line.text }}
-                    </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
-                      {{ line.text }}
-                    </p>
+                <!-- 按网络设备分组显示 - 遇到有 deviceIp 的行就新建一个 shell-console -->
+                <template v-if="typewriterLines.some(l => l.group === 'execute')">
+                  <div v-for="(group, groupIndex) in groupExecuteLines(typewriterLines)" :key="groupIndex">
+                    <div class="shell-console" style="margin-bottom: 15px;">
+                      <div v-for="(line, index) in group.lines" :key="index" class="shell-item" :class="{ 'shell-item-last': index === group.lines.length - 1 }">
+                        <p v-if="line.type === 'device-header'" class="shell-device-header">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'info'" class="shell-info">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
+                          {{ line.text }}
+                        </p>
+                        <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
+                          {{ line.text }}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </template>
               </el-card>
             </el-timeline-item>
             <el-timeline-item timestamp="任务执行结果" placement="top">
