@@ -951,7 +951,7 @@ const fileUploadRules = ref({
   fileList: [
     {
       required: true,
-      message: '请上传脚本文件',
+      message: '请上传脚本文件或输入命令',
       trigger: 'change',
     },
     {
@@ -1201,14 +1201,145 @@ const typewriterLines = ref([]) // 已打印的行
 const currentLineIndex = ref(0) // 当前行索引
 const currentCharIndex = ref(0) // 当前字符索引
 const isTyping = ref(false) // 是否正在打字
-const typewriterSpeed = 20 // 打字速度 (毫秒/字符)
-const lineDelay = 50 // 行间距延迟 (毫秒)
+const typewriterSpeed = 0.1 // 打字速度 (毫秒/字符)
+const lineDelay = 1 // 行间距延迟 (毫秒)
 let typewriterTimer = null  // 打字机定时器
 let allTypewriterLines = [] // 缓存所有需要显示的行
 let hasStartedTyping = false // 标记是否已经开始打字
 const scrollbarRef = ref(null) // 滚动条实例引用
 // 导出按钮禁用状态
 const exportLogDisabled = ref(true)
+// 脚本文件上传按钮禁用状态
+const uploadFileDisabled = ref(false)
+// 手动输入和取消输入切换状态
+const handlerInputStatus = ref(true)
+const manualCommandText = ref('') // 存储手动输入的命令文本
+const tempScriptFile = ref(null) // 存储创建的临时脚本文件
+const previewDialogVisible = ref(false) // 控制预览对话框显示
+const previewContent = ref('') // 预览内容
+const previewFileInfo = ref(null) // 预览文件信息
+
+
+
+const cancelHandlerInputButton = () => {
+  handlerInputStatus.value = true
+  uploadFileDisabled.value = false
+  // 清空之前的输入和临时文件
+  manualCommandText.value = ''
+  tempScriptFile.value = null
+  // 清除预览数据
+  previewContent.value = ''
+  previewFileInfo.value = null
+  previewDialogVisible.value = false
+}
+const handlerInputButton = () => {
+  handlerInputStatus.value = false
+  uploadFileDisabled.value = true
+  // 清空之前的输入和临时文件
+  // manualCommandText.value = ''
+  tempScriptFile.value = null
+}
+const handlerOverButton = () => {
+  if (!manualCommandText.value.trim()) {
+    ElMessage.warning('请输入命令内容')
+    return
+  }
+
+  try {
+    // 1. 按换行符分隔输入内容，过滤空行
+    const commands = manualCommandText.value.split(/\r?\n/).filter(line => line.trim())
+
+    if (commands.length === 0) {
+      ElMessage.warning('未找到有效的命令')
+      return
+    }
+
+    // 2. 将命令写入临时文件（每行一个命令）
+    const fileContent = commands.join('\n')
+    const blob = new Blob([fileContent], { type: 'text/plain' })
+    const tempFile = new File([blob], 'script_commands.txt', {
+      type: 'text/plain',
+      lastModified: Date.now(),
+    })
+
+    // 3. 保存临时文件引用
+    tempScriptFile.value = tempFile
+
+    // 4. 更新数据模型中的文件列表
+    fileUploadDataModel.value.fileList = [
+      {
+        name: tempFile.name,
+        size: tempFile.size,
+        raw: tempFile,
+      },
+    ]
+
+    // 5. 显示成功提示
+    ElMessage.success({
+      message: `已将 ${commands.length} 条命令写入临时文件`,
+      type: 'success',
+      duration: 2000,
+    })
+
+    console.log('创建的临时脚本文件:', tempFile)
+    console.log('命令列表:', commands)
+
+    // 6. 切换回导入文件模式
+    handlerInputStatus.value = true
+    uploadFileDisabled.value = false
+
+  } catch (error) {
+    console.error('创建临时文件失败:', error)
+    ElMessage.error({
+      message: '创建临时文件失败：' + error.message,
+      type: 'error',
+      duration: 3000,
+    })
+  }
+}
+
+// 新增：预览临时文件内容（在 handlerOverButton 函数后面添加）
+const previewUploadedFile = () => {
+  // 检查是否有文件可预览
+  let fileToPreview = null
+  let fileInfo = null
+
+  // 优先从上传器获取文件
+  if (fileUploadDataModel.value.fileList && fileUploadDataModel.value.fileList.length > 0) {
+    const uploadedFile = fileUploadDataModel.value.fileList[0]
+    fileToPreview = uploadedFile.raw || uploadedFile
+    fileInfo = {
+      name: uploadedFile.name,
+      size: uploadedFile.size,
+      type: 'text/plain',
+    }
+  } else if (tempScriptFile.value) {
+    // 如果没有上传器文件，使用临时文件
+    fileToPreview = tempScriptFile.value
+    fileInfo = {
+      name: tempScriptFile.value.name,
+      size: tempScriptFile.value.size,
+      type: tempScriptFile.value.type,
+    }
+  }
+
+  if (!fileToPreview) {
+    ElMessage.warning('没有可预览的文件')
+    return
+  }
+
+  // 读取文件内容
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    previewContent.value = e.target.result
+    previewFileInfo.value = fileInfo
+    previewDialogVisible.value = true
+  }
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败')
+  }
+  reader.readAsText(fileToPreview)
+}
 // 滚动条滚动到底部
 const scrollToBottom = () => {
   if (scrollbarRef.value) {
@@ -1223,6 +1354,100 @@ const scrollToBottom = () => {
 }
 
 // 生成需要显示的所有行（包含所有回显内容，带分组信息）
+// const generateTypewriterContent = (echoDataParam) => {
+//   const lines = []
+//
+//   if (!echoDataParam || echoDataParam.length === 0) {
+//     return lines
+//   }
+//   // 任务详情部分
+//   if (echoDataParam.length >= 1 && echoDataParam[0]) {
+//     if (echoDataParam[0].taskId) {
+//       lines.push({ group: 'task', type: 'info', text: `任务 ID：${echoDataParam[0].taskId}` })
+//     }
+//     if (echoDataParam[0].createTaskTime) {
+//       lines.push({ group: 'task', type: 'info', text: `创建时间：${echoDataParam[0].createTaskTime}` })
+//     }
+//     if (echoDataParam[0].fileName) {
+//       lines.push({ group: 'task', type: 'info', text: `文件名：${echoDataParam[0].fileName}` })
+//     }
+//     if (echoDataParam[0].netWorkDeviceIP?.length >= 1) {
+//       lines.push({ group: 'task', type: 'info', text: `网络设备 IP：` })
+//       echoDataParam[0].netWorkDeviceIP.forEach((ip) => {
+//         lines.push({ group: 'task', type: 'result', text: `  ${ip}` })
+//       })
+//     }
+//   }
+//
+//   // 文件上传部分
+//   if (echoDataParam.length >= 2 && echoDataParam[1]) {
+//     if (echoDataParam[1].fileName) {
+//       lines.push({ group: 'upload', type: 'info', text: `文件名：${echoDataParam[1].fileName}` })
+//     }
+//     if (echoDataParam[1].progress) {
+//       lines.push({ group: 'upload', type: 'status', text: `上传结果：${echoDataParam[1].progress}` })
+//     }
+//   }
+//
+//   // 登录堡垒机部分
+//   if (echoDataParam.length >= 3 && echoDataParam[2]) {
+//     if (echoDataParam[2].bastionHostUser) {
+//       lines.push({ group: 'login', type: 'info', text: `堡垒机用户：${echoDataParam[2].bastionHostUser}` })
+//     }
+//     if (echoDataParam[2].progress) {
+//       lines.push({ group: 'login', type: 'status', text: `登录结果：${echoDataParam[2].progress}` })
+//     }
+//   }
+//
+//   // 脚本下发执行部分
+//   if (echoDataParam.length >= 4 && echoDataParam[3]) {
+//     // if (echoDataParam[3].fileName) {
+//     //   lines.push({ group: 'execute', type: 'info', text: `脚本文件：${echoDataParam[3].fileName}` })
+//     // }
+//
+//     if (echoDataParam[3].progress?.length >= 1) {
+//       echoDataParam[3].progress.forEach((item) => {
+//         if (item.netWorkDeviceIP) {
+//           lines.push({ group: 'execute', type: 'info', text: `网络设备 IP: ${item.netWorkDeviceIP}` })
+//         }
+//
+//         if (item.progress?.length >= 1 && item.progress) {
+//           item.progress.forEach((itemCmd) => {
+//             if (itemCmd.command) {
+//               lines.push({ group: 'execute', type: 'command', text: `${itemCmd.command}` })
+//             }
+//             if (itemCmd.result) {
+//               lines.push({ group: 'execute', type: 'result', text: `  ${itemCmd.result}` })
+//             }
+//           })
+//         }
+//
+//         // if (item.status) {
+//         //   lines.push({ group: 'execute', type: 'status', text: `执行结果：${item.status}` })
+//         // }
+//       })
+//     }
+//   }
+//
+//   // 任务执行结果部分
+//   if (echoDataParam.length >= 5 && echoDataParam[4]) {
+//     if (echoDataParam[4].status?.success?.length >= 1) {
+//       lines.push({ group: 'result', type: 'info', text: `执行成功：` })
+//       echoDataParam[4].status.success.forEach((item) => {
+//         lines.push({ group: 'result', type: 'result', text: `  ${item}` })
+//       })
+//     }
+//     if (echoDataParam[4].status?.fail?.length >= 1) {
+//       lines.push({ group: 'result', type: 'info', text: `执行失败：` })
+//       echoDataParam[4].status.fail.forEach((item) => {
+//         lines.push({ group: 'result', type: 'result', text: `  ${item}` })
+//       })
+//     }
+//   }
+//
+//   return lines
+// }
+// 生成需要显示的所有行（包含所有回显内容，带分组信息）
 const generateTypewriterContent = (echoDataParam) => {
   const lines = []
 
@@ -1230,21 +1455,36 @@ const generateTypewriterContent = (echoDataParam) => {
     return lines
   }
 
+  // 辅助函数：添加一行或多行（如果文本包含换行符则分割）
+  const addLine = (group, type, text) => {
+    if (!text) return
+    // 如果包含换行符，分割成多行
+    const textLines = text.split('\n')
+    textLines.forEach((line, index) => {
+      lines.push({
+        group,
+        type,
+        text: line,
+        isOriginalLine: index < textLines.length - 1 // 标记是否是原始行（用于保持格式）
+      })
+    })
+  }
+
   // 任务详情部分
   if (echoDataParam.length >= 1 && echoDataParam[0]) {
     if (echoDataParam[0].taskId) {
-      lines.push({ group: 'task', type: 'info', text: `任务 ID：${echoDataParam[0].taskId}` })
+      addLine('task', 'info', `任务 ID：${echoDataParam[0].taskId}`)
     }
     if (echoDataParam[0].createTaskTime) {
-      lines.push({ group: 'task', type: 'info', text: `创建时间：${echoDataParam[0].createTaskTime}` })
+      addLine('task', 'info', `创建时间：${echoDataParam[0].createTaskTime}`)
     }
     if (echoDataParam[0].fileName) {
-      lines.push({ group: 'task', type: 'info', text: `文件名：${echoDataParam[0].fileName}` })
+      addLine('task', 'info', `文件名：${echoDataParam[0].fileName}`)
     }
     if (echoDataParam[0].netWorkDeviceIP?.length >= 1) {
-      lines.push({ group: 'task', type: 'info', text: `网络设备 IP：` })
+      addLine('task', 'info', `网络设备 IP：`)
       echoDataParam[0].netWorkDeviceIP.forEach((ip) => {
-        lines.push({ group: 'task', type: 'result', text: `  ${ip}` })
+        addLine('task', 'result', `  ${ip}`)
       })
     }
   }
@@ -1252,48 +1492,45 @@ const generateTypewriterContent = (echoDataParam) => {
   // 文件上传部分
   if (echoDataParam.length >= 2 && echoDataParam[1]) {
     if (echoDataParam[1].fileName) {
-      lines.push({ group: 'upload', type: 'info', text: `文件名：${echoDataParam[1].fileName}` })
+      addLine('upload', 'info', `文件名：${echoDataParam[1].fileName}`)
     }
     if (echoDataParam[1].progress) {
-      lines.push({ group: 'upload', type: 'status', text: `上传结果：${echoDataParam[1].progress}` })
+      addLine('upload', 'status', `上传结果：${echoDataParam[1].progress}`)
     }
   }
 
   // 登录堡垒机部分
   if (echoDataParam.length >= 3 && echoDataParam[2]) {
     if (echoDataParam[2].bastionHostUser) {
-      lines.push({ group: 'login', type: 'info', text: `堡垒机用户：${echoDataParam[2].bastionHostUser}` })
+      addLine('login', 'info', `堡垒机用户：${echoDataParam[2].bastionHostUser}`)
     }
     if (echoDataParam[2].progress) {
-      lines.push({ group: 'login', type: 'status', text: `登录结果：${echoDataParam[2].progress}` })
+      addLine('login', 'status', `登录结果：${echoDataParam[2].progress}`)
     }
   }
 
   // 脚本下发执行部分
   if (echoDataParam.length >= 4 && echoDataParam[3]) {
-    if (echoDataParam[3].fileName) {
-      lines.push({ group: 'execute', type: 'info', text: `脚本文件：${echoDataParam[3].fileName}` })
-    }
-
     if (echoDataParam[3].progress?.length >= 1) {
       echoDataParam[3].progress.forEach((item) => {
         if (item.netWorkDeviceIP) {
-          lines.push({ group: 'execute', type: 'info', text: `$ 网络设备 IP: ${item.netWorkDeviceIP}` })
+          addLine('execute', 'info', `网络设备 IP: ${item.netWorkDeviceIP}`)
         }
 
         if (item.progress?.length >= 1 && item.progress) {
           item.progress.forEach((itemCmd) => {
             if (itemCmd.command) {
-              lines.push({ group: 'execute', type: 'command', text: `${itemCmd.command}` })
+              addLine('execute', 'command', `${itemCmd.command}`)
             }
             if (itemCmd.result) {
-              lines.push({ group: 'execute', type: 'result', text: `  ${itemCmd.result}` })
+              // 执行结果保留原始格式，包括换行符
+              addLine('execute', 'result', `  ${itemCmd.result}`)
             }
           })
         }
 
         if (item.status) {
-          lines.push({ group: 'execute', type: 'status', text: `执行结果：${item.status}` })
+          addLine('execute', 'status', `执行结果：${item.status}`)
         }
       })
     }
@@ -1302,22 +1539,21 @@ const generateTypewriterContent = (echoDataParam) => {
   // 任务执行结果部分
   if (echoDataParam.length >= 5 && echoDataParam[4]) {
     if (echoDataParam[4].status?.success?.length >= 1) {
-      lines.push({ group: 'result', type: 'info', text: `执行成功：` })
+      addLine('result', 'info', `执行成功：`)
       echoDataParam[4].status.success.forEach((item) => {
-        lines.push({ group: 'result', type: 'result', text: `  ${item}` })
+        addLine('result', 'result', `  ${item}`)
       })
     }
     if (echoDataParam[4].status?.fail?.length >= 1) {
-      lines.push({ group: 'result', type: 'info', text: `执行失败：` })
+      addLine('result', 'info', `执行失败：`)
       echoDataParam[4].status.fail.forEach((item) => {
-        lines.push({ group: 'result', type: 'result', text: `  ${item}` })
+        addLine('result', 'result', `  ${item}`)
       })
     }
   }
 
   return lines
 }
-
 // 打字机效果启动函数
 // const startTypewriter = (echoDataParam) => {
 //   // if (isTyping.value || hasStartedTyping) return
@@ -1478,8 +1714,23 @@ const beforeUpload = (file) => {
 
   return true
 }
+const handleFileRemove = (file, fileList) => {
+  // 当文件被删除时（fileList 为空），清空相关文件数据
+  if (!fileList || fileList.length === 0) {
+    // 文件已被删除，清空临时文件引用
+    tempScriptFile.value = null
+    manualCommandText.value = ''
+    fileUploadDataModel.value.fileList = []
+    // 清空预览相关数据
+    previewContent.value = ''
+    previewFileInfo.value = null
+    previewDialogVisible.value = false
+    console.log('文件已删除，清空所有预览数据')
+  }
+}
 // 文件列表变化处理
 const handleFileChange = (file, fileList) => {
+  handleFileRemove()
   console.log('文件列表变化:', fileList)
   const isValid = beforeUpload(file.raw)
   if (!isValid) {
@@ -1989,6 +2240,7 @@ onBeforeUnmount(() => {
           isTyping = false
           exportLogDisabled = true
           buttonVisible.taskDetails = false
+          cancelHandlerInputButton()
         }
       "
     >
@@ -2068,10 +2320,68 @@ onBeforeUnmount(() => {
           </el-upload>
         </el-form-item>
         <el-form-item label="脚本文件" prop="fileList">
+          <!-- 终端风格输入框 -->
+          <div style="margin-bottom: 10px;">
+            <div style="background-color: #1e1e1e; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.3);">
+              <!-- 终端标题栏 -->
+              <div style="display: flex; align-items: center; padding: 8px 12px; background-color: #2d2d2d; border-bottom: 1px solid #404040;">
+                <div style="display: flex; gap: 6px; margin-right: 12px;">
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #ff5f56;"></div>
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #ffbd2e;"></div>
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #27c93f;"></div>
+                </div>
+                <div style="color: #b8b8b8; font-size: 13px; font-family: 'Consolas', 'Monaco', monospace;">
+                  {{ `${fileUploadDataModel.netWorkDeviceUser}@localhost:script_commands.txt` }}
+                </div>
+              </div>
+              <!-- 终端内容区 -->
+              <div style="position: relative;">
+                <div style="display: flex; align-items: flex-start; padding: 12px;">
+                  <el-input
+                    v-model="manualCommandText"
+                    placeholder="请输入命令，支持分隔符：换行"
+                    :rows="8"
+                    type="textarea"
+                    clearable
+                    resize="none"
+                    style="flex: 1;"
+                    :disabled="handlerInputStatus"
+                    spellcheck="false"
+                    :style="{
+                      '--el-input-bg-color': 'transparent',
+                      '--el-input-text-color': '#d4d4d4',
+                      '--el-input-border-color': 'transparent',
+                      '--el-input-hover-border-color': 'transparent',
+                      '--el-input-focus-border-color': 'transparent',
+                    }"
+                    textarea-style="background-color: transparent; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; line-height: 1.6; border: none; box-shadow: none;"
+                  />
+                </div>
+              </div>
+              <!-- 终端底部状态栏 -->
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background-color: #2d2d2d; border-top: 1px solid #404040; font-size: 12px; color: #858585; font-family: 'Consolas', 'Monaco', monospace;">
+                <span>Commands: {{ manualCommandText.split(/\r?\n/).filter(line => line.trim()).length }} lines</span>
+                <span>bash</span>
+              </div>
+            </div>
+            <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+              <el-button type="warning" :disabled="handlerInputStatus" @click.stop="handlerOverButton" size="small">输入完成</el-button>
+              <span style="color: #909399; font-size: 12px;">提示：每行输入一个命令，点击"输入完成"后将自动生成临时文件并上传</span>
+            </div>
+          </div>
+<!--          <el-input
+            v-model="manualCommandText"
+            style="width: 400px;"
+            :placeholder="handlerInputStatus?'点击手动输入后支持输入命令' : '请输入命令，支持分隔符：换行'"
+            :rows="10"
+            type="textarea"
+            clearable
+            resize="none"
+            :disabled="handlerInputStatus"
+          />-->
           <el-upload
-            class="upload-demo"
+            class="upload-demo-input"
             ref="uploadFile"
-            drag
             accept=".txt"
             :limit="1"
             :on-exceed="handleExceed"
@@ -2079,9 +2389,23 @@ onBeforeUnmount(() => {
             :http-request="customUpload"
             :auto-upload="false"
             :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
           >
-            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>
+            <template #trigger>
+              <el-button v-if="handlerInputStatus" type="success" @click.stop="handlerInputButton">手动输入</el-button>
+              <el-button v-else type="danger" @click.stop="cancelHandlerInputButton">取消输入</el-button>
+              <el-button type="primary" :disabled="uploadFileDisabled">导入文件</el-button>
+<!--              <el-button v-if="!handlerInputStatus" type="warning" @click.stop="handlerOverButton">输入完成</el-button>-->
+              <el-button
+                v-if="fileUploadDataModel.fileList?.length > 0"
+                type="info"
+                round
+                @click.stop="previewUploadedFile"
+                style="padding: 5px 10px; font-size: 12px;"
+              >
+                预览
+              </el-button>
+            </template>
             <template #tip>
               <div class="el-upload__tip">支持上传 txt 文件，且不超过 10MB</div>
             </template>
@@ -2117,16 +2441,16 @@ onBeforeUnmount(() => {
               <el-card>
                 <div class="shell-console">
                   <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'task')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'task').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
+                    <p v-if="line.type === 'info'" class="shell-info" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2137,16 +2461,16 @@ onBeforeUnmount(() => {
               <el-card>
                 <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'upload')">
                   <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'upload')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'upload').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
+                    <p v-if="line.type === 'info'" class="shell-info" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2157,16 +2481,16 @@ onBeforeUnmount(() => {
               <el-card>
                 <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'login')">
                   <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'login')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'login').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
+                    <p v-if="line.type === 'info'" class="shell-info" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2180,13 +2504,13 @@ onBeforeUnmount(() => {
                     <p v-if="line.type === 'info'" class="shell-info">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2200,13 +2524,13 @@ onBeforeUnmount(() => {
                     <p v-if="line.type === 'info'" class="shell-info">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2261,6 +2585,36 @@ onBeforeUnmount(() => {
             >
           </div>
         </el-form>
+      </el-dialog>
+      <!-- 预览对话框 -->
+      <el-dialog
+        v-model="previewDialogVisible"
+        :title="`预览文件：${previewFileInfo?.name || '未知'}`"
+        width="800px"
+        top="50px"
+        append-to-body
+        destroy-on-close
+        :close-on-click-modal="false"
+      >
+        <div style="font-size: 12px; color: #909399; line-height: 1.8;">
+          <div>文件名：{{ fileUploadDataModel.fileList[0].name }}</div>
+          <div>文件大小：{{ (fileUploadDataModel.fileList[0].size / 1024).toFixed(2) }}  KB</div>
+          <div>命令数量：{{ previewContent.split('\n').filter(line => line.trim()).length }} 条</div>
+          <div>创建时间：{{ new Date().toLocaleString() }}</div>
+          <div>文件格式：TXT</div>
+        </div>
+        <div style="max-height: 500px; overflow-y: auto; background-color: #1e1e1e; padding: 15px; border-radius: 4px; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.6;">
+          <div v-for="(line, index) in previewContent.split('\n')" :key="index" style="display: flex; margin-bottom: 2px;">
+            <span style="color: #858585; min-width: 40px; text-align: right; padding-right: 15px; user-select: none; border-right: 1px solid #404040;">{{ index + 1 }}</span>
+            <span style="color: #d4d4d4; padding-left: 15px; flex: 1;">{{ line || ' ' }}</span>
+          </div>
+        </div>
+
+        <template #footer>
+          <div style="display: flex; justify-content: flex-end; align-items: center;">
+            <el-button type="primary" @click="previewDialogVisible = false">关闭</el-button>
+          </div>
+        </template>
       </el-dialog>
     </el-dialog>
     <!--  脚本下发历史任务模态框  -->
@@ -2342,16 +2696,16 @@ onBeforeUnmount(() => {
               <el-card>
                 <div class="shell-console">
                   <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'task')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'task').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
+                    <p v-if="line.type === 'info'" class="shell-info" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2362,16 +2716,16 @@ onBeforeUnmount(() => {
               <el-card>
                 <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'upload')">
                   <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'upload')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'upload').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
+                    <p v-if="line.type === 'info'" class="shell-info" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2385,13 +2739,13 @@ onBeforeUnmount(() => {
                     <p v-if="line.type === 'info'" class="shell-info">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2405,13 +2759,13 @@ onBeforeUnmount(() => {
                     <p v-if="line.type === 'info'" class="shell-info">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
@@ -2422,16 +2776,16 @@ onBeforeUnmount(() => {
               <el-card>
                 <div class="shell-console" v-if="typewriterLines.some(l => l.group === 'result')">
                   <div v-for="(line, index) in typewriterLines.filter(l => l.group === 'result')" :key="index" class="shell-item" :class="{ 'shell-item-last': index === typewriterLines.filter(l => l.group === 'result').length - 1 }">
-                    <p v-if="line.type === 'info'" class="shell-info">
+                    <p v-if="line.type === 'info'" class="shell-info" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'command'" class="shell-command">
+                    <p v-else-if="line.type === 'command'" class="shell-command" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'result'" class="shell-result">
+                    <p v-else-if="line.type === 'result'" class="shell-result" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
-                    <p v-else-if="line.type === 'status'" class="shell-status">
+                    <p v-else-if="line.type === 'status'" class="shell-status" style="white-space: pre-wrap;">
                       {{ line.text }}
                     </p>
                   </div>
