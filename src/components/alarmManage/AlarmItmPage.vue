@@ -8,6 +8,7 @@
  * @lastModifiedTime： 2025-12-08 09:45:07
  */
 import { closeAlert, getUserGroup, searchData, creatOrder } from '@/api/interface.js'
+import { usePermissionStore } from '@/stores/permissionStore.js'
 import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
 import { Edit, Plus, Minus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -37,6 +38,8 @@ import {
 } from '@/utils/publicData.js'
 
 
+// 权限状态管理
+const permissionStore = usePermissionStore()
 // 每页条数：默认为10
 const pageSize = ref(10)
 let currentPageSize = 10
@@ -157,6 +160,11 @@ const initTableData = async () => {
     } else {
       // 非聚合模式：使用原始数据
       tableData.value = sortedData
+      // 关键修改：在数据更新前关闭闪烁，更新后再开启，确保同步
+      blinkTrigger.value = false
+      nextTick(() => {
+        blinkTrigger.value = true
+      })
     }
   } catch (error) {
     // 如果存在消息实例，先关闭所有消息
@@ -1561,6 +1569,7 @@ onUnmounted(() => {
       </div>
       <el-switch
         v-model="isAggregate"
+        v-if="permissionStore.hasPermission('alarm:aggregation')"
         class="ml-2"
         inline-prompt
         width="60"
