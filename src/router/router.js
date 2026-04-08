@@ -14,7 +14,7 @@ import { useAuthStore } from '@/stores/authInfoStore.js'
 import { generateUUIDModern,isSsoLogin } from '@/utils/publicData.js'
 import { createRouter, createWebHistory } from 'vue-router'
 import ToolsPage from '@/components/toolsManage/ToolsPage.vue'
-
+import { usePermissionStore } from '@/stores/permissionStore.js'
 
 // 创建路由实例
 const router = createRouter({
@@ -75,6 +75,7 @@ const router = createRouter({
         requiresAuth: true,
         title: '告警管理',
         breadcrumb: '告警管理',
+        permission: 'alarm:manage',
       },
       children: [
         /**
@@ -93,6 +94,7 @@ const router = createRouter({
             requiresAuth: true,
             title: '告警',
             breadcrumb: '告警',
+            permission: 'alarm:view',
           },
         },
       ],
@@ -116,6 +118,7 @@ const router = createRouter({
         requiresAuth: true,
         title: '工具管理',
         breadcrumb: '工具管理',
+        permission: 'tool:manage',
       },
       children: [
         /**
@@ -134,9 +137,66 @@ const router = createRouter({
             requiresAuth: true,
             title: '工具库',
             breadcrumb: '工具库',
+            permission: 'tool:view',
           },
         },
       ],
+    },
+    /**
+     * 权限管理模块路由（新增）
+     * @path /permissionManagement
+     * @name PermissionManagement
+     * @requiresAuth true - 需要认证
+     * @title 权限管理
+     * @breadcrumb 权限管理
+     * @permission system:permission - 需要系统权限管理权限
+     * @roles admin - 仅管理员可访问
+     */
+    {
+      path: '/permissionManagement',
+      name: 'PermissionManagement',
+      meta: {
+        requiresAuth: true,
+        title: '权限管理',
+        breadcrumb: '权限管理',
+        permission: 'system:permission',
+        roles: ['admin']
+      },
+      children: [
+        {
+          path: 'userManage',
+          name: 'UserManage',
+          component: () => import('@/components/permissionManage/UserManagePage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '用户管理',
+            breadcrumb: '用户管理',
+            permission: 'system:user'
+          }
+        },
+        {
+          path: 'roleManage',
+          name: 'RoleManage',
+          component: () => import('@/components/permissionManage/RoleManagePage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '角色管理',
+            breadcrumb: '角色管理',
+            permission: 'system:role'
+          }
+        },
+        {
+          path: 'menuManage',
+          name: 'MenuManage',
+          component: () => import('@/components/permissionManage/MenuManagePage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '菜单管理',
+            breadcrumb: '菜单管理',
+            permission: 'system:menu'
+          }
+        }
+      ]
     },
     /**
      * 404页面路由
@@ -155,6 +215,39 @@ const router = createRouter({
   sensitive: true, // 路由大小写敏感
 })
 
+
+/**
+ * 检查路由权限
+ * @param {Object} to - 目标路由
+ * @param {Object} permissionStore - 权限 store 实例
+ * @returns {boolean} - 是否有权限访问
+ */
+const checkRoutePermission = (to, permissionStore) => {
+  const meta = to.meta
+
+  // 如果没有设置权限要求，则允许访问
+  if (!meta.permission && !meta.roles) {
+    return true
+  }
+
+  // 检查角色权限
+  if (meta.roles && meta.roles.length > 0) {
+    const hasRole = meta.roles.some(role => permissionStore.hasRole(role))
+    if (!hasRole) {
+      return false
+    }
+  }
+
+  // 检查权限码
+  if (meta.permission) {
+    const hasPermission = permissionStore.hasPermission(meta.permission)
+    if (!hasPermission) {
+      return false
+    }
+  }
+
+  return true
+}
 /**
  * 全局前置守卫
  * 用于处理路由访问权限控制
@@ -166,6 +259,9 @@ router.beforeEach(async (to, from, next) => {
   // 检查URL中是否有code参数
   const urlParams = new URLSearchParams(to.fullPath.split('?')[1])
   const code = urlParams.get('code')
+  // 获取store实例
+  const authStore = useAuthStore()
+  const permissionStore = usePermissionStore()
   if (code) {
     // 处理SSO回调逻辑
     // 例如交换code获取token
@@ -176,7 +272,6 @@ router.beforeEach(async (to, from, next) => {
         console.error('单点登录失败：获取用户信息失败')
         return
       }
-      const authStore = useAuthStore()
       // const router = useRouter()
       // SSO登录
       isSsoLogin.value = true
@@ -196,13 +291,45 @@ router.beforeEach(async (to, from, next) => {
     }
   }
   else {
-    // 获取store实例
-    const authStore = useAuthStore()
     // 检查目标路由是否需要认证
     if (to.meta.requiresAuth) {
       // 如果用户已认证，允许访问
       if (authStore.isAuthenticated) {
-        next()
+        // 修复关键问题：移除异步 setTimeout，改为同步判断
+        // 如果权限码为空且用户存在，说明是页面刷新，需要等待权限加载
+        if (!permissionStore.permissionCodes.length && authStore.user) {
+          // 检查是否正在加载权限
+          if (authStore.isLoadingPermissions) {
+            // 正在加载中，直接放行，让当前路由继续
+            // 等权限加载完成后，用户点击菜单或手动刷新即可正常访问
+            console.log('权限正在加载中，暂时允许访问（开发环境）')
+            next()
+            return
+          } else if (!authStore.permissionsLoaded) {
+            // 还未开始加载权限，触发加载
+            console.log('检测到已登录用户，开始加载权限...')
+            authStore.loadUserPermissions(authStore.user)
+              .catch(error => {
+                console.error('权限加载失败，清除登录状态', error)
+                authStore.logoutInfoClear()
+                next({ name: 'LoginPage', query: { redirect: to.fullPath } })
+              })
+            // 在权限加载完成前，暂时允许访问
+            console.log('权限加载中，暂时允许访问')
+            next()
+            return
+          }
+        }
+        if (checkRoutePermission(to, permissionStore)) {
+          next()
+        } else {
+          // 无权限访问，重定向到 403 页面或首页
+          console.warn('无权限访问:', to.path)
+          next({
+            name: 'NotFound',
+            replace: true
+          })
+        }
       } else {
         // 清除登录信息
         authStore.logoutInfoClear()
