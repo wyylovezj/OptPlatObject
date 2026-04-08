@@ -64,7 +64,7 @@ const handleLogin = async () => {
     // 保存用户名到历史记录
     saveUsernameToHistory(loginForm.value.username)
     // 存储登录状态到 pinia 仓库
-    authStore.loginInfoStorage(userData.username, userData.status)
+    await authStore.loginInfoStorage(userData.username, userData.status)
     // 登录成功后，设置标记表示这是登录重定向
     sessionStorage.setItem('isLoginRedirect', 'true')
     // 登录成功后重定向到所输入的url
@@ -152,6 +152,7 @@ const handleSelect = (item) => {
           autocomplete="on"
           @select="handleSelect"
           clearable
+          spellcheck="false"
           @input="loginForm.username = loginForm.username.replace(/\s/g, '')"
         />
       </el-form-item>
@@ -164,6 +165,7 @@ const handleSelect = (item) => {
           show-password
           :prefix-icon="Lock"
           clearable
+          spellcheck="false"
           @input="loginForm.password = loginForm.password.replace(/\s/g, '')"
         />
       </el-form-item>
