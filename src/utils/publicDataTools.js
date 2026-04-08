@@ -1,4 +1,5 @@
-import { ref } from 'vue'
+import { usePermissionStore } from '@/stores/permissionStore.js'
+import { ref, computed } from 'vue'
 
 
 const userGroup = ['weiyangyang']
@@ -125,6 +126,7 @@ export const handleNodeClick = (data) => {
   leafNodeCount.value = countLeafNodes(data)
   console.log('最外层叶子节点个数:', leafNodeCount.value)
 }
+
 // 定义一个函数，传入一个label名称，检查selectedNode.value中的label或children的label中是否包含该名称
 export const containsLabel = (labelName) => {
   if (!selectedNode.value) return false;
