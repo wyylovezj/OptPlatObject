@@ -10,7 +10,23 @@
 import '@/iconfonts/iconfont.js'
 import { useRouter } from 'vue-router'
 import { isCollapse } from '@/utils/publicData.js'
-import { ref } from 'vue'
+import { ref,computed } from 'vue'
+import { usePermissionStore } from '@/stores/permissionStore.js'
+
+// 获取权限 store 实例
+const permissionStore = usePermissionStore()
+
+// 动态菜单列表
+const dynamicMenus = computed(() => {
+  const menus = permissionStore.accessibleMenus
+  if (menus && menus.length > 0) {
+    return menus
+  }
+  // 如果没有动态菜单，返回默认菜单结构
+  return defaultMenus.value
+})
+// 默认菜单（当没有权限数据时使用）
+const defaultMenus = ref([])
 
 // 菜单展开状态
 const expandedMenus = ref({state: '', index: '', isOpen:false})
@@ -44,28 +60,61 @@ function routeTo(path) {
         :collapse="isCollapse"
         :collapse-transition="false"
       >
-        <el-sub-menu index="1">
-          <template #title>
+        <!-- 动态渲染菜单 -->
+        <template v-for="menu in dynamicMenus" :key="menu.id">
+          <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.id">
+            <template #title>
+              <el-icon>
+                <svg class="icon" aria-hidden="true">
+                  <use :xlink:href="'#' + menu.icon"></use>
+                </svg>
+              </el-icon>
+              <span class="menu">{{ menu.name }}</span>
+            </template>
+            <el-menu-item
+              v-for="child in menu.children"
+              :key="child.id"
+              @click="routeTo(child.path)"
+              :index="child.id"
+            >
+              {{ child.name }}
+            </el-menu-item>
+          </el-sub-menu>
+          <el-menu-item
+            v-else
+            @click="routeTo(menu.path)"
+            :index="menu.id"
+          >
             <el-icon>
               <svg class="icon" aria-hidden="true">
-                <use xlink:href="#icon-gaojingguanli"></use>
+                <use :xlink:href="'#' + menu.icon"></use>
               </svg>
             </el-icon>
-            <span class="menu">告警管理</span>
-          </template>
-          <el-menu-item @click="routeTo('/alarmManagement/alarmItem')" index="1-1">告警数据</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="2">
-          <template #title>
-            <el-icon>
-              <svg class="icon" aria-hidden="true" >
-                <use xlink:href="#icon-shijianguanli"></use>
-              </svg>
-            </el-icon>
-            <span class="menu">工具管理</span>
-          </template>
-          <el-menu-item @click="routeTo('/toolsManagement/tools')" index="2-1">工具库</el-menu-item>
-        </el-sub-menu>
+            <span class="menu">{{ menu.name }}</span>
+          </el-menu-item>
+        </template>
+<!--        <el-sub-menu index="1">-->
+<!--          <template #title>-->
+<!--            <el-icon>-->
+<!--              <svg class="icon" aria-hidden="true">-->
+<!--                <use xlink:href="#icon-gaojingguanli"></use>-->
+<!--              </svg>-->
+<!--            </el-icon>-->
+<!--            <span class="menu">告警管理</span>-->
+<!--          </template>-->
+<!--          <el-menu-item @click="routeTo('/alarmManagement/alarmItem')" index="1-1">告警数据</el-menu-item>-->
+<!--        </el-sub-menu>-->
+<!--        <el-sub-menu index="2">-->
+<!--          <template #title>-->
+<!--            <el-icon>-->
+<!--              <svg class="icon" aria-hidden="true" >-->
+<!--                <use xlink:href="#icon-shijianguanli"></use>-->
+<!--              </svg>-->
+<!--            </el-icon>-->
+<!--            <span class="menu">工具管理</span>-->
+<!--          </template>-->
+<!--          <el-menu-item @click="routeTo('/toolsManagement/tools')" index="2-1">工具库</el-menu-item>-->
+<!--        </el-sub-menu>-->
 <!--        <el-sub-menu index="3">
           <template #title>
             <el-icon>
