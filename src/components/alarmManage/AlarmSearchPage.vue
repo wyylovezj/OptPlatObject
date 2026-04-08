@@ -1,4 +1,6 @@
 <script setup>
+import { usePermissionStore } from '@/stores/permissionStore.js'
+
 /**
  * @author： 魏阳阳
  * @email： weiyangyang@cinda.com.cn
@@ -12,6 +14,8 @@ import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary,
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 
+// 权限状态管理
+const permissionStore = usePermissionStore()
 const defaultTime = ref([
   new Date(2000, 1, 1, 0, 0, 0),
   new Date(2000, 2, 1, 23, 59, 59),
@@ -401,6 +405,7 @@ onUnmounted(() => {
               placeholder="搜索选项"
               @input="filterOptionsCategory"
               clearable
+              spellcheck="false"
             />
             <el-checkbox
               v-model="checkAllCategory"
@@ -433,6 +438,7 @@ onUnmounted(() => {
           @input="handleIpInput"
           class="center-placeholder"
           clearable
+          spellcheck="false"
         />
       </el-form-item>
       <el-form-item label="主机名：" prop="object">
@@ -445,6 +451,7 @@ onUnmounted(() => {
           @input="handleHostInput"
           class="center-placeholder"
           clearable
+          spellcheck="false"
         />
       </el-form-item>
       <el-form-item label="业务系统：" prop="system_name">
@@ -468,6 +475,7 @@ onUnmounted(() => {
               placeholder="搜索选项"
               @input="filterOptionsSystemName"
               clearable
+              spellcheck="false"
             />
             <el-checkbox
               v-model="checkAllSystem"
@@ -505,11 +513,11 @@ onUnmounted(() => {
       </el-form-item>
       <el-form-item style="flex: none;margin-left: auto;margin-right: 5px;">
         <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
-          <el-button type="primary" @click="clearSearch">重置</el-button>
-          <el-button type="primary" @click="refresh">刷新</el-button>
-          <el-button type="primary" @click="refresh">搜索</el-button>
-          <el-button type="primary" @click="batchClose">批量关闭</el-button>
-          <el-button type="primary" @click="batchCreateTickets">批量触发工单</el-button>
+          <el-button v-if="permissionStore.hasPermission('alarm:reset')" type="primary" @click="clearSearch">重置</el-button>
+          <el-button v-if="permissionStore.hasPermission('alarm:refresh')" type="primary" @click="refresh">刷新</el-button>
+          <el-button v-if="permissionStore.hasPermission('alarm:search')" type="primary" @click="refresh">搜索</el-button>
+          <el-button v-if="permissionStore.hasPermission('alarm:batchClose')" type="primary" @click="batchClose">批量关闭</el-button>
+<!--          <el-button type="primary" @click="batchCreateTickets">批量触发工单</el-button>-->
         </div>
       </el-form-item>
     </el-form>
