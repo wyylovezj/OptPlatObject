@@ -1,5 +1,6 @@
 <script setup>
 import { exportOrderFile, mobileTokenInterface, unlockAccountInterface,historyTask } from '@/api/interface.js'
+import { usePermissionStore } from '@/stores/permissionStore.js'
 import { currentPage, messageInstance, searchQuery, user } from '@/utils/publicData.js'
 import {
   cards,
@@ -9,6 +10,7 @@ import {
   leafNodeCount,
   UnlockAccountDataModel,
   WorkOrderDataModel,
+  selectedNode
 } from '@/utils/publicDataTools.js'
 import { CircleCheckFilled, CircleCloseFilled, UploadFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
@@ -20,7 +22,23 @@ import { Search } from '@element-plus/icons-vue'
 
 
 
+// 权限状态管理
+const permissionStore = usePermissionStore()
+// 监听每个卡片的渲染状态
+const cardRenderState = ref({
+  exporterOrder: false,
+  accountUnlock: false,
+  scriptDistribution: false,
+  tokenUnlock: false
+})
 
+// 新增：实时统计实际渲染的卡片数量（不依赖任何数据，只统计实际 DOM）
+const filteredCardCount = computed(() => {
+  // 直接返回实际渲染的卡片 DOM 数量
+  const count = Object.values(cardRenderState.value).filter(state => state === true).length
+
+  return count
+})
 // 历史任务表格列定义
 const baseColumns = [
   {
@@ -720,7 +738,7 @@ const unlockTypeModel = [
 
 // 账号输入即时校验函数
 const handleAccountInput = async (value) => {
-  const cleanedValue = value.replace(/[^a-zA-Z0-9_]/g, '')
+  const cleanedValue = value.replace(/\s/g, '')
 
   // 如果过滤后的值与原值不同，说明输入了非法字符
   if (cleanedValue !== value) {
@@ -745,7 +763,7 @@ const handleAccountInput = async (value) => {
 }
 // 脚本堡垒机用户输入即时校验函数
 const bastionHostUser = async (value) => {
-  const cleanedValue = value.replace(/[^a-zA-Z0-9]/g, '')
+  const cleanedValue = value.replace(/\s/g, '')
   // 如果过滤后的值与原值不同，说明输入了非法字符
   if (cleanedValue !== value) {
     if (messageInstance.value) {
@@ -767,7 +785,7 @@ const bastionHostUser = async (value) => {
 }
 // 脚本下发网络设备用户输入即时校验函数
 const netWorkDeviceUser = async (value) => {
-  const cleanedValue = value.replace(/[^a-zA-Z0-9_]/g, '')
+  const cleanedValue = value.replace(/\s/g, '')
   // 如果过滤后的值与原值不同，说明输入了非法字符
   if (cleanedValue !== value) {
     if (messageInstance.value) {
@@ -1991,7 +2009,12 @@ onBeforeUnmount(() => {
     <div class="content-wrapper">
       <div class="card-container" v-if="hasVisibleCards">
         <!--    工单导出卡片    -->
-        <el-card v-if="containsLabel('工单导出')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+        <el-card
+          v-if="containsLabel('工单导出') && permissionStore.hasPermission('tool:orderExport')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.exporterOrder = !!el; }"
+        >
           <!-- 卡片主体内容 -->
           <div class="card-content">
             <!-- 上部分：2:1 比例 -->
@@ -2052,9 +2075,10 @@ onBeforeUnmount(() => {
         </el-card>
         <!--    账号解锁卡片    -->
         <el-card
-          v-if="containsLabel('账号解锁') && isAdmin(user)"
+          v-if="containsLabel('账号解锁') && permissionStore.hasPermission('tool:accountUnlock')"
           shadow="hover"
           body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.accountUnlock = !!el; }"
         >
           <!-- 卡片主体内容 -->
           <div class="card-content">
@@ -2088,7 +2112,12 @@ onBeforeUnmount(() => {
           </div>
         </el-card>
         <!--    脚本下发卡片    -->
-        <el-card v-if="containsLabel('脚本下发')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+        <el-card
+          v-if="containsLabel('脚本下发') && permissionStore.hasPermission('tool:scriptDistribution')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.tokenUnlock = !!el; }"
+        >
           <!-- 卡片主体内容 -->
           <div class="card-content">
             <!-- 上部分：2:1 比例 -->
@@ -2120,7 +2149,12 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </el-card>
-        <el-card v-if="containsLabel('堡垒机账号解锁')" shadow="hover" body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;">
+        <el-card
+          v-if="containsLabel('堡垒机账号解锁') && permissionStore.hasPermission('tool:tokenUnlock')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.scriptDistribution = !!el; }"
+        >
           <!-- 卡片主体内容 -->
           <div class="card-content">
             <!-- 上部分：2:1 比例 -->
@@ -2155,7 +2189,7 @@ onBeforeUnmount(() => {
       <div class="pagination-section">
         <!--  显示总数  -->
         <div class="total-count">
-          <span style="line-height: 20px">共 {{ leafNodeCount }} 个</span>
+          <span style="line-height: 20px">共 {{ filteredCardCount }} 个</span>
         </div>
         <div class="pagination-nav">
           <!--  页码导航  -->
@@ -2163,7 +2197,7 @@ onBeforeUnmount(() => {
             background
             :current-page="currentCardPage"
             page-size="16"
-            :total="leafNodeCount"
+            :total="filteredCardCount"
             layout="prev, pager, next"
             @current-change="pageChange"
           />
@@ -2289,6 +2323,7 @@ onBeforeUnmount(() => {
             type="text"
             @input="handleAccountInput"
             clearable
+            spellcheck="false"
           />
         </el-form-item>
         <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap">
@@ -2340,6 +2375,7 @@ onBeforeUnmount(() => {
             type="text"
             @input="bastionHostUser"
             clearable
+            spellcheck="false"
           />
         </el-form-item>
         <el-form-item label="堡垒机密码" prop="bastionHostPasswd">
@@ -2351,6 +2387,7 @@ onBeforeUnmount(() => {
             type="text"
             @input="bastionHostPasswd"
             clearable
+            spellcheck="false"
           />
         </el-form-item>
         <el-form-item>
@@ -2365,6 +2402,7 @@ onBeforeUnmount(() => {
             type="text"
             @input="netWorkDeviceUser"
             clearable
+            spellcheck="false"
           />
         </el-form-item>
         <el-form-item label="网络设备密码" prop="netWorkDevicePasswd">
@@ -2376,6 +2414,7 @@ onBeforeUnmount(() => {
             type="text"
             @input="netWorkDevicePasswd"
             clearable
+            spellcheck="false"
           />
         </el-form-item>
         <el-form-item label="网络设备IP" prop="netWorkDeviceIP">
@@ -2387,6 +2426,7 @@ onBeforeUnmount(() => {
             type="textarea"
             clearable
             resize="none"
+            spellcheck="false"
           />
           <el-upload
             ref="inputFile"
@@ -2684,6 +2724,7 @@ onBeforeUnmount(() => {
               type="text"
               @input="handleMobileToken"
               clearable
+              spellcheck="false"
             />
           </el-form-item>
           <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap">
@@ -2758,6 +2799,7 @@ onBeforeUnmount(() => {
               maxlength="15"
               type="text"
               clearable
+              spellcheck="false"
             />
           </el-form-item>
           <el-form-item label="任务创建时间：" prop="execTime">
