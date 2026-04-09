@@ -172,23 +172,26 @@ onMounted(() => {
       style="margin-bottom: 20px;"
       clearable
     />
-    <el-tree
-      ref="treeRef2"
-      style="max-height: 85%;overflow: auto"
-      :data="dataSource"
-      node-key="id"
-      default-expand-all
-      :filter-node-method="filterNode"
-      check-on-click-node
-      @node-click="handleNodeClick"
-    >
-      <template #default="{ node }">
-        <div class="custom-tree-node">
-          <!-- 使用 v-html 渲染高亮文本 -->
-          <span v-html="highlightText(node.label, filterText)"></span>
-        </div>
-      </template>
-    </el-tree>
+    <el-scrollbar height="85%;">
+      <el-tree
+        ref="treeRef2"
+        style="margin-right: 5px;"
+        :data="dataSource"
+        node-key="id"
+        default-expand-all
+        :filter-node-method="filterNode"
+        check-on-click-node
+        @node-click="handleNodeClick"
+      >
+        <template #default="{ node }">
+          <div class="custom-tree-node">
+            <!-- 使用 v-html 渲染高亮文本 -->
+            <span v-html="highlightText(node.label, filterText)"></span>
+          </div>
+        </template>
+      </el-tree>
+    </el-scrollbar>
+
   </div>
 </template>
 
@@ -212,15 +215,15 @@ onMounted(() => {
   border-radius: 10px;
   margin-right: 10px;
 }
-.el-tree::-webkit-scrollbar {
-  width: 0; /* 隐藏滚动条 */
+/*.el-tree::-webkit-scrollbar {
+  width: 0; !* 隐藏滚动条 *!
 }
 
 .el-tree {
   max-height: 85%;
   overflow-y: scroll;
-  scrollbar-width: thin; /* Firefox 隐藏滚动条 */
-}
+  scrollbar-width: thin; !* Firefox 隐藏滚动条 *!
+}*/
 mark {
   background-color: yellow;
   color: black;
