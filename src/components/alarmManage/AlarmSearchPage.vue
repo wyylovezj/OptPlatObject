@@ -10,9 +10,19 @@ import { usePermissionStore } from '@/stores/permissionStore.js'
  * @lastModifiedTime： 2026-01-28 09:29:55
  */
 import { ref,watch,onUnmounted,nextTick } from 'vue'
-import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter } from '@/utils/publicData.js'
+import {
+  selectedRows,
+  DialogVisibleClose,
+  refresh,
+  searchQuery,
+  dataDictionary,
+  isFilter,
+  tableData
+} from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
+import * as XLSX from 'xlsx'
+
 
 // 权限状态管理
 const permissionStore = usePermissionStore()
@@ -376,6 +386,87 @@ const batchCreateTickets = async () => {
   }
   console.log('batchCreateTickets')
 }
+
+const exportAlarmData = async () => {
+  try {
+    let exportData = []
+
+    if (selectedRows.value.length > 0) {
+      exportData = selectedRows.value
+    } else {
+      exportData = tableData.value
+    }
+
+    if (exportData.length === 0) {
+      if (messageInstance.value) {
+        ElMessage.closeAll()
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+      messageInstance.value = ElMessage.warning({
+        message: '没有可导出的数据',
+        duration: 1000,
+        offset: window.innerHeight / 2 - 20,
+        onClose: () => {
+          messageInstance.value = null
+        }
+      })
+      return
+    }
+
+    const excelData = exportData.map(row => ({
+      '事件ID': row.event_id || '',
+      '告警级别': row.severity || '',
+      '告警状态': row.state || '',
+      '业务系统': row.system_name || '',
+      '告警分类': row.category || '',
+      '主机名': row.object || '',
+      'IP地址': row.ip || '',
+      '告警描述': row.alarm_details || '',
+      '发生时间': row.occurrenceTime || '',
+      '处理时间': row.processingTime || '',
+      '告警来源': row.source || '',
+      '处理意见': row.alart_remarks || '',
+      '处理人': row.Alarm_Handler || '',
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '告警数据')
+
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
+    const fileName = `告警数据_${dateStr}.xlsx`
+
+    XLSX.writeFile(workbook, fileName)
+
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    messageInstance.value = ElMessage.success({
+      message: `成功导出 ${exportData.length} 条告警数据`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+  } catch (error) {
+    console.error('导出失败:', error)
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    messageInstance.value = ElMessage.error({
+      message: '导出失败，请稍后重试',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      }
+    })
+  }
+}
 onUnmounted(() => {
   clearSearch()
 })
@@ -517,6 +608,7 @@ onUnmounted(() => {
           <el-button v-if="permissionStore.hasPermission('alarm:refresh')" type="primary" @click="refresh">刷新</el-button>
           <el-button v-if="permissionStore.hasPermission('alarm:search')" type="primary" @click="refresh">搜索</el-button>
           <el-button v-if="permissionStore.hasPermission('alarm:batchClose')" type="primary" @click="batchClose">批量关闭</el-button>
+          <el-button v-if="permissionStore.hasPermission('alarm:export')" type="primary" @click="exportAlarmData">导出</el-button>
 <!--          <el-button type="primary" @click="batchCreateTickets">批量触发工单</el-button>-->
         </div>
       </el-form-item>
