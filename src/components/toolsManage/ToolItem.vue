@@ -412,6 +412,7 @@ const dialogVisible = ref({
   mobileToken: false, // 移动令牌模态框可视
   historyScriptDistribute: false, // 历史任务模态框可视状态
   historyStandardOutputVisible: false, // 历史任务详情模态框可视状态
+  validityPeriod: false, // 域账号密码有效期模态框可视状态
 })
 const buttonVisible = ref({
   taskDetails: false,  //脚本下发后任务详情按钮显示状态
@@ -429,6 +430,11 @@ const responseData = ref({
     message: '',
     status: '',
   },
+  validityPeriod: {
+    message: '',  // 账号状态，0是正常，1是锁定，2是过期，3是不存在，4是无效
+    password_expires: '', // 密码有效期
+    days_expiry: '', // 剩余天数
+  }
 })
 // 解锁账号表单实例
 const unlockAccountForm = ref(null)
@@ -575,21 +581,38 @@ const unlockAccount = async () => {
   if (!unlockAccountForm.value) return
   await unlockAccountForm.value.validate(async (valid, fields) => {
     if (valid) {
-      exportDisabled.value.unlockAccount = true
-      dialogVisible.value.unlockAccount = false
+      if (UnlockAccountDataModel.value.type === '3') {
+        dialogVisible.value.validityPeriod = true
+      }
+      else {
+        exportDisabled.value.unlockAccount = true
+        dialogVisible.value.unlockAccount = false
+      }
       try {
         const status = await unlockAccountInterface(UnlockAccountDataModel.value)
         console.log(status)
         if (status) {
-          exportDisabled.value.unlockAccount = false
-          responseData.value.unlock.message = status.message
-          responseData.value.unlock.status = status.status
+          if (UnlockAccountDataModel.value.type === '3') {
+            responseData.value.validityPeriod.message = status.message
+            responseData.value.validityPeriod.days_expiry = status.days_expiry
+            responseData.value.validityPeriod.password_expires = status.password_expires
+          }
+          else {
+            exportDisabled.value.unlockAccount = false
+            responseData.value.unlock.message = status.message
+            responseData.value.unlock.status = status.status
+          }
         }
       } catch (error) {
         console.log(error.message)
-        responseData.value.unlock.message = error.message
-        responseData.value.unlock.status = 'fail'
-        exportDisabled.value.unlockAccount = false
+        if (UnlockAccountDataModel.value.type === '3') {
+          console.log(error.message)
+        }
+        else {
+          responseData.value.unlock.message = error.message
+          responseData.value.unlock.status = 'fail'
+          exportDisabled.value.unlockAccount = false
+        }
       }
     } else {
       if  (validateTimer) {
@@ -733,6 +756,10 @@ const unlockTypeModel = [
   {
     value: '2',
     label: '邮箱账号解锁',
+  },
+  {
+    value: '3',
+    label: '域账号密码过期查询',
   },
 ]
 
@@ -2282,10 +2309,11 @@ onBeforeUnmount(() => {
       v-model="dialogVisible.unlockAccount"
       top="10%"
       title="账号解锁"
-      width="20%"
+      width="400px"
       center
       destroy-on-close
       :show-close="false"
+      append-to-body
       @close="
         () => {
           UnlockAccountDataModel.type = ''
@@ -2314,7 +2342,7 @@ onBeforeUnmount(() => {
             <el-option v-for="item in unlockTypeModel" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="解锁账号" prop="username">
+        <el-form-item :label="UnlockAccountDataModel.type === '3' ? '查询账号' : '解锁账号'" prop="username">
           <el-input
             v-model="UnlockAccountDataModel.username"
             style="width: 250px"
@@ -2338,6 +2366,54 @@ onBeforeUnmount(() => {
           >
         </div>
       </el-form>
+      <el-dialog
+        v-model="dialogVisible.validityPeriod"
+        title="域账号有效期信息"
+        width="800px"
+        center
+        destroy-on-close
+        @close="
+            () => {
+              dialogVisible.validityPeriod = false
+            }
+          "
+      >
+        <el-descriptions  :column="2" border :size="'large'" label-width="200px">
+          <el-descriptions-item label="用户名" label-align="center" align="center">
+            <el-tag :size="'large'" round>
+              {{ UnlockAccountDataModel.username }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="状态" label-align="center" align="center">
+            <el-tag
+              :size="'large'"
+              round
+              :type="
+                  responseData.validityPeriod.message === 0 ? 'success' :
+                  responseData.validityPeriod.message === 1 ? 'danger' :
+                  responseData.validityPeriod.message === 2 ? 'danger' :
+                  responseData.validityPeriod.message === 3 ? 'info' :
+                  responseData.validityPeriod.message === 4 ? 'info' :
+                  ''"
+            >
+              {{
+                responseData.validityPeriod.message === 0 ? '正常' :
+                  responseData.validityPeriod.message === 1 ? '锁定' :
+                    responseData.validityPeriod.message === 2 ? '过期' :
+                      responseData.validityPeriod.message === 3 ? '不存在' :
+                        responseData.validityPeriod.message === 4 ? '无效' :
+                          responseData.validityPeriod.message
+              }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="密码过期时间" label-align="center" align="center">
+            {{ responseData.validityPeriod.password_expires }}
+          </el-descriptions-item>
+          <el-descriptions-item label="剩余天数" label-align="center" align="center">
+            {{ responseData.validityPeriod.days_expiry }} 天
+          </el-descriptions-item>
+        </el-descriptions>
+      </el-dialog>
     </el-dialog>
     <!--  脚本下发模态框  -->
     <el-dialog
