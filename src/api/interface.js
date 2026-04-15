@@ -366,12 +366,13 @@ export const expiredEmail = async (email,expiredDate) => {
   }
 }
 // 邮箱账号管理本地密码清除接口
-export const resetPasswdEmail = async (email) => {
+export const resetPasswdEmail = async (email,type) => {
   try {
 
     // 发送POST请求
     const response = await axios.post(`${serverIp.value}/resetPasswdEmail `, {
       email: email,
+      type: type,
     });
     console.log(response.data);
     return response.data;
