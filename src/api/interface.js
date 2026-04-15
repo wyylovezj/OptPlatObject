@@ -332,3 +332,51 @@ export const historyTask = async (execUser,execTime) => {
     throw new Error(error.response?.data?.message || '服务器连接失败');
   }
 }
+
+// 邮箱账号管理重命名接口
+export const renameEmail = async (oldEmail,newEmail) => {
+  try {
+
+    // 发送POST请求
+    const response = await axios.post(`${serverIp.value}/renameEmail `, {
+      old_email: oldEmail,
+      new_email: newEmail,
+    });
+    console.log(response.data);
+    return response.data;
+  }
+  catch ( error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败');
+  }
+}
+// 邮箱账号管理有效期设置接口
+export const expiredEmail = async (email,expiredDate) => {
+  try {
+
+    // 发送POST请求
+    const response = await axios.post(`${serverIp.value}/expiredEmail `, {
+      email: email,
+      expired_date: expiredDate,
+    });
+    console.log(response.data);
+    return response.data;
+  }
+  catch ( error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败');
+  }
+}
+// 邮箱账号管理本地密码清除接口
+export const resetPasswdEmail = async (email) => {
+  try {
+
+    // 发送POST请求
+    const response = await axios.post(`${serverIp.value}/resetPasswdEmail `, {
+      email: email,
+    });
+    console.log(response.data);
+    return response.data;
+  }
+  catch ( error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败');
+  }
+}
