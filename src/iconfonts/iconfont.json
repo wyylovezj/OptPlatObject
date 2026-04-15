@@ -6,6 +6,13 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "41623897",
+      "name": "邮件管理",
+      "font_class": "youjianguanli",
+      "unicode": "e64d",
+      "unicode_decimal": 58957
+    },
+    {
       "icon_id": "3868287",
       "name": "账号权限管理",
       "font_class": "zhanghaoquanxianguanli",
