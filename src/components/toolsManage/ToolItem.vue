@@ -1,5 +1,11 @@
 <script setup>
-import { exportOrderFile, mobileTokenInterface, unlockAccountInterface,historyTask } from '@/api/interface.js'
+import {
+  exportOrderFile,
+  mobileTokenInterface,
+  unlockAccountInterface,
+  historyTask,
+  renameEmail, expiredEmail, resetPasswdEmail
+} from '@/api/interface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { currentPage, messageInstance, searchQuery, user } from '@/utils/publicData.js'
 import {
@@ -10,14 +16,14 @@ import {
   leafNodeCount,
   UnlockAccountDataModel,
   WorkOrderDataModel,
-  selectedNode
+  selectedNode, EmailAccountDataModel, EmailAccount, resetType
 } from '@/utils/publicDataTools.js'
 import { CircleCheckFilled, CircleCloseFilled, UploadFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { ElMessage,ElButton,ElTableV2, ElAutoResizer } from 'element-plus'
+import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox } from 'element-plus'
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Edit,BrushFilled,Timer } from '@element-plus/icons-vue'
 
 
 
@@ -29,7 +35,8 @@ const cardRenderState = ref({
   exporterOrder: false,
   accountUnlock: false,
   scriptDistribution: false,
-  tokenUnlock: false
+  tokenUnlock: false,
+  emailManage: false,
 })
 
 // 新增：实时统计实际渲染的卡片数量（不依赖任何数据，只统计实际 DOM）
@@ -413,6 +420,7 @@ const dialogVisible = ref({
   historyScriptDistribute: false, // 历史任务模态框可视状态
   historyStandardOutputVisible: false, // 历史任务详情模态框可视状态
   validityPeriod: false, // 域账号密码有效期模态框可视状态
+  emailManage: false, // 邮件管理控制台模态框可视状态
 })
 const buttonVisible = ref({
   taskDetails: false,  //脚本下发后任务详情按钮显示状态
@@ -443,6 +451,8 @@ const exportDisabled = ref({
   exporterOrder: false, // 工单导出按钮禁用状态
   unlockAccount: false, // 域账号解锁按钮禁用状态
   createTask: false, // 脚本下发按钮禁用状态
+  emailManage: false, // 邮件管理按钮禁用状态
+  renameSubmit: false, // 邮件管理界面禁用状态
 })
 // 进度条可视状态
 const percentageVisible = ref({
@@ -572,6 +582,58 @@ const unlockAccountRules = ref({
     {
       required: true,
       message: '请输入需要解锁的账号',
+      trigger: 'change',
+    },
+  ],
+})
+// 邮箱账号管理重命名表单校验规则
+const emailRenamedRules = ref({
+  oldEmail: [
+    {
+      required: true,
+      message: '请选择旧账号',
+      trigger: 'change',
+    },
+  ],
+  newEmail: [
+    {
+      required: true,
+      message: '请输入重命名的新账号',
+      trigger: 'change',
+    },
+  ],
+})
+// 邮箱账号管理有效期表单校验规则
+const emailExpiredRules = ref({
+  expiredEmail: [
+    {
+      required: true,
+      message: '请输入邮箱账号',
+      trigger: 'change',
+    },
+  ],
+  expiredDate: [
+    {
+      type: 'date',
+      required: true,
+      message: '请选择到期时间',
+      trigger: 'change',
+    },
+  ],
+})
+// 邮箱账号管理重置密码表单校验规则
+const resetPasswordRules = ref({
+  resetEmail: [
+    {
+      required: true,
+      message: '请输入邮箱账号',
+      trigger: 'change',
+    },
+  ],
+  type: [
+    {
+      required: true,
+      message: '请选择类型',
       trigger: 'change',
     },
   ],
@@ -776,7 +838,7 @@ const handleAccountInput = async (value) => {
 
     // 显示警告消息
     messageInstance.value = ElMessage.warning({
-      message: `只允许输入字母/数字`,
+      message: `只允许输入字母/数字/特殊字符`,
       duration: 1000,
       offset: window.innerHeight / 2 - 100,
       onClose: () => {
@@ -898,7 +960,107 @@ const handleMobileToken = async (value) => {
   }
   fileUploadDataModel.value.mobileToken = cleanedValue
 }
+// 邮箱账号重命名中旧邮箱账号即时校验函数
+const oldEmailInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
 
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.oldEmail = cleanedValue
+  // 只允许输入英文字母和数字
+  EmailAccountDataModel.value.oldEmail = `${cleanedValue}@cinda.com.cn`
+}
+// 邮箱账号重命名中新邮箱账号即时校验函数
+const newEmailInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
+
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.newEmail = cleanedValue
+  // 只允许输入英文字母和数字
+  EmailAccountDataModel.value.newEmail = `${cleanedValue}@cinda.com.cn`
+  console.log(EmailAccountDataModel.value)
+}
+// 邮箱账号有效期中新邮箱账号即时校验函数
+const expiredEmailInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
+
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.expiredEmail = cleanedValue
+  // 只允许输入英文字母和数字
+  EmailAccountDataModel.value.expiredEmail = `${cleanedValue}@cinda.com.cn`
+}
+// 邮箱账号有效期中新邮箱账号即时校验函数
+const emailInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
+
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.resetEmail = cleanedValue
+  // 只允许输入英文字母和数字
+  EmailAccountDataModel.value.resetEmail = `${cleanedValue}@cinda.com.cn`
+}
 // 脚本下发表单实例
 const fileUpload = ref(null)
 // 移动令牌表单实例
@@ -1019,6 +1181,219 @@ const fileUploadRules = ref({
 // 处理堡垒机账号解锁按钮点击事件
 const handleUnlock = () => {
   window.open('https://www.baidu.com', '_blank')
+}
+// 邮箱账号管理重命名表单实例
+const renameEmailForm = ref(null)
+// 邮箱账号管理有效期表单数据模型
+const expiredEmailForm = ref(null)
+const resetPasswordForm = ref(null)
+const activeEmailTab = ref('rename')
+const shortcuts = [
+  {
+    text: '30 天',
+    value: () => {
+      const date = new Date()
+      date.setTime(date.getTime() + 3600 * 1000 * 24 *  30)
+      return date
+    },
+  },
+  {
+    text: '90天',
+    value: () => {
+      const date = new Date()
+      date.setTime(date.getTime() + 3600 * 1000 * 24 * 90)
+      return date
+    },
+  },
+]
+
+const disabledDate = (time) => {
+  return time.getTime() < Date.now()
+}
+// 邮箱账号管理提交事件
+const emailSubmit = async () => {
+  switch (activeEmailTab.value) {
+    case 'rename':
+      await handleRenameSubmit()
+      break
+    case 'expired':
+      await handleExpiredSubmit()
+      break
+    case 'resetPassword':
+      await handleResetPasswordSubmit()
+      break
+    default:
+      ElMessage.warning('未知的操作类型')
+  }
+}
+// 邮箱重命名函数
+const handleRenameSubmit = async () => {
+  if (!renameEmailForm.value) return
+  await renameEmailForm.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        exportDisabled.value.renameSubmit = true
+        const response = await renameEmail(EmailAccountDataModel.value.oldEmail,EmailAccountDataModel.value.newEmail)
+        if (response.status === 'success') {
+          ElMessageBox.alert(`邮箱账号修改成功！<br/>旧账号【${EmailAccountDataModel.value.oldEmail}】；<br/>新账号【${EmailAccountDataModel.value.newEmail}】`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'success',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            dangerouslyUseHTMLString: true,
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+        else {
+          ElMessageBox.alert(`邮箱账号重命名失败！<br/>失败原因：旧账号【${EmailAccountDataModel.value.oldEmail}】不存在或新账号【${EmailAccountDataModel.value.newEmail}】已被使用<br/>请核对后再修改！`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'error',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            dangerouslyUseHTMLString: true,
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+      }
+      catch (e) {
+        exportDisabled.value.renameSubmit = false
+        throw new Error(e)
+      }
+    }
+    else {
+      if  (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (renameEmailForm.value) {
+          renameEmailForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
+}
+// 邮箱有效期功能函数
+const handleExpiredSubmit = async () => {
+  if (!expiredEmailForm.value) return
+  await expiredEmailForm.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        exportDisabled.value.renameSubmit = true
+        const response = await expiredEmail(EmailAccountDataModel.value.expiredEmail,EmailAccountDataModel.value.expiredDate)
+        if (response.status === 'success') {
+          ElMessageBox.alert(`邮箱账号有效期设置成功！<br />账号【${EmailAccountDataModel.value.expiredEmail}】到期时间为【${EmailAccountDataModel.value.expiredDate}】`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'success',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            dangerouslyUseHTMLString: true,
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+        else {
+          ElMessageBox.alert(`邮箱账号有效期设置失败！<br />失败原因：账号【${EmailAccountDataModel.value.expiredEmail}】不存在`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'error',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            dangerouslyUseHTMLString: true,
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+      } catch (e) {
+        exportDisabled.value.renameSubmit = false
+        throw new Error(e)
+      }
+    } else {
+      if (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (expiredEmailForm.value) {
+          expiredEmailForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
+}
+// 邮箱账号管理密码重置功能函数
+const handleResetPasswordSubmit = async () => {
+  if (!resetPasswordForm.value) return
+  await resetPasswordForm.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        exportDisabled.value.renameSubmit = true
+        const response = await resetPasswdEmail(EmailAccountDataModel.value.resetEmail,EmailAccountDataModel.value.type)
+        if (response.status === 'success') {
+          ElMessageBox.alert(`邮箱账号【${EmailAccountDataModel.value.resetEmail}】${resetType[EmailAccountDataModel.value.type-1].label}成功`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'success',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+        else {
+          ElMessageBox.alert(`邮箱账号${resetType[EmailAccountDataModel.value.type-1].label}失败！<br />失败原因：账号【${EmailAccountDataModel.value.resetEmail}】不存在`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'error',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            dangerouslyUseHTMLString: true,
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+      } catch (e) {
+        exportDisabled.value.renameSubmit = false
+        throw new Error(e)
+      }
+    } else {
+      if (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (resetPasswordForm.value) {
+          resetPasswordForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
 }
 // 脚本下发历史任务时间格式
 const defaultTime = ref([
@@ -2210,6 +2585,39 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </el-card>
+        <!--    邮箱账号管理    -->
+        <el-card
+          v-if="containsLabel('邮箱账号管理') && permissionStore.hasPermission('tool:emailManage')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.emailManage = !!el; }"
+        >
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-youjianguanli"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>邮箱账号管理</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="primary" :disabled="exportDisabled.emailManage" @click="() => {dialogVisible.emailManage = true;exportDisabled.emailManage = true}"> 控制台 </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
       </div>
       <el-empty v-if="!hasVisibleCards" description="无匹配数据" style="width: 100%; height: 95%" />
       <!-- 分页：显示总数、页码导航 -->
@@ -3057,6 +3465,175 @@ onBeforeUnmount(() => {
         </el-scrollbar>
       </el-dialog>
     </el-dialog>
+    <!--  邮箱账号管理控制台模态框  -->
+    <el-dialog
+      v-model="dialogVisible.emailManage"
+      top="10%"
+      title="邮箱账号管理"
+      width="500px"
+      center
+      destroy-on-close
+      :close-on-click-modal="false"
+      :show-close="false"
+      append-to-body
+      style="user-select: none"
+      @close="
+        () => {
+          EmailAccount.reset()
+          EmailAccountDataModel.reset()
+          dialogVisible.emailManage = false
+          activeEmailTab = 'rename'
+        }
+      "
+    >
+      <el-tabs v-model="activeEmailTab" type="border-card" class="demo-tabs" @tab-change="() => {EmailAccount.reset();EmailAccountDataModel.reset()}">
+        <el-tab-pane name="rename">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><Edit /></el-icon>
+              <span>重命名</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="renameEmailForm"
+            label-position="right"
+            label-width="auto"
+            :rules="emailRenamedRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="旧邮箱账号" prop="oldEmail">
+              <el-input
+                v-model="EmailAccount.oldEmail"
+                style="width: 350px"
+                placeholder="请输入账号"
+                maxlength="20"
+                type="text"
+                @input="oldEmailInput"
+                clearable
+                spellcheck="false"
+              >
+                <template #append>@cinda.com.cn</template>
+              </el-input>
+            </el-form-item>
+            <el-form-item label="新邮箱账号" prop="newEmail">
+              <el-input
+                v-model="EmailAccount.newEmail"
+                style="width: 350px"
+                placeholder="请输入账号"
+                maxlength="20"
+                type="text"
+                @input="newEmailInput"
+                clearable
+                spellcheck="false"
+              >
+                <template #append>@cinda.com.cn</template>
+              </el-input>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane name="expired" label="有效期">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><Timer /></el-icon>
+              <span>有效期</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="expiredEmailForm"
+            label-position="right"
+            label-width="auto"
+            :rules="emailExpiredRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="邮箱账号" prop="expiredEmail">
+              <el-input
+                v-model="EmailAccount.expiredEmail"
+                style="width: 350px"
+                placeholder="请输入账号"
+                maxlength="20"
+                type="text"
+                @input="expiredEmailInput"
+                clearable
+                spellcheck="false"
+              >
+                <template #append>@cinda.com.cn</template>
+              </el-input>
+            </el-form-item>
+            <el-form-item label="新邮箱账号" prop="expiredDate">
+              <el-date-picker
+                v-model="EmailAccountDataModel.expiredDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                placeholder="选择日期"
+                :disabled-date="disabledDate"
+                :shortcuts="shortcuts"
+              />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane name="resetPassword" label="密码重置">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><BrushFilled /></el-icon>
+              <span>密码重置</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="resetPasswordForm"
+            label-position="right"
+            label-width="auto"
+            :rules="resetPasswordRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="邮箱账号" prop="resetEmail">
+              <el-input
+                v-model="EmailAccount.resetEmail"
+                style="width: 350px"
+                placeholder="请输入账号"
+                maxlength="20"
+                type="text"
+                @input="emailInput"
+                clearable
+                spellcheck="false"
+              >
+                <template #append>@cinda.com.cn</template>
+              </el-input>
+            </el-form-item>
+            <el-form-item label="类型" prop="type">
+              <el-select
+                v-model="EmailAccountDataModel.type"
+                class="center-placeholder"
+                clearable
+                placeholder="请选择"
+                style="width: 200px"
+                @clear="EmailAccountDataModel.type = ''"
+              >
+                <el-option v-for="item in resetType" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+      <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap;margin-top: 20px">
+        <el-button type="primary" @click="emailSubmit" :disabled="exportDisabled.renameSubmit">确认</el-button>
+        <el-button
+          type="primary"
+          @click="() => {
+              // 关闭模态框
+              dialogVisible.emailManage = false
+              // 启用控制台按钮
+              exportDisabled.emailManage = false
+              // 重置表单
+              EmailAccount.reset()
+              EmailAccountDataModel.reset()
+          }"
+        >取消</el-button
+        >
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -3297,5 +3874,19 @@ onBeforeUnmount(() => {
 
 .shell-console::-webkit-scrollbar-thumb:hover {
   background: #5d5d5d;
+}
+
+.demo-tabs > .el-tabs__content {
+  padding: 32px;
+  color: #6b778c;
+  font-size: 32px;
+  font-weight: 600;
+}
+.demo-tabs .custom-tabs-label .el-icon {
+  vertical-align: middle;
+}
+.demo-tabs .custom-tabs-label span {
+  vertical-align: middle;
+  margin-left: 4px;
 }
 </style>
