@@ -123,15 +123,31 @@ export const EmailAccountDataModel = ref(
     expiredEmail: '',  // 设置过期时间的邮箱
     expiredDate: '', // 过期时间
     resetEmail: ''  , // 重置密码的邮箱
+    type: '', // 重置密码的类型
     reset: function() {
       this.newEmail = '';
       this.oldEmail = '';
       this.expiredEmail = '';
       this.expiredDate = '';
       this.resetEmail = '';
+      this.type = '';
     }
   }
 )
+export const resetType = [
+  {
+    value: '1',
+    label: '清除本地密码',
+  },
+  {
+    value: '2',
+    label: '清除二次验证',
+  },
+  {
+    value: '3',
+    label: '配置二次验证',
+  },
+]
 // 接口地址
 export const exportIp = ref(window.APP_CONFIG?.EXPORTER_IP || 'default-port');
 // 当前选中的节点
