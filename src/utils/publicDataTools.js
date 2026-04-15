@@ -6,7 +6,7 @@ const userGroup = ['weiyangyang']
 
 
 // 卡片数组，新增的卡片放在这里
-export const cards = ["工单导出", "账号解锁", "脚本下发","堡垒机账号解锁"]
+export const cards = ["工单导出", "账号解锁", "脚本下发","堡垒机账号解锁","邮箱账号管理"]
 // 目录树模式，新增的目录放在这里
 export const toolSTree = [
   {
@@ -28,6 +28,10 @@ export const toolSTree = [
           {
             id: 23,
             label: '堡垒机账号解锁'
+          },
+          {
+            id: 24,
+            label: '邮箱账号管理'
           }
         ]
       },
@@ -95,6 +99,36 @@ export const historyFileUploadDataModel = ref(
     reset: function() {
       this.execUser = '';
       this.execTime = [];
+    }
+  }
+)
+// 邮箱账号管理输入数据模型
+export  const EmailAccount = ref(  {
+  newEmail: '', // 新邮箱
+  oldEmail: '', // 旧邮箱
+  expiredEmail: '',  // 设置过期时间的邮箱
+  resetEmail: ''  , // 重置密码的邮箱
+  reset: function() {
+    this.newEmail = '';
+    this.oldEmail = '';
+    this.expiredEmail = '';
+    this.resetEmail = '';
+  }
+});
+// 邮箱账号管理数据模型
+export const EmailAccountDataModel = ref(
+  {
+    newEmail: '', // 新邮箱
+    oldEmail: '', // 旧邮箱
+    expiredEmail: '',  // 设置过期时间的邮箱
+    expiredDate: '', // 过期时间
+    resetEmail: ''  , // 重置密码的邮箱
+    reset: function() {
+      this.newEmail = '';
+      this.oldEmail = '';
+      this.expiredEmail = '';
+      this.expiredDate = '';
+      this.resetEmail = '';
     }
   }
 )
