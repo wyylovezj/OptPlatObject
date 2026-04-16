@@ -381,3 +381,17 @@ export const resetPasswdEmail = async (email,type) => {
     throw new Error(error.response?.data?.message || '服务器连接失败');
   }
 }
+export const downloadGroupUsers = async (groupName) => {
+  try {
+    const response = await axios.post(`${serverIp.value}/outputGroupUser`, {
+      group_name: groupName
+    }, {
+      responseType: 'blob'
+    });
+    return response;
+
+  } catch (error) {
+    console.error('文件下载失败:', error);
+    throw error;
+  }
+}

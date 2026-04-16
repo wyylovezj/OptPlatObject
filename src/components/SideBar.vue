@@ -136,45 +136,129 @@ function routeTo(path) {
   user-select: none;
   overflow: hidden;
 }
+
 .el-menu-vertical {
   border-right: none !important;
+  background: transparent !important;
+}
+
+:deep(.el-menu) {
+  background-color: transparent !important;
+}
+
+:deep(.el-sub-menu__title) {
+  transition: all 0.2s ease;
+  margin: 2px 6px;
+  border-radius: 4px;
 }
 
 :deep(.el-sub-menu__title:hover) {
-  background-color: rgba(42, 82, 152, 0.3) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
-.el-divider {
-  margin: 0;
+
+:deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
 }
-:deep(.el-menu) {
-  background-color: transparent !important;
-  transition: none; /* 移除Element Plus默认过渡，避免冲突 */
-}
+
 :deep(.el-menu-item) {
-  color: rgba(207, 211, 217, 1)  !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  transition: all 0.2s ease;
+  margin: 2px 6px;
+  border-radius: 4px;
+  height: 44px;
+  line-height: 44px;
 }
+
 :deep(.el-menu-item:hover) {
-  color: rgba(255, 255, 255, 1) !important;
-  background-color: rgba(42, 82, 152, 0.3) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
+
+:deep(.el-menu-item.is-active) {
+  color: #409eff !important;
+  background-color: rgba(64, 158, 255, 0.15) !important;
+  font-weight: 500;
+}
+
 .menu {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 1);
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* 菜单箭头样式 */
+
 :deep(.el-sub-menu__icon-arrow) {
-  font-size: 16px !important;
-  margin-top: -8px !important;
+  font-size: 14px !important;
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 0.2s ease !important;
 }
 
 .icon {
-  width: 1em;
-  height: 1em;
+  width: 16px;
+  height: 16px;
   vertical-align: -0.15em;
   fill: currentColor;
   overflow: hidden;
-  color: rgba(255, 255, 255, 1);;
+  color: rgba(255, 255, 255, 0.75);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
+:deep(.el-menu-item:hover) .icon,
+:deep(.el-sub-menu__title:hover) .icon {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+:deep(.el-menu-item.is-active) .icon {
+  color: #409eff;
+}
+
+:deep(.el-menu--collapse) {
+  width: 64px;
+}
+
+:deep(.el-menu--collapse .el-menu-item),
+:deep(.el-menu--collapse .el-sub-menu__title) {
+  margin: 2px 4px;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+:deep(.el-menu--collapse .menu) {
+  display: none;
+}
+
+:deep(.el-menu--inline) {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+  margin: 0 6px;
+  border-radius: 4px;
+}
+
+:deep(.el-menu--inline .el-menu-item) {
+  padding-left: 48px !important;
+  height: 40px;
+  line-height: 40px;
+  font-size: 13px;
+  margin: 1px 4px;
+}
+
+:deep(.el-menu)::-webkit-scrollbar {
+  width: 4px;
+}
+
+:deep(.el-menu)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:deep(.el-menu)::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+:deep(.el-menu)::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
 </style>

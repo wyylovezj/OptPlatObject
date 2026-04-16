@@ -4,7 +4,7 @@ import {
   mobileTokenInterface,
   unlockAccountInterface,
   historyTask,
-  renameEmail, expiredEmail, resetPasswdEmail
+  renameEmail, expiredEmail, resetPasswdEmail, downloadGroupUsers
 } from '@/api/interface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { currentPage, messageInstance, searchQuery, user } from '@/utils/publicData.js'
@@ -23,7 +23,7 @@ import axios from 'axios'
 import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox } from 'element-plus'
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
-import { Search, Edit,BrushFilled,Timer } from '@element-plus/icons-vue'
+import { Search, Edit,Key,Timer,Download } from '@element-plus/icons-vue'
 
 
 
@@ -638,6 +638,16 @@ const resetPasswordRules = ref({
     },
   ],
 })
+// 邮箱组导出表单校验规则
+const groupExportRules = ref({
+  groupEmail: [
+    {
+      required: true,
+      message: '请输入邮箱账号',
+      trigger: 'change',
+    },
+  ]
+})
 // 用户解锁模态框中确定按钮点击事件
 const unlockAccount = async () => {
   if (!unlockAccountForm.value) return
@@ -1061,6 +1071,31 @@ const emailInput = async (value) => {
   // 只允许输入英文字母和数字
   EmailAccountDataModel.value.resetEmail = `${cleanedValue}@cinda.com.cn`
 }
+// 邮箱账号有效期中新邮箱账号即时校验函数
+const groupEmailInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
+
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.groupEmail = cleanedValue
+  // 只允许输入英文字母和数字
+  EmailAccountDataModel.value.groupEmail = `${cleanedValue}@cinda.com.cn`
+}
 // 脚本下发表单实例
 const fileUpload = ref(null)
 // 移动令牌表单实例
@@ -1187,6 +1222,7 @@ const renameEmailForm = ref(null)
 // 邮箱账号管理有效期表单数据模型
 const expiredEmailForm = ref(null)
 const resetPasswordForm = ref(null)
+const groupEmailForm = ref(null)
 const activeEmailTab = ref('rename')
 const shortcuts = [
   {
@@ -1221,6 +1257,9 @@ const emailSubmit = async () => {
       break
     case 'resetPassword':
       await handleResetPasswordSubmit()
+      break
+    case 'groupEmail':
+      await handleGroupEmailSubmit()
       break
     default:
       ElMessage.warning('未知的操作类型')
@@ -1390,6 +1429,55 @@ const handleResetPasswordSubmit = async () => {
       validateTimer = setTimeout(() => {
         if (resetPasswordForm.value) {
           resetPasswordForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
+}
+// 邮箱组账号导出功能函数
+const handleGroupEmailSubmit = async () => {
+  if (!groupEmailForm.value) return
+  await groupEmailForm.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        exportDisabled.value.renameSubmit = true
+        const response = await downloadGroupUsers(EmailAccountDataModel.value.groupEmail)
+        console.log(response)
+        if (response.status === 200) {
+          const blob = response.data;
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${EmailAccountDataModel.value.groupEmail}_users.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          ElMessageBox.alert(`邮箱组【${EmailAccountDataModel.value.groupEmail}】导出成功`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'success',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+      } catch (e) {
+        exportDisabled.value.renameSubmit = false
+        throw new Error(e)
+      }
+    } else {
+      if (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (groupEmailForm.value) {
+          groupEmailForm.value.clearValidate()
         }
       }, 2000)
     }
@@ -3576,7 +3664,7 @@ onBeforeUnmount(() => {
         <el-tab-pane name="resetPassword" label="密码重置">
           <template #label>
             <span class="custom-tabs-label">
-              <el-icon><BrushFilled /></el-icon>
+              <el-icon><Key /></el-icon>
               <span>密码重置</span>
             </span>
           </template>
@@ -3613,6 +3701,37 @@ onBeforeUnmount(() => {
               >
                 <el-option v-for="item in resetType" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane name="groupEmail" label="邮箱组导出">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><Download /></el-icon>
+              <span>邮箱组导出</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="groupEmailForm"
+            label-position="right"
+            label-width="auto"
+            :rules="groupExportRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="邮箱组账号" prop="groupEmail">
+              <el-input
+                v-model="EmailAccount.groupEmail"
+                style="width: 350px"
+                placeholder="请输入账号"
+                maxlength="20"
+                type="text"
+                @input="groupEmailInput"
+                clearable
+                spellcheck="false"
+              >
+                <template #append>@cinda.com.cn</template>
+              </el-input>
             </el-form-item>
           </el-form>
         </el-tab-pane>

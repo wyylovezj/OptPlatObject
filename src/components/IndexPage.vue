@@ -31,8 +31,8 @@ const toggleCollapse = debounce(() => {
         <el-aside :width="isCollapse ? '64px' : '150px'">
           <div class="side-bar">
             <div style="height: 40px;width: 64px;display: flex;align-items: center;justify-content: center;">
-              <el-button v-if="!isCollapse" style="font-size: 20px" type="primary"  color="rgba(15, 39, 68, 1)" :icon="Expand" @click="toggleCollapse"/>
-              <el-button v-if="isCollapse" style="font-size: 20px" type="primary"  color="rgba(15, 39, 68, 1)" :icon="Fold" @click="toggleCollapse"/>
+              <el-button v-if="!isCollapse" style="font-size: 20px" type="primary"  color="#1a1f2e" :icon="Expand" @click="toggleCollapse"/>
+              <el-button v-if="isCollapse" style="font-size: 20px" type="primary"  color="#1a1f2e" :icon="Fold" @click="toggleCollapse"/>
             </div>
             <div class="side-menu">
               <SideBar></SideBar>
@@ -63,13 +63,12 @@ const toggleCollapse = debounce(() => {
 </template>
 
 <style scoped>
-/* 添加过渡动画样式 */
 .slide-fade-enter-active {
-  transition: all 0.2s ease-out;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slide-fade-leave-active {
-  transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slide-fade-enter-from {
@@ -84,39 +83,88 @@ const toggleCollapse = debounce(() => {
 
 .common-layout {
   height: 100%;
+  background-color: #f0f2f5;
 }
+
 .el-container{
   height: 100%;
 }
+
 .el-aside {
-  background: rgba(15, 39, 68, 1);
+  background-color: #1a1f2e;
   height: 100%;
   transition: width 0.3s ease;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 10;
 }
+
 .el-header {
   height: 40px;
-  background: rgba(15, 39, 68, 1);
+  background-color: #1a1f2e;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
+
 .el-main {
-  background-color: #F0F1F5;
+  background-color: #f0f2f5;
+  padding: 16px;
 }
+
 .side-bar {
   position: relative;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
+
+.collapse-btn-wrapper {
+  height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.collapse-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.collapse-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.collapse-btn:active {
+  transform: scale(0.95);
+}
+
 .side-menu {
   position: absolute;
   top: 40px;
   width: 100%;
+  height: calc(100% - 40px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+
 .header-bar {
   height: 100%;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: width 0.3s ease
+  transition: width 0.3s ease;
 }
+
 .icon {
   width: 1em;
   height: 1em;
