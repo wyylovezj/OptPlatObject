@@ -2565,7 +2565,7 @@ onBeforeUnmount(() => {
         </el-card>
         <!--    账号解锁卡片    -->
         <el-card
-          v-if="containsLabel('账号解锁') && permissionStore.hasPermission('tool:accountUnlock')"
+          v-if="containsLabel('域账号管理') && permissionStore.hasPermission('tool:accountUnlock')"
           shadow="hover"
           body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
           :ref="(el) => { cardRenderState.accountUnlock = !!el; }"
@@ -2578,14 +2578,14 @@ onBeforeUnmount(() => {
               <div class="left-part">
                 <div class="circle-image">
                   <!-- 圆形框内显示 SVG 图片 -->
-                  <svg class="icon" aria-hidden="true">
-                    <use xlink:href="#icon-zhanghaojiesuo"></use>
+                  <svg class="icon" aria-hidden="true" color="#E6A23C">
+                    <use xlink:href="#icon-gerenxinxi"></use>
                   </svg>
                 </div>
               </div>
               <!-- 右侧：1:2 比例 -->
               <div class="right-part">
-                <p>账号解锁</p>
+                <p>域账号管理</p>
               </div>
             </div>
             <!-- 下部分：按钮 -->
@@ -2596,7 +2596,7 @@ onBeforeUnmount(() => {
                 <el-icon v-if="responseData.unlock.status === 'fail'" :size="17" style="vertical-align: middle"><CircleCloseFilled /></el-icon>
               </div>
               <div style="flex: 1; display: flex; justify-content: flex-end">
-                <el-button type="primary" :disabled="exportDisabled.unlockAccount" @click="dialogVisible.unlockAccount = true"> 解锁 </el-button>
+                <el-button type="primary" :disabled="exportDisabled.unlockAccount" @click="dialogVisible.unlockAccount = true"> 控制台 </el-button>
               </div>
             </div>
           </div>
@@ -2804,7 +2804,7 @@ onBeforeUnmount(() => {
     <el-dialog
       v-model="dialogVisible.unlockAccount"
       top="10%"
-      title="账号解锁"
+      title="域账号管理"
       width="400px"
       center
       destroy-on-close
