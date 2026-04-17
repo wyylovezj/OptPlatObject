@@ -392,7 +392,7 @@ onMounted(() => {
     <el-card class="search-card">
       <el-form :model="searchForm" :inline="true" autocomplete="off">
         <el-form-item label="角色">
-          <el-input v-model="searchForm.roleCode" style="width: 200px" placeholder="请输入角色编码" clearable spellcheck="false"/>
+          <el-input v-model="searchForm.roleCode" style="width: 200px" placeholder="请输入角色编码" clearable spellcheck="false" @keyup.enter="handleSearch"/>
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" style="width: 200px" placeholder="请选择角色状态" clearable

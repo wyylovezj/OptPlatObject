@@ -166,7 +166,7 @@ onMounted(() => {
     <el-card class="search-card">
       <el-form :model="searchForm" :inline="true">
         <el-form-item label="用户名">
-          <el-input v-model="searchForm.username" style="width: 200px" placeholder="请输入用户名" clearable />
+          <el-input v-model="searchForm.username" style="width: 200px" placeholder="请输入用户名" clearable @keyup.enter="handleSearch" spellcheck="false"/>
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="searchForm.roleCode" style="width: 200px" placeholder="请选择角色" clearable

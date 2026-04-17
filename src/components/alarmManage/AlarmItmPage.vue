@@ -1591,12 +1591,13 @@ onUnmounted(() => {
         v-if="!globalLoading"
         ref="tableRef"
         :data="isAggregate?currentPageData:virtualData"
+        :size="'default'"
         border
         stripe
         :row-style="{ height: '50px' }"
-        style="width: 100%; font-size: 13px;"
+        style="width: 100%; font-size: 13px; color: #303133;"
         :cell-style="{ textAlign: 'center' }"
-        :header-cell-style="{ textAlign: 'center' }"
+        :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
         row-key="event_id"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
         @selection-change="handleSelectionChange"
@@ -1806,14 +1807,16 @@ onUnmounted(() => {
         type="card"
         class="demo-tabs"
         @tab-click="handleClick"
+
         style="user-select: none;"
       >
         <el-tab-pane label="基本信息" name="基本信息" style="user-select: text;">
           <el-table
             :data="[currentRow]"
             border
+            style="width: 100%; font-size: 13px; color: #303133;"
             :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
-            :header-cell-style="{ textAlign: 'center' }"
+            :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
             :row-style="{ height: '60px' }"
           >
             <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
@@ -1873,7 +1876,8 @@ onUnmounted(() => {
             :data="[currentRow]"
             border
             :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
-            :header-cell-style="{ textAlign: 'center' }"
+            style="width: 100%; font-size: 13px; color: #303133;"
+            :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
             :row-style="{ height: '60px' }"
           >
             <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
