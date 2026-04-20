@@ -109,12 +109,14 @@ export  const EmailAccount = ref(  {
   expiredEmail: '',  // 设置过期时间的邮箱
   resetEmail: ''  , // 重置密码的邮箱
   groupEmail: '' , // 邮件组
+  username: '', // 解锁邮箱
   reset: function() {
     this.newEmail = '';
     this.oldEmail = '';
     this.expiredEmail = '';
     this.resetEmail = '';
     this.groupEmail = '';
+    this.username = '';
   }
 });
 // 邮箱账号管理数据模型
@@ -125,16 +127,19 @@ export const EmailAccountDataModel = ref(
     expiredEmail: '',  // 设置过期时间的邮箱
     expiredDate: '', // 过期时间
     resetEmail: ''  , // 重置密码的邮箱
-    type: '', // 重置密码的类型
+    resetType: '', // 重置密码的类型
     groupEmail: '', // 邮件组
+    username: '', // 解锁邮箱
+    type: '2', // 解锁类型
     reset: function() {
       this.newEmail = '';
       this.oldEmail = '';
       this.expiredEmail = '';
       this.expiredDate = '';
       this.resetEmail = '';
-      this.type = '';
+      this.resetType = '';
       this.groupEmail = '';
+      this.username = '';
     }
   }
 )

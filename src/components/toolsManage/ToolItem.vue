@@ -23,7 +23,7 @@ import axios from 'axios'
 import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox } from 'element-plus'
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
-import { Search, Edit,Key,Timer,Download } from '@element-plus/icons-vue'
+import { Search, Edit,Key,Timer,Download,Unlock } from '@element-plus/icons-vue'
 
 
 
@@ -630,7 +630,7 @@ const resetPasswordRules = ref({
       trigger: 'change',
     },
   ],
-  type: [
+  resetType: [
     {
       required: true,
       message: '请选择类型',
@@ -641,6 +641,16 @@ const resetPasswordRules = ref({
 // 邮箱组导出表单校验规则
 const groupExportRules = ref({
   groupEmail: [
+    {
+      required: true,
+      message: '请输入邮箱账号',
+      trigger: 'change',
+    },
+  ]
+})
+// 邮箱组账号解锁表单校验规则
+const unlockEmailRules = ref({
+  username: [
     {
       required: true,
       message: '请输入邮箱账号',
@@ -1096,6 +1106,31 @@ const groupEmailInput = async (value) => {
   // 只允许输入英文字母和数字
   EmailAccountDataModel.value.groupEmail = `${cleanedValue}@cinda.com.cn`
 }
+// 邮箱账号解锁中新邮箱账号即时校验函数
+const unlockEmailInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
+
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.username = cleanedValue
+  // 只允许输入英文字母和数字
+  EmailAccountDataModel.value.username = cleanedValue
+}
 // 脚本下发表单实例
 const fileUpload = ref(null)
 // 移动令牌表单实例
@@ -1223,6 +1258,7 @@ const renameEmailForm = ref(null)
 const expiredEmailForm = ref(null)
 const resetPasswordForm = ref(null)
 const groupEmailForm = ref(null)
+const unlockEmailForm = ref(null)
 const activeEmailTab = ref('rename')
 const shortcuts = [
   {
@@ -1260,6 +1296,9 @@ const emailSubmit = async () => {
       break
     case 'groupEmail':
       await handleGroupEmailSubmit()
+      break
+    case 'unlockEmail':
+      await unlockEmailSubmit()
       break
     default:
       ElMessage.warning('未知的操作类型')
@@ -1386,9 +1425,9 @@ const handleResetPasswordSubmit = async () => {
     if (valid) {
       try {
         exportDisabled.value.renameSubmit = true
-        const response = await resetPasswdEmail(EmailAccountDataModel.value.resetEmail,EmailAccountDataModel.value.type)
+        const response = await resetPasswdEmail(EmailAccountDataModel.value.resetEmail,EmailAccountDataModel.value.resetType)
         if (response.status === 'success') {
-          ElMessageBox.alert(`邮箱账号【${EmailAccountDataModel.value.resetEmail}】${resetType[EmailAccountDataModel.value.type-1].label}成功`, '修改结果', {
+          ElMessageBox.alert(`邮箱账号【${EmailAccountDataModel.value.resetEmail}】${resetType[EmailAccountDataModel.value.resetType-1].label}成功`, '修改结果', {
             confirmButtonText: '确认',
             type: 'success',
             center: true,
@@ -1403,7 +1442,7 @@ const handleResetPasswordSubmit = async () => {
           })
         }
         else {
-          ElMessageBox.alert(`邮箱账号${resetType[EmailAccountDataModel.value.type-1].label}失败！<br />失败原因：账号【${EmailAccountDataModel.value.resetEmail}】不存在`, '修改结果', {
+          ElMessageBox.alert(`邮箱账号${resetType[EmailAccountDataModel.value.resetType-1].label}失败！<br />失败原因：账号【${EmailAccountDataModel.value.resetEmail}】不存在`, '修改结果', {
             confirmButtonText: '确认',
             type: 'error',
             center: true,
@@ -1478,6 +1517,62 @@ const handleGroupEmailSubmit = async () => {
       validateTimer = setTimeout(() => {
         if (groupEmailForm.value) {
           groupEmailForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
+}
+// 邮箱组账号解锁功能函数
+const unlockEmailSubmit = async () => {
+  if (!unlockEmailForm.value) return
+  await unlockEmailForm.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        exportDisabled.value.renameSubmit = true
+        const response = await unlockAccountInterface(EmailAccountDataModel.value)
+        console.log(response)
+        if (response.status === 'success') {
+          ElMessageBox.alert(`邮箱账号【${EmailAccountDataModel.value.username}@cinda.com.cn】解锁成功！`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'success',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+        else {
+          ElMessageBox.alert(`邮箱账号【${EmailAccountDataModel.value.username}@cinda.com.cn】解锁失败！<br />失败原因：账号【${EmailAccountDataModel.value.username}@cinda.com.cn】不存在`, '修改结果', {
+            confirmButtonText: '确认',
+            type: 'error',
+            center: true,
+            showClose: false,
+            roundButton: true,
+            customClass: 'custom-message-box',
+            dangerouslyUseHTMLString: true,
+            callback: () => {
+              EmailAccount.value.reset()
+              EmailAccountDataModel.value.reset()
+              exportDisabled.value.renameSubmit = false
+            },
+          })
+        }
+      } catch (e) {
+        exportDisabled.value.renameSubmit = false
+        throw new Error(e)
+      }
+    } else {
+      if (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (unlockEmailForm.value) {
+          unlockEmailForm.value.clearValidate()
         }
       }, 2000)
     }
@@ -3558,7 +3653,7 @@ onBeforeUnmount(() => {
       v-model="dialogVisible.emailManage"
       top="10%"
       title="邮箱账号管理"
-      width="500px"
+      width="650px"
       center
       destroy-on-close
       :close-on-click-modal="false"
@@ -3574,7 +3669,7 @@ onBeforeUnmount(() => {
         }
       "
     >
-      <el-tabs v-model="activeEmailTab" type="border-card" class="demo-tabs" @tab-change="() => {EmailAccount.reset();EmailAccountDataModel.reset()}">
+      <el-tabs v-model="activeEmailTab" type="border-card" class="demo-tabs" @tab-change="() => {EmailAccount.reset();EmailAccountDataModel.reset()}" stretch>
         <el-tab-pane name="rename">
           <template #label>
             <span class="custom-tabs-label">
@@ -3690,14 +3785,14 @@ onBeforeUnmount(() => {
                 <template #append>@cinda.com.cn</template>
               </el-input>
             </el-form-item>
-            <el-form-item label="类型" prop="type">
+            <el-form-item label="类型" prop="resetType">
               <el-select
-                v-model="EmailAccountDataModel.type"
+                v-model="EmailAccountDataModel.resetType"
                 class="center-placeholder"
                 clearable
                 placeholder="请选择"
                 style="width: 200px"
-                @clear="EmailAccountDataModel.type = ''"
+                @clear="EmailAccountDataModel.resetType = ''"
               >
                 <el-option v-for="item in resetType" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
@@ -3727,6 +3822,37 @@ onBeforeUnmount(() => {
                 maxlength="20"
                 type="text"
                 @input="groupEmailInput"
+                clearable
+                spellcheck="false"
+              >
+                <template #append>@cinda.com.cn</template>
+              </el-input>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane name="unlockEmail" label="邮箱账号解锁">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><Unlock /></el-icon>
+              <span>邮箱账号解锁</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="unlockEmailForm"
+            label-position="right"
+            label-width="auto"
+            :rules="unlockEmailRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="邮箱账号" prop="username">
+              <el-input
+                v-model="EmailAccount.username"
+                style="width: 350px"
+                placeholder="请输入账号"
+                maxlength="20"
+                type="text"
+                @input="unlockEmailInput"
                 clearable
                 spellcheck="false"
               >
