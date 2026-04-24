@@ -6,6 +6,20 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "15546795",
+      "name": "待办",
+      "font_class": "daiban",
+      "unicode": "e680",
+      "unicode_decimal": 59008
+    },
+    {
+      "icon_id": "38021288",
+      "name": "待办",
+      "font_class": "daiban1",
+      "unicode": "e63f",
+      "unicode_decimal": 58943
+    },
+    {
       "icon_id": "11852267",
       "name": "首页",
       "font_class": "shouye1",
