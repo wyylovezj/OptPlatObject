@@ -7,12 +7,12 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2025-12-08 09:45:07
  */
-import { closeAlert, getUserGroup, searchData, creatOrder } from '@/api/interface.js'
+import { closeAlert, getUserGroup, searchData, creatOrder, suspendAlarm, unSuspendAlarm } from '@/api/interface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
 import { Edit, Plus, Minus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { computed, nextTick, ref, onMounted, watch, onUnmounted, } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, nextTick, ref, onMounted, watch, onUnmounted, h } from 'vue'
 import {
   tableRef,
   loading,
@@ -34,9 +34,10 @@ import {
   searchQuery,
   isAggregate,
   sortRootNodes,
-  debounce, lastScrollTop, startIndex
+  debounce,
+  lastScrollTop,
+  startIndex,
 } from '@/utils/publicData.js'
-
 
 // 权限状态管理
 const permissionStore = usePermissionStore()
@@ -65,7 +66,7 @@ const virtualData = computed(() => {
   // 计算当前页的结束数据的索引
   const end = start + pageSize.value
   // 返回当前页的数据的切片
-  console.log('end', new Date().getTime())// 当 pageSize <= 20 时，渲染所有数据
+  console.log('end', new Date().getTime()) // 当 pageSize <= 20 时，渲染所有数据
   if (pageSize.value <= 20) {
     return tableData.value.slice(start, end)
   }
@@ -87,20 +88,20 @@ const handleTableScroll = (event) => {
 
     // 判断滚动方向
     const scrollDelta = scrollTop - lastScrollTop.value
-    const isScrollingDown = scrollDelta > 0  // 向下滚动
-    const isScrollingUp = scrollDelta < 0    // 向上滚动
+    const isScrollingDown = scrollDelta > 0 // 向下滚动
+    const isScrollingUp = scrollDelta < 0 // 向上滚动
 
     // lastScrollTop.value = scrollTop
     if (isScrollingDown) {
       const newIndex = Math.floor(scrollTop / rowHeight)
       console.log('向下滚动')
-      console.log('scrollTop',scrollTop)
+      console.log('scrollTop', scrollTop)
       // 只有当滚动距离超过阈值时才更新
       if (newIndex >= scrollThreshold) {
         // 计算新的起始索引
-        startIndex.value = Math.min(newIndex + startIndex.value,Math.min(pageSize.value,tableData.value.length)-visibleRowCount)
+        startIndex.value = Math.min(newIndex + startIndex.value, Math.min(pageSize.value, tableData.value.length) - visibleRowCount)
       }
-      if (startIndex.value < Math.min(pageSize.value,tableData.value.length) - visibleRowCount) {
+      if (startIndex.value < Math.min(pageSize.value, tableData.value.length) - visibleRowCount) {
         // 更新上次滚动位置
         lastScrollTop.value = 300
         tableRef.value.setScrollTop(300)
@@ -108,13 +109,13 @@ const handleTableScroll = (event) => {
     }
     if (isScrollingUp) {
       console.log('向上滚动')
-      console.log('scrollTop',scrollTop)
+      console.log('scrollTop', scrollTop)
       const newIndex = Math.ceil((lastScrollTop.value - scrollTop) / rowHeight)
-      console.log('newIndex',newIndex)
+      console.log('newIndex', newIndex)
       // 只有当滚动距离超过阈值时才更新
       if (newIndex >= 1) {
         // 计算新的起始索引
-        startIndex.value = Math.max(startIndex.value - newIndex,0)
+        startIndex.value = Math.max(startIndex.value - newIndex, 0)
         console.log('startIndex', startIndex.value)
       }
       if (startIndex.value === pageSize.value - visibleRowCount) {
@@ -132,7 +133,6 @@ const handleTableScroll = (event) => {
     })
   }
 }
-
 
 /**
  * 初始化表格数据：获取当前查询参数下的告警列表数据，此时数据还未渲染到表格，仅仅是保存在数组中，后续将通过currentPage计算属性进行分页处理
@@ -172,24 +172,23 @@ const initTableData = async () => {
       // 关闭所有显示的消息
       ElMessage.closeAll()
       // 等待消息关闭动画完成，使用Promise确保时序
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     // 显示错误提示消息
     messageInstance.value = ElMessage.error({
-      message: error.message,    // 错误信息内容
-      duration: 1000,        // 显示持续时间(毫秒)
-      offset: window.innerHeight / 2 - 20,   // 垂直偏移量，使消息垂直居中
-      onClose: () => {       // 消息关闭时的回调
-        messageInstance.value = null    // 清空消息实例引用
-      }
+      message: error.message, // 错误信息内容
+      duration: 1000, // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20, // 垂直偏移量，使消息垂直居中
+      onClose: () => {
+        // 消息关闭时的回调
+        messageInstance.value = null // 清空消息实例引用
+      },
     })
   }
 }
 
-
 // 监听 isAggregate 变化，自动重新加载数据
 watch(isAggregate, async (newVal, oldVal) => {
-
   if (newVal === oldVal) return
   globalLoading.value = true
   try {
@@ -205,18 +204,15 @@ watch(isAggregate, async (newVal, oldVal) => {
     // 等待DOM更新完成后重新同步状态
     await nextTick()
     syncExpandStates()
-    await new Promise(resolve => setTimeout(resolve, 500))
-  }
-  catch (error) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  } catch (error) {
     console.error('聚合模式切换失败:', error)
-  }
-  finally {
+  } finally {
     globalLoading.value = false
   }
 })
 // 创建全局加载状态
 const globalLoading = ref(false)
-
 
 // 聚合开关的处理函数
 const handleAggregateChange = async () => {
@@ -237,12 +233,10 @@ const handleAggregateChange = async () => {
     await nextTick()
     syncExpandStates()
     // 确保有足够的加载时间让用户感知
-    await new Promise(resolve => setTimeout(resolve, 500))
-  }
-  catch (error) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  } catch (error) {
     console.error('切换聚合模式失败:', error)
-  }
-  finally {
+  } finally {
     // 同时关闭两种加载状态
     globalLoading.value = false
     loading.value = false
@@ -260,7 +254,6 @@ const clearExpandStates = () => {
 
 // 同步展开状态
 const syncExpandStates = async () => {
-
   await nextTick()
   blinkTrigger.value = true
 }
@@ -294,12 +287,12 @@ const handleOptimizedParentSelection = (parentRow, isSelected) => {
 
   if (isSelected) {
     // 选中父节点 -> 批量选中所有子节点
-    childNodes.forEach(child => {
+    childNodes.forEach((child) => {
       operations.push({ action: 'select', node: child })
     })
   } else {
     // 取消父节点 -> 批量取消所有子节点
-    childNodes.forEach(child => {
+    childNodes.forEach((child) => {
       operations.push({ action: 'deselect', node: child })
     })
   }
@@ -320,9 +313,7 @@ const handleSelectAll = async () => {
     console.log('当前页总行数:', currentPageRows.length)
 
     // 判断当前页面的选中状态
-    const currentPageSelectedCount = currentPageRows.filter(row =>
-      currentSelection.some(selected => selected.event_id === row.event_id)
-    ).length
+    const currentPageSelectedCount = currentPageRows.filter((row) => currentSelection.some((selected) => selected.event_id === row.event_id)).length
     // 检查是否当前页所有行都已选中
     const isCurrentPageFullySelected = currentPageSelectedCount === currentPageRows.length && currentPageRows.length > 0
     if (isCurrentPageFullySelected) {
@@ -339,7 +330,7 @@ const handleSelectAll = async () => {
       tableRef.value?.clearSelection()
 
       // 手动选中当前页所有行
-      currentPageRows.forEach(row => {
+      currentPageRows.forEach((row) => {
         tableRef.value?.toggleRowSelection(row, true)
       })
     }
@@ -347,17 +338,17 @@ const handleSelectAll = async () => {
     return
   }
   // 获取当前页的所有根节点
-  const allRootNodes = currentPageData.value.filter(row => row.hasChildren)
+  const allRootNodes = currentPageData.value.filter((row) => row.hasChildren)
 
   // 检查是否有根节点未被展开
-  const unexpandedRootNodes = allRootNodes.filter(rootNode => !expandedRows.value.has(rootNode.event_id))
+  const unexpandedRootNodes = allRootNodes.filter((rootNode) => !expandedRows.value.has(rootNode.event_id))
 
   // 如果有未展开的根节点，提示用户
   if (unexpandedRootNodes.length > 0) {
     // 如果已有消息实例，先关闭所有消息
     if (messageInstance.value) {
       ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
 
     // 显示警告消息
@@ -367,7 +358,7 @@ const handleSelectAll = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
     return
   }
@@ -376,10 +367,8 @@ const handleSelectAll = async () => {
   const currentPageRows = currentPageData.value
 
   // 检查是否所有根节点都被选中
-  const rootNodes = currentPageRows.filter(row => row.hasChildren)
-  const allRootsSelected = rootNodes.every(root =>
-    currentSelection.some(selected => selected.event_id === root.event_id)
-  )
+  const rootNodes = currentPageRows.filter((row) => row.hasChildren)
+  const allRootsSelected = rootNodes.every((root) => currentSelection.some((selected) => selected.event_id === root.event_id))
 
   if (allRootsSelected && rootNodes.length > 0) {
     // 当前所有根节点都已选中 -> 取消全选
@@ -390,7 +379,7 @@ const handleSelectAll = async () => {
     // 收集所有需要取消的子节点
     const cancelOperations = []
     // 确保所有子节点也被取消
-    rootNodes.forEach(root => {
+    rootNodes.forEach((root) => {
       let childNodes = []
       if (root.children && root.children.length > 0) {
         childNodes = root.children
@@ -398,7 +387,7 @@ const handleSelectAll = async () => {
         childNodes = root._cachedChildren
       }
 
-      childNodes.forEach(child => {
+      childNodes.forEach((child) => {
         cancelOperations.push({ action: 'deselect', node: child })
       })
     })
@@ -415,7 +404,7 @@ const handleSelectAll = async () => {
     // 使用您现有的优化函数
     nextTick(() => {
       setTimeout(() => {
-        rootNodes.forEach(root => {
+        rootNodes.forEach((root) => {
           // 先确保根节点被选中
           tableRef.value?.toggleRowSelection(root, true)
           // 重用您现有的优化处理函数
@@ -444,17 +433,17 @@ const handleReverseSelection = async () => {
     return
   }
   // 获取当前页的所有根节点
-  const allRootNodes = currentPageData.value.filter(row => row.hasChildren)
+  const allRootNodes = currentPageData.value.filter((row) => row.hasChildren)
 
   // 检查是否有根节点未被展开
-  const unexpandedRootNodes = allRootNodes.filter(rootNode => !expandedRows.value.has(rootNode.event_id))
+  const unexpandedRootNodes = allRootNodes.filter((rootNode) => !expandedRows.value.has(rootNode.event_id))
 
   // 如果有未展开的根节点，提示用户
   if (unexpandedRootNodes.length > 0) {
     // 如果已有消息实例，先关闭所有消息
     if (messageInstance.value) {
       ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
 
     // 显示警告消息
@@ -464,28 +453,24 @@ const handleReverseSelection = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
     return
   }
   // 聚合模式
-  const rootNodes = currentPageData.value.filter(row => row.hasChildren)
+  const rootNodes = currentPageData.value.filter((row) => row.hasChildren)
   const currentSelection = tableRef.value?.getSelectionRows() || []
   const operations = []
   // 处理根节点反选
-  rootNodes.forEach(root => {
+  rootNodes.forEach((root) => {
     // 获取根节点和子节点的当前选中状态
-    const isRootSelected = currentSelection.some(selected => selected.event_id === root.event_id)
+    const isRootSelected = currentSelection.some((selected) => selected.event_id === root.event_id)
     const childNodes = root.children || root._cachedChildren || []
-    const selectedChildCount = childNodes.filter(child =>
-      currentSelection.some(selected => selected.event_id === child.event_id)
-    ).length
+    const selectedChildCount = childNodes.filter((child) => currentSelection.some((selected) => selected.event_id === child.event_id)).length
     // 判断当前状态
     const isFullySelected = isRootSelected && selectedChildCount === childNodes.length && childNodes.length > 0
     const isFullyUnselected = !isRootSelected && selectedChildCount === 0
     const isPartiallySelected = selectedChildCount > 0 && selectedChildCount < childNodes.length
-
-
 
     // 根据当前状态决定反选操作
     if (isFullySelected) {
@@ -498,14 +483,12 @@ const handleReverseSelection = async () => {
       console.log('选中根节点全选:', root.event_id)
       tableRef.value?.toggleRowSelection(root, true)
       handleOptimizedParentSelection(root, true)
-    } else if (isPartiallySelected){
-
+    } else if (isPartiallySelected) {
       console.log('优化部分选中反选:', root.event_id)
 
-
       // 精确反选子节点：已选的取消，未选的选中
-      childNodes.forEach(child => {
-        const isChildCurrentlySelected = currentSelection.some(selected => selected.event_id === child.event_id)
+      childNodes.forEach((child) => {
+        const isChildCurrentlySelected = currentSelection.some((selected) => selected.event_id === child.event_id)
 
         if (isChildCurrentlySelected) {
           // 当前已选中的子节点 -> 取消选择
@@ -528,17 +511,13 @@ const handleReverseSelection = async () => {
       selectedRows.value = tableRef.value.getSelectionRows()
     }
   }, 100)
-
 }
 
 // 每页条数：默认为10
 // const pageSize = ref(10)
 
 // 数组：每页可选显示行数
-const pageSizeOptions = [10, 20, 50,100,500]
-
-
-
+const pageSizeOptions = [10, 20, 50, 100, 500]
 
 /**
  * 处理每页条数变化
@@ -597,7 +576,10 @@ const handleSelectionChange = debounce((selection) => {
   // selection是表格组件selection-change事件传递的参数，表示当前选中行的数组
   // 将响应式变量selectedRows的值更新为新的选中行数组，selectedRows绑定到表格组件的选中行属性
   selectedRows.value = selection
-  console.log('选择变更:', selection.map(row => row.event_id))
+  console.log(
+    '选择变更:',
+    selection.map((row) => row.event_id),
+  )
   // 在聚合模式下处理父子节点联动
   if (isAggregate.value) {
     // 延迟执行父子节点同步
@@ -605,13 +587,13 @@ const handleSelectionChange = debounce((selection) => {
       syncParentChildSelection()
     }, 100)
   }
-},100)
+}, 100)
 // 新增：标记是否正在处理行选择事件
 let isRowSelectProcessing = false
 // 新增：自定义行选择处理函数
-const handleRowSelect = (selection,row) => {
+const handleRowSelect = (selection, row) => {
   console.log('行选择事件:', row.event_id, row.hasChildren)
-  console.log('行选择事件:',selectedEventIds.value)
+  console.log('行选择事件:', selectedEventIds.value)
   // 设置处理中标志，防止 handleSelectionChange 干扰
   isRowSelectProcessing = true
   // 将响应式变量selectedRows的值更新为新的选中行数组，selectedRows绑定到表格组件的选中行属性
@@ -638,10 +620,9 @@ const handleRowSelect = (selection,row) => {
         }, 10)
       }
     }
-    console.log('行选择事件结束:',selectedEventIds.value)
-    console.log('行选择事件结束:selectedRows',selectedRows.value)
-  }
-  finally {
+    console.log('行选择事件结束:', selectedEventIds.value)
+    console.log('行选择事件结束:selectedRows', selectedRows.value)
+  } finally {
     // 延迟释放标志位，让 handleSelectionChange 能够正常更新 selectedRows
     setTimeout(() => {
       isRowSelectProcessing = false
@@ -688,8 +669,8 @@ const handleSelectAllHeader = async (selection) => {
   }
 
   // 聚合模式：先检查根节点展开状态
-  const allRootNodes = currentPageData.value.filter(row => row.hasChildren)
-  const unexpandedRootNodes = allRootNodes.filter(rootNode => !expandedRows.value.has(rootNode.event_id))
+  const allRootNodes = currentPageData.value.filter((row) => row.hasChildren)
+  const unexpandedRootNodes = allRootNodes.filter((rootNode) => !expandedRows.value.has(rootNode.event_id))
 
   // 如果有未展开的根节点，提示用户
   if (unexpandedRootNodes.length > 0) {
@@ -699,7 +680,7 @@ const handleSelectAllHeader = async (selection) => {
     // 如果已有消息实例，先关闭所有消息
     if (messageInstance.value) {
       ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
 
     // 显示警告消息
@@ -709,7 +690,7 @@ const handleSelectAllHeader = async (selection) => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
 
     // 重要：恢复表格的选中状态到点击前的状态
@@ -718,7 +699,7 @@ const handleSelectAllHeader = async (selection) => {
       tableRef.value?.clearSelection()
       // 恢复之前的选中状态
       if (selectedRows.value.length > 0) {
-        selectedRows.value.forEach(row => {
+        selectedRows.value.forEach((row) => {
           tableRef.value?.toggleRowSelection(row, true)
         })
       }
@@ -737,11 +718,11 @@ const findParentNode = (childEventId) => {
   for (const node of tableData.value) {
     if (node.hasChildren) {
       // 检查已加载的子节点
-      if (node.children && node.children.some(child => child.event_id === childEventId)) {
+      if (node.children && node.children.some((child) => child.event_id === childEventId)) {
         return node
       }
       // 检查缓存的子节点
-      if (node._cachedChildren && node._cachedChildren.some(child => child.event_id === childEventId)) {
+      if (node._cachedChildren && node._cachedChildren.some((child) => child.event_id === childEventId)) {
         return node
       }
     }
@@ -787,10 +768,10 @@ const dialogVisibleOrder = ref(false)
 const getSeverityColor = (severity) => {
   // 定义严重程度与颜色的映射关系
   const colorMap = {
-    "严重": '#FF0000', // 红色，表示最高优先级
-    "重要": '#fa8c16', // 橙色，表示中等优先级
-    "一般": '#ffd100', // 黄色，表示较低优先级
-    "普通": '#6cbc45', // 黄色，表示较低优先级
+    严重: '#FF0000', // 红色，表示最高优先级
+    重要: '#fa8c16', // 橙色，表示中等优先级
+    一般: '#ffd100', // 黄色，表示较低优先级
+    普通: '#6cbc45', // 黄色，表示较低优先级
   }
   // 返回匹配的颜色代码，如果没有匹配则返回默认灰色
   return colorMap[severity] || '#d9d9d9'
@@ -803,13 +784,13 @@ const getSeverityColor = (severity) => {
  */
 const getStateClass = (state) => {
   const classMap = {
-    '未处理': 'status-unprocessed',
-    '已分派': 'status-assigned',
-    '已关闭': 'status-closed',
+    未处理: 'status-unprocessed',
+    已分派: 'status-assigned',
+    已挂起: 'status-suspended',
+    已关闭: 'status-closed',
   }
   return classMap[state] || 'status-default'
 }
-
 
 /**
  * 表格中《操作》中查看按钮回调函数
@@ -841,18 +822,19 @@ const handleClose = async (row) => {
       // 关闭所有显示的消息
       ElMessage.closeAll()
       // 等待消息关闭动画完成，使用Promise确保时序
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     // 显示警告消息，提示用户使用批量关闭
     messageInstance.value = ElMessage.warning({
       message: '已勾选数据，请点击批量关闭', // 提示内容
-      duration: 1000,    // 显示持续时间(毫秒)
-      offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
-      onClose: () => {    // 消息关闭时的回调
-        messageInstance.value = null   // 清空消息实例引用
-      }
+      duration: 1000, // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20, // 垂直偏移量，使消息垂直居中
+      onClose: () => {
+        // 消息关闭时的回调
+        messageInstance.value = null // 清空消息实例引用
+      },
     })
-    return  // 终止函数执行，不打开关闭确认模态框
+    return // 终止函数执行，不打开关闭确认模态框
   }
   // 如果没有选中的行数据，执行以下逻辑：
   // 将当前行数据保存在currentRow中，用于关闭确认模态框中显示
@@ -861,6 +843,119 @@ const handleClose = async (row) => {
   DialogVisibleClose.value = true
 }
 
+/**
+ * 表格中《操作》中挂起列按钮回调函数
+ * @param row - 要挂起的行数据对象
+ * @returns {Promise<void>}
+ */
+const suspend = async (row) => {
+  // 检查是否有选中的行数据
+  if (selectedRows.value.length > 0) {
+    // 如果存在消息实例，先关闭所有消息
+    if (messageInstance.value) {
+      // 关闭所有显示的消息
+      ElMessage.closeAll()
+      // 等待消息关闭动画完成，使用Promise确保时序
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    // 显示警告消息，提示用户使用批量关闭
+    messageInstance.value = ElMessage.warning({
+      message: '已勾选数据，请先取消勾选', // 提示内容
+      duration: 1000, // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20, // 垂直偏移量，使消息垂直居中
+      onClose: () => {
+        // 消息关闭时的回调
+        messageInstance.value = null // 清空消息实例引用
+      },
+    })
+    return // 终止函数执行，不打开关闭确认模态框
+  }
+  // 如果没有选中的行数据，执行以下逻辑：
+  // 将当前行数据保存在currentRow中，用于关闭确认模态框中显示
+  currentRow.value = row
+  // 单行挂起时将当前行加入到接口保存要关闭的event_id的selectedRows数组中
+  // 多行挂起时直接通过表格的selected属性获取选中行。
+  if (selectedRows.value.length === 0) {
+    selectedRows.value.push(currentRow.value)
+  }
+  // 获取工单ID
+  const isSuspended = row.state === '已挂起'
+  const messageText = isSuspended
+    ? '取消挂起后，告警将重新统计在未处理严重告警播报语音中。'
+    : '挂起后告警将不再统计在未处理严重告警播报语音中，直到您手动解除挂起！'
+
+  try {
+    // 等待用户确认
+    await ElMessageBox.confirm(
+      h('p', { style: 'text-indent: 2em; margin: 0;' }, messageText),
+      isSuspended ? '提示' : '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: isSuspended ? 'success' : 'warning',
+        center: true,
+      },
+    )
+    // 等待 MessageBox 完全关闭后再刷新数据
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    // 刷新数据
+    refresh()
+    // 用户点击确认后执行
+    const resultMessageText = isSuspended ? '告警已取消挂起！' : '告警已挂起！'
+
+    // 调用挂起接口
+    if (isSuspended) {
+      await unSuspendAlarm(selectedEventIds.value)
+    } else {
+      await suspendAlarm(selectedEventIds.value)
+    }
+    // // 清空选中行数组
+    selectedRows.value = []
+    // 接口成功后显示成功提示
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    messageInstance.value = ElMessage.success({
+      message: resultMessageText,
+      duration: 1500,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+
+  } catch (error) {
+    // 清空选中行数组
+    selectedRows.value = []
+    // 用户点击取消或接口失败
+    if (error === 'cancel' || error === 'close') {
+      // 用户取消操作
+      ElMessage({
+        type: 'info',
+        message: '挂起操作已取消！',
+      })
+    } else {
+
+      // 接口失败时显示错误提示
+      if (messageInstance.value) {
+        ElMessage.closeAll()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      messageInstance.value = ElMessage.error({
+        message: error.message || '挂起操作失败',
+        duration: 1500,
+        offset: window.innerHeight / 2 - 20,
+        onClose: () => {
+          messageInstance.value = null
+        },
+      })
+    }
+  }
+}
 /**
  * 表格中《操作》中触发工单按钮回调函数
  * @param row
@@ -873,6 +968,7 @@ const handleCreateTicket = (row) => {
   // 获取告警事件ID
   orderModel.value.eventId = row.event_id
   orderModel.value.system_name = row.system_name
+  orderModel.value.orderHandleOpinion = row.alarm_details
   // 打开触发工单对话框
   dialogVisibleOrder.value = true
 }
@@ -886,47 +982,49 @@ const createTicket = async () => {
         // 关闭所有消息
         ElMessage.closeAll()
         // 等待消息关闭动画完成
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0))
       }
-      messageInstance.value= ElMessage.warning({
+      messageInstance.value = ElMessage.warning({
         message: '用户组名或用户名不能为空',
-        duration: 500,  // 显示持续时间(毫秒)
-        offset: window.innerHeight / 2 - 140,  // 垂直偏移量，使消息垂直居中
-        onClose: () => {   // 消息关闭时的回调
-          messageInstance.value = null   // 清空消息实例引用
-        }
+        duration: 500, // 显示持续时间(毫秒)
+        offset: window.innerHeight / 2 - 140, // 垂直偏移量，使消息垂直居中
+        onClose: () => {
+          // 消息关闭时的回调
+          messageInstance.value = null // 清空消息实例引用
+        },
       })
       return
     }
     await creatOrder(orderModel.value)
       .then(async () => {
-          // 关闭工单模态框
-          dialogVisibleOrder.value = false
-          // 清空数据模型
-          orderModel.value.system_name = ''
-          orderModel.value.eventId = ''
-          orderModel.value.userGroup = ''
-          orderModel.value.username = ''
-          orderModel.value.orderHandleOpinion = ''
-          // 更新数据
-          refresh()
-          // 显示成功提示消息
-          if (messageInstance.value) {
-            // 先关闭所有可能存在的消息
-            ElMessage.closeAll()
-            // 等待消息关闭动画完成
-            await new Promise(resolve => setTimeout(resolve, 0));
-          }
+        // 关闭工单模态框
+        dialogVisibleOrder.value = false
+        // 清空数据模型
+        orderModel.value.system_name = ''
+        orderModel.value.eventId = ''
+        orderModel.value.userGroup = ''
+        orderModel.value.username = ''
+        orderModel.value.orderHandleOpinion = ''
+        // 更新数据
+        refresh()
+        // 显示成功提示消息
+        if (messageInstance.value) {
+          // 先关闭所有可能存在的消息
+          ElMessage.closeAll()
+          // 等待消息关闭动画完成
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        }
 
-          // 显示成功提示
-          messageInstance.value = ElMessage.success({
-            message: '工单创建成功', // 成功提示内容
-            duration: 1000,  // 显示持续时间(毫秒)
-            offset: window.innerHeight / 2 - 140,  // 垂直偏移量，使消息垂直居中
-            onClose: () => {   // 消息关闭时的回调
-              messageInstance.value = null   // 清空消息实例引用
-            }
-          })
+        // 显示成功提示
+        messageInstance.value = ElMessage.success({
+          message: '工单创建成功', // 成功提示内容
+          duration: 1000, // 显示持续时间(毫秒)
+          offset: window.innerHeight / 2 - 140, // 垂直偏移量，使消息垂直居中
+          onClose: () => {
+            // 消息关闭时的回调
+            messageInstance.value = null // 清空消息实例引用
+          },
+        })
       })
       .catch(async () => {
         // 显示成功提示消息
@@ -934,21 +1032,21 @@ const createTicket = async () => {
           // 先关闭所有可能存在的消息
           ElMessage.closeAll()
           // 等待消息关闭动画完成
-          await new Promise(resolve => setTimeout(resolve, 0));
+          await new Promise((resolve) => setTimeout(resolve, 0))
         }
 
         // 显示成功提示
         messageInstance.value = ElMessage.error({
           message: '工单创建失败', // 成功提示内容
-          duration: 1000,  // 显示持续时间(毫秒)
-          offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
-          onClose: () => {   // 消息关闭时的回调
-            messageInstance.value = null   // 清空消息实例引用
-          }
+          duration: 1000, // 显示持续时间(毫秒)
+          offset: window.innerHeight / 2 - 20, // 垂直偏移量，使消息垂直居中
+          onClose: () => {
+            // 消息关闭时的回调
+            messageInstance.value = null // 清空消息实例引用
+          },
         })
       })
-  }
-  catch (e) {
+  } catch (e) {
     console.log(e)
   }
 }
@@ -975,10 +1073,8 @@ const closeCurrentAlert = async () => {
     }
 
     // 重要：在修改 tableData 之前先获取选中的 event IDs，使用闭包保存快照
-    const eventIdsToClose = selectedRows.value
-      .filter(row => !(isAggregate.value && row.hasChildren))
-      .map(row => row.event_id)
-    console.log('eventIdsToClose',eventIdsToClose)
+    const eventIdsToClose = selectedRows.value.filter((row) => !(isAggregate.value && row.hasChildren)).map((row) => row.event_id)
+    console.log('eventIdsToClose', eventIdsToClose)
     const handleUser = sessionStorage.getItem('user')
     // 重置模态框状态，关闭确认对话框
     DialogVisibleClose.value = false
@@ -988,8 +1084,8 @@ const closeCurrentAlert = async () => {
     // 调用关闭告警接口
     // 参数：选中的告警ID列表和处理意见
     // await：阻塞代码执行，等待异步函数closeAlert执行完成
-    await closeAlert(selectedEventIds.value, handleOpinion.value,handleUser)
-    console.log('tableData1',tableData.value)
+    await closeAlert(selectedEventIds.value, handleOpinion.value, handleUser)
+    console.log('tableData1', tableData.value)
     // 根据是否为聚合模式采用不同的数据移除策略
     if (isAggregate.value) {
       // 聚合模式：从树形结构中移除节点
@@ -998,11 +1094,9 @@ const closeCurrentAlert = async () => {
       // 非聚合模式：从平面数组中移除
       // removeNodesFromArray(tableData.value, selectedEventIds.value)
       // 非聚合模式：使用批量过滤替代多次 splice
-      tableData.value = tableData.value.filter(
-        item => !selectedEventIds.value.includes(item.event_id)
-      )
+      tableData.value = tableData.value.filter((item) => !selectedEventIds.value.includes(item.event_id))
     }
-    console.log('tableData2',tableData.value)
+    console.log('tableData2', tableData.value)
     // 清空选中行数组
     selectedRows.value = []
     // 清除表格的选中状态，这样即使旧数据重新被加载进来，也不会保持选择状态
@@ -1017,16 +1111,17 @@ const closeCurrentAlert = async () => {
       // 先关闭所有可能存在的消息
       ElMessage.closeAll()
       // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     // 显示成功提示
     messageInstance.value = ElMessage.success({
       message: '告警关闭成功', // 成功提示内容
-      duration: 1500,  // 显示持续时间(毫秒)
-      offset: window.innerHeight / 2 - 20,  // 垂直偏移量，使消息垂直居中
-      onClose: () => {   // 消息关闭时的回调
-        messageInstance.value = null   // 清空消息实例引用
-      }
+      duration: 1500, // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20, // 垂直偏移量，使消息垂直居中
+      onClose: () => {
+        // 消息关闭时的回调
+        messageInstance.value = null // 清空消息实例引用
+      },
     })
     console.log('endtiime', new Date().getTime())
     // 错误处理部分
@@ -1037,16 +1132,17 @@ const closeCurrentAlert = async () => {
       // 如果已有提示框在显示，先关闭它
       ElMessage.closeAll()
       // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     // 显示错误提示消息
     messageInstance.value = ElMessage.error({
-      message: error.message,    // 错误信息内容
-      duration: 1000,        // 显示持续时间(毫秒)
-      offset: window.innerHeight / 2 - 20,   // 垂直偏移量，使消息垂直居中
-      onClose: () => {       // 消息关闭时的回调
-        messageInstance.value = null    // 清空消息实例引用
-      }
+      message: error.message, // 错误信息内容
+      duration: 1000, // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 20, // 垂直偏移量，使消息垂直居中
+      onClose: () => {
+        // 消息关闭时的回调
+        messageInstance.value = null // 清空消息实例引用
+      },
     })
   }
 }
@@ -1056,21 +1152,21 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
   if (!tableRef.value) return
 
   const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
-  console.log('lazyTreeNodeMap',lazyTreeNodeMap)
-  console.log('treeData',treeData)
+  console.log('lazyTreeNodeMap', lazyTreeNodeMap)
+  console.log('treeData', treeData)
   // 记录需要更新的根节点
   const rootNodesToUpdate = new Set()
 
   for (let i = treeData.length - 1; i >= 0; i--) {
     const node = treeData[i]
-    console.log('node',node)
+    console.log('node', node)
     const parentNode = lazyTreeNodeMap[node.event_id]
-    console.log('parentNode1',parentNode)
+    console.log('parentNode1', parentNode)
     // 如果是根节点（聚合模式下的主机节点）
     if (node.isHostNode) {
       // 检查根节点本身是否需要被移除
       if (eventIdsToRemove.includes(node.event_id)) {
-        console.log('移除根节点',node)
+        console.log('移除根节点', node)
         // 清除该根节点的展开状态记录
         if (expandedRows.value.has(node.event_id)) {
           expandedRows.value.delete(node.event_id)
@@ -1080,8 +1176,7 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
         treeData.splice(i, 1)
         continue
       }
-      console.log('执行到这了。。。。。' +
-        '')
+      console.log('执行到这了。。。。。' + '')
       // 处理子节点的移除
       if (node._cachedChildren && node._cachedChildren.length > 0) {
         let hasChanges = false
@@ -1093,12 +1188,12 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
             node._cachedChildren.splice(j, 1)
             node.children.splice(j, 1)
             hasChanges = true
-            console.log('parentNode',parentNode)
+            console.log('parentNode', parentNode)
             if (parentNode && j < parentNode.length) {
               parentNode.splice(j, 1)
             }
-            console.log('parentNode2',parentNode)
-            console.log('parentNode3',tableData.value)
+            console.log('parentNode2', parentNode)
+            console.log('parentNode3', tableData.value)
           }
         }
         // 如果有变化，标记需要更新
@@ -1115,8 +1210,7 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
       updateRootNodeStatistics(node)
 
       // 检查是否应该移除根节点（当所有子节点都被移除后）
-      const hasChildren = (node.children && node.children.length > 0) ||
-        (node._cachedChildren && node._cachedChildren.length > 0)
+      const hasChildren = (node.children && node.children.length > 0) || (node._cachedChildren && node._cachedChildren.length > 0)
 
       if (!hasChildren) {
         // 所有子节点都已被移除，删除根节点
@@ -1129,7 +1223,6 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
         }
         treeData.splice(i, 1)
       }
-
     } else {
       console.log('非根节点:', node.event_id)
       // 非根节点的处理（如果是普通节点）
@@ -1152,8 +1245,8 @@ const removeNodesFromTree = (treeData, eventIdsToRemove) => {
   // 强制更新有变化的根节点的 children 引用，触发响应式更新
   if (rootNodesToUpdate.size > 0) {
     nextTick(() => {
-      rootNodesToUpdate.forEach(eventId => {
-        const rootNode = treeData.find(node => node.event_id === eventId)
+      rootNodesToUpdate.forEach((eventId) => {
+        const rootNode = treeData.find((node) => node.event_id === eventId)
         if (rootNode && rootNode._cachedChildren) {
           // 重新赋值 children，触发响应式更新
           const cachedChildren = [...rootNode._cachedChildren]
@@ -1180,7 +1273,6 @@ const loadTreeNode = (row, treeNode, resolve) => {
   // 模拟异步加载延迟
   setTimeout(() => {
     try {
-
       console.log('row:', row)
       // 获取缓存的子节点数据
       const children = loadLazyChildren(row)
@@ -1190,7 +1282,7 @@ const loadTreeNode = (row, treeNode, resolve) => {
         // 对子节点进行排序
         const sortedChildren = [...children].sort((a, b) => {
           // 按严重级别和时间排序
-          const severityOrder = { "严重": 3,"重要":2,"一般": 1,"普通": 0 }
+          const severityOrder = { 严重: 3, 重要: 2, 一般: 1, 普通: 0 }
           const severityDiff = severityOrder[b.severity] - severityOrder[a.severity]
           if (severityDiff !== 0) return severityDiff
 
@@ -1199,7 +1291,7 @@ const loadTreeNode = (row, treeNode, resolve) => {
         // 限制为前 50 条
         const limitedSortedChildren = sortedChildren.slice(0, 50)
         // 限制加载数量为前 50 条
-        tableData.value = tableData.value.map(node => {
+        tableData.value = tableData.value.map((node) => {
           if (node.event_id === row.event_id) {
             // 节点懒加载后将根节点的children属性赋予_cachedChildren的值
             node.children = limitedSortedChildren
@@ -1246,15 +1338,17 @@ const removeNodesFromArray = (arrayData, eventIdsToRemove) => {
 
 // 更新根节点统计信息
 const updateRootNodeStatistics = (rootNode) => {
-  if (rootNode.children && rootNode.children.length > 0 || rootNode._cachedChildren && rootNode._cachedChildren.length > 0) {
+  if ((rootNode.children && rootNode.children.length > 0) || (rootNode._cachedChildren && rootNode._cachedChildren.length > 0)) {
     const stats = {
       total: rootNode._cachedChildren ? rootNode._cachedChildren.length : 0,
-      critical: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '严重').length : 0,
-      important: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '重要').length : 0,
-      normal: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '一般').length : 0,
-      ordinary: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.severity === '普通').length : 0,
-      processed: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.state === '已分派' || child.state === '已关闭').length : 0,
-      unprocessed: rootNode._cachedChildren ? rootNode._cachedChildren.filter(child => child.state === '未处理').length : 0,
+      critical: rootNode._cachedChildren ? rootNode._cachedChildren.filter((child) => child.severity === '严重').length : 0,
+      important: rootNode._cachedChildren ? rootNode._cachedChildren.filter((child) => child.severity === '重要').length : 0,
+      normal: rootNode._cachedChildren ? rootNode._cachedChildren.filter((child) => child.severity === '一般').length : 0,
+      ordinary: rootNode._cachedChildren ? rootNode._cachedChildren.filter((child) => child.severity === '普通').length : 0,
+      processed: rootNode._cachedChildren
+        ? rootNode._cachedChildren.filter((child) => child.state === '已分派' || child.state === '已关闭').length
+        : 0,
+      unprocessed: rootNode._cachedChildren ? rootNode._cachedChildren.filter((child) => child.state === '未处理').length : 0,
     }
 
     rootNode.statistics = stats
@@ -1269,11 +1363,11 @@ const updateRootNodeStatistics = (rootNode) => {
 // 获取最高级别（从 treeData.js 中提取的逻辑）
 const getHighestSeverity = (children) => {
   // 定义严重程度顺序映射，数值越大表示级别越高
-  const severityOrder = { "严重": 4, "重要": 3, "一般": 2, "普通": 1 }
+  const severityOrder = { 严重: 4, 重要: 3, 一般: 2, 普通: 1 }
 
   // 如果没有子节点，返回默认级别
   if (!children || children.length === 0) {
-    return "普通"
+    return '普通'
   }
 
   // 使用 reduce 方法遍历数组，找出最高严重级别
@@ -1283,7 +1377,7 @@ const getHighestSeverity = (children) => {
 
     // 如果当前报警级别高于已知最高级别，更新最高级别
     return currentLevel > highestLevel ? alarm.severity : highest
-  }, "普通") // 初始最高级别设为"普通"
+  }, '普通') // 初始最高级别设为"普通"
 }
 
 // 获取最新时间（从 treeData.js 中提取的逻辑）
@@ -1292,7 +1386,7 @@ const getLatestTime = (children) => {
     const currentTime = new Date(alarm.occurrenceTime)
     const latestTime = new Date(latest)
     return currentTime > latestTime ? alarm.occurrenceTime : latest
-  }, "1970-01-01 00:00:00")
+  }, '1970-01-01 00:00:00')
 }
 // 添加防循环标志
 let isSyncingSelection = false
@@ -1347,11 +1441,11 @@ const getChildNodeIndex = (row) => {
       // 检查当前节点是否为根节点且包含目标子节点
       if (node.hasChildren) {
         // 检查已加载的子节点
-        if (node.children && node.children.some(child => child.event_id === targetEventId)) {
+        if (node.children && node.children.some((child) => child.event_id === targetEventId)) {
           return { rootNode: node, children: node.children }
         }
         // 检查缓存的子节点（未展开的情况）
-        if (node._cachedChildren && node._cachedChildren.some(child => child.event_id === targetEventId)) {
+        if (node._cachedChildren && node._cachedChildren.some((child) => child.event_id === targetEventId)) {
           return { rootNode: node, children: node._cachedChildren }
         }
       }
@@ -1399,17 +1493,20 @@ const syncParentChildSelection = () => {
     console.log('开始同步选择状态...')
     // 获取当前表格中所有选中的行
     const currentSelection = tableRef.value.getSelectionRows()
-    console.log('当前选中行:', currentSelection.map(row => ({
-      id: row.event_id,
-      type: row.hasChildren ? 'parent' : 'child',
-      root: row.hasChildren ? row : ''
-    })))
+    console.log(
+      '当前选中行:',
+      currentSelection.map((row) => ({
+        id: row.event_id,
+        type: row.hasChildren ? 'parent' : 'child',
+        root: row.hasChildren ? row : '',
+      })),
+    )
 
     // 找出所有根节点（无论是否选中）
-    const allParents = currentPageData.value.filter(row => row.hasChildren)
+    const allParents = currentPageData.value.filter((row) => row.hasChildren)
 
-    allParents.forEach(parent => {
-      const isParentSelected = currentSelection.some(row => row.event_id === parent.event_id)
+    allParents.forEach((parent) => {
+      const isParentSelected = currentSelection.some((row) => row.event_id === parent.event_id)
       console.log(`isParentSelected: ${isParentSelected}`)
       // 获取子节点
       let childNodes = []
@@ -1418,17 +1515,15 @@ const syncParentChildSelection = () => {
       } else if (parent._cachedChildren) {
         childNodes = parent._cachedChildren
       }
-      console.log('childNodes',childNodes)
-      const selectedChildren = childNodes.filter(child =>
-        currentSelection.some(selected => selected.event_id === child.event_id)
-      )
-      console.log('selectedChildren',selectedChildren)
+      console.log('childNodes', childNodes)
+      const selectedChildren = childNodes.filter((child) => currentSelection.some((selected) => selected.event_id === child.event_id))
+      console.log('selectedChildren', selectedChildren)
       console.log(`父节点 ${parent.event_id}: 选中=${isParentSelected}, 子节点总数=${childNodes.length}, 已选中子节点=${selectedChildren.length}`)
 
       if (isParentSelected) {
         // 父节点被选中 -> 确保所有子节点都被选中
-        childNodes.forEach(child => {
-          if (!currentSelection.some(selected => selected.event_id === child.event_id)) {
+        childNodes.forEach((child) => {
+          if (!currentSelection.some((selected) => selected.event_id === child.event_id)) {
             console.log('补选子节点:', child.event_id)
             tableRef.value.toggleRowSelection(child, true)
           }
@@ -1440,8 +1535,7 @@ const syncParentChildSelection = () => {
       }
       console.log('已选中子节点:', selectedEventIds.value)
     })
-  }
-  finally {
+  } finally {
     // 确保标志位被重置
     setTimeout(() => {
       isSyncingSelection = false
@@ -1463,22 +1557,20 @@ const updateParentNodeState = (childNode) => {
     childNodes = parentNode._cachedChildren
   }
 
-  const selectedChildren = childNodes.filter(child =>
-    selectedRows.value.some(selected => selected.event_id === child.event_id)
-  )
+  const selectedChildren = childNodes.filter((child) => selectedRows.value.some((selected) => selected.event_id === child.event_id))
 
   console.log(`父节点 ${parentNode.event_id} 的子节点选择情况: ${selectedChildren.length}/${childNodes.length}`)
 
   // 根据子节点选择情况更新父节点状态
   if (selectedChildren.length === childNodes.length && childNodes.length > 0) {
     // 所有子节点都被选中 -> 选中父节点
-    if (!selectedRows.value.some(row => row.event_id === parentNode.event_id)) {
+    if (!selectedRows.value.some((row) => row.event_id === parentNode.event_id)) {
       console.log('所有子节点选中，选中父节点:', parentNode.event_id)
       tableRef.value?.toggleRowSelection(parentNode, true)
     }
   } else if (selectedChildren.length === 0) {
     // 没有子节点被选中 -> 取消父节点选择
-    if (selectedRows.value.some(row => row.event_id === parentNode.event_id)) {
+    if (selectedRows.value.some((row) => row.event_id === parentNode.event_id)) {
       console.log('无子节点选中，取消父节点:', parentNode.event_id)
       tableRef.value?.toggleRowSelection(parentNode, false)
     }
@@ -1508,7 +1600,7 @@ const batchUpdateSelection = (operations) => {
     const nodesToSelect = []
     const nodesToDeselect = []
 
-    operations.forEach(op => {
+    operations.forEach((op) => {
       if (op.action === 'select') {
         nodesToSelect.push(op.node)
       } else {
@@ -1519,18 +1611,17 @@ const batchUpdateSelection = (operations) => {
     // 批量执行选择操作
     if (nodesToSelect.length > 0) {
       console.log(`批量选中 ${nodesToSelect.length} 个节点`)
-      nodesToSelect.forEach(node => {
+      nodesToSelect.forEach((node) => {
         tableRef.value.toggleRowSelection(node, true)
       })
     }
 
     if (nodesToDeselect.length > 0) {
       console.log(`批量取消 ${nodesToDeselect.length} 个节点`)
-      nodesToDeselect.forEach(node => {
+      nodesToDeselect.forEach((node) => {
         tableRef.value.toggleRowSelection(node, false)
       })
     }
-
   } finally {
     setTimeout(() => {
       isBatchProcessing = false
@@ -1559,11 +1650,10 @@ onUnmounted(() => {
 
 <template>
   <div class="item-page-container">
-
     <!--  全选/反选按钮-->
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; justify-content: space-between; align-items: center">
       <!--  全选/反选按钮-->
-      <div style="display: flex; align-items: center;">
+      <div style="display: flex; align-items: center">
         <el-button type="primary" @click="handleSelectAll">全选</el-button>
         <el-button type="primary" @click="handleReverseSelection">反选</el-button>
       </div>
@@ -1580,7 +1670,6 @@ onUnmounted(() => {
     </div>
     <!-- 表格 -->
     <div class="table-container">
-
       <!-- 全局加载遮罩 -->
       <div v-if="globalLoading" class="global-loading-overlay">
         <div class="loading-content">
@@ -1590,12 +1679,12 @@ onUnmounted(() => {
       <el-table
         v-if="!globalLoading"
         ref="tableRef"
-        :data="isAggregate?currentPageData:virtualData"
+        :data="isAggregate ? currentPageData : virtualData"
         :size="'default'"
         border
         stripe
         :row-style="{ height: '50px' }"
-        style="width: 100%; font-size: 13px; color: #303133;"
+        style="width: 100%; font-size: 13px; color: #303133"
         :cell-style="{ textAlign: 'center' }"
         :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
         row-key="event_id"
@@ -1611,7 +1700,7 @@ onUnmounted(() => {
         @scroll="handleTableScroll"
       >
         <el-table-column type="selection" reserve-selection min-width="2%" :resizable="false" />
-<!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->
+        <!--        <el-table-column prop="ID" label="聚合" min-width="4%" :resizable="false" />-->
         <!-- 自定义展开列 -->
         <el-table-column v-if="isAggregate" label="聚合" min-width="4%" :resizable="false">
           <template #default="{ row }">
@@ -1622,28 +1711,28 @@ onUnmounted(() => {
                 circle
                 size="small"
                 class="expand-btn"
-                :class="{ 'expanded': isRowExpanded(row) }"
+                :class="{ expanded: isRowExpanded(row) }"
               />
               <div v-else class="empty-expand"></div>
             </div>
           </template>
         </el-table-column>
-<!--        <el-table-column label="序号" type="index" :index="(index) => (currentPage - 1) * pageSize + index + 1" min-width="4%" :resizable="false" />-->
+        <!--        <el-table-column label="序号" type="index" :index="(index) => (currentPage - 1) * pageSize + index + 1" min-width="4%" :resizable="false" />-->
         <el-table-column label="序号" min-width="5%" :resizable="false">
           <template #default="{ row, $index }">
             <span
               :class="{ 'root-node-index': isAggregate && row.hasChildren }"
               :style="{
-                  backgroundColor: isAggregate && row.hasChildren ? '#409eff' : 'transparent',
-                  color: isAggregate && row.hasChildren ? 'white' : 'inherit',
-                  padding: isAggregate && row.hasChildren ? '2px 6px' : '0',
-                  borderRadius: isAggregate && row.hasChildren ? '4px' : '0'
+                backgroundColor: isAggregate && row.hasChildren ? '#409eff' : 'transparent',
+                color: isAggregate && row.hasChildren ? 'white' : 'inherit',
+                padding: isAggregate && row.hasChildren ? '2px 6px' : '0',
+                borderRadius: isAggregate && row.hasChildren ? '4px' : '0',
               }"
             >
               <span v-if="isAggregate">
                 <!-- 聚合模式：根节点显示子节点个数，子节点显示独立序号 -->
                 <span v-if="row.hasChildren">
-                  {{ row._cachedChildren ? row._cachedChildren.length : (row.children ? row.children.length : 0) }}
+                  {{ row._cachedChildren ? row._cachedChildren.length : row.children ? row.children.length : 0 }}
                 </span>
                 <span v-else>
                   {{ getChildNodeIndex(row) }}
@@ -1651,7 +1740,7 @@ onUnmounted(() => {
               </span>
               <span v-else>
                 <!-- 非聚合模式：正常序号 -->
-<!--                {{ (currentPage - 1) * pageSize + $index + 1 }}-->
+                <!--                {{ (currentPage - 1) * pageSize + $index + 1 }}-->
                 {{ (currentPage - 1) * pageSize + startIndex + $index + 1 }}
               </span>
             </span>
@@ -1661,100 +1750,83 @@ onUnmounted(() => {
         <el-table-column prop="event_id" label="事件ID" v-if="false" />
         <el-table-column prop="severity" label="级别" :sortable="isAggregate ? false : 'custom'" min-width="5%" :resizable="false">
           <template #default="scope">
-          <span
-            class="severity-indicator"
-            :class="{ 'severity-blink': blinkTrigger && scope.row.severity === '严重' }"
-            :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
-          ></span>
+            <span
+              class="severity-indicator"
+              :class="{ 'severity-blink': blinkTrigger && scope.row.severity === '严重' && scope.row.state !== '已关闭' }"
+              :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
+            ></span>
           </template>
         </el-table-column>
         <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
-          <template #default="{row}">
-              <span :class="getStateClass(row.state)">{{ row.state }}</span>
-          </template>
-        </el-table-column>>
+          <template #default="{ row }">
+            <span :class="getStateClass(row.state)">{{ row.state }}</span>
+          </template> </el-table-column
+        >>
         <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="10%" :resizable="false">
-        <template #default="{row}">
-          {{ row.system_name || '/' }}
-        </template>
+          <template #default="{ row }">
+            {{ row.system_name || '/' }}
+          </template>
         </el-table-column>
         <el-table-column prop="category" label="分类" show-overflow-tooltip min-width="5%" :resizable="false">
-          <template #default="{row}">
+          <template #default="{ row }">
             {{ row.category || '/' }}
           </template>
         </el-table-column>
         <el-table-column prop="object" label="主机名" min-width="16%" show-overflow-tooltip :resizable="false">
-          <template #default="{row}">
-            <el-button type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden;">
+          <template #default="{ row }">
+            <el-button type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden">
               {{ row.object || '/' }}
             </el-button>
           </template>
         </el-table-column>
         <el-table-column prop="ip" label="IP地址" show-overflow-tooltip min-width="8%" :resizable="false">
-          <template #default="{row}">
+          <template #default="{ row }">
             {{ row.ip || '/' }}
           </template>
         </el-table-column>
         <el-table-column prop="alarm_details" label="告警描述" show-overflow-tooltip :min-width="isAggregate ? '20%' : '24%'" :resizable="false">
-          <template #default="{row}">
+          <template #default="{ row }">
             {{ row.alarm_details || '/' }}
           </template>
         </el-table-column>
         <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
-          <template #default="{row}">
+          <template #default="{ row }">
             {{ row.occurrenceTime || '/' }}
           </template>
         </el-table-column>
         <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
-          <template #default="{row}">
+          <template #default="{ row }">
             {{ row.processingTime || '/' }}
           </template>
         </el-table-column>
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
           <template #default="scope">
-            <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none;">
+            <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none">
               <el-dropdown trigger="click">
-                <el-button
-                  type="primary"
-                  :icon="Edit"
-                  :disabled="isAggregate && scope.row.hasChildren"
-                >
-                </el-button>
+                <el-button type="primary" :icon="Edit" :disabled="isAggregate && scope.row.hasChildren"> </el-button>
                 <template #dropdown>
                   <el-dropdown-menu style="user-select: none">
+                    <el-dropdown-item @click="handleView(scope.row)" style="color: #409eff; font-weight: bold"> 查看 </el-dropdown-item>
                     <el-dropdown-item
-                      @click="handleView(scope.row)"
-                      style="color: #409EFF;font-weight: bold"
-                    >
-                      查看
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="scope.row.state === '已关闭'"
-                      disabled
+                      :disabled="scope.row.state === '已关闭'"
                       @click="handleClose(scope.row)"
+                      :class="{ isActive: !(scope.row.state === '已关闭') }"
                     >
                       关闭
                     </el-dropdown-item>
                     <el-dropdown-item
-                      v-else
-                      @click="handleClose(scope.row)"
-                      style="color: #409EFF;font-weight: bold"
-                    >
-                      关闭
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="scope.row.state === '已关闭' || scope.row.state === '已分派'"
-                      disabled
+                      :disabled="scope.row.state === '已关闭' || scope.row.state === '已分派'"
                       @click="handleCreateTicket(scope.row)"
+                      :class="{ isActive: !(scope.row.state === '已关闭' || scope.row.state === '已分派') }"
                     >
                       触发工单
                     </el-dropdown-item>
                     <el-dropdown-item
-                      v-else
-                      @click="handleCreateTicket(scope.row)"
-                      style="color: #409EFF;font-weight: bold"
+                      :disabled="scope.row.state === '已关闭'"
+                      @click="suspend(scope.row)"
+                      :class="{ isActive: !(scope.row.state === '已关闭') }"
                     >
-                      触发工单
+                      {{ scope.row.state === '已挂起' ? '取消挂起' : '挂起' }}
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -1765,21 +1837,21 @@ onUnmounted(() => {
       </el-table>
     </div>
     <!-- 下方分页：显示总数、每页条数、页码导航 -->
-    <div style="display: flex; justify-content: space-between; align-items: center;user-select:none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; user-select: none">
       <!--  显示总数  -->
-      <div style="display: flex; align-items: center;">
+      <div style="display: flex; align-items: center">
         <span style="line-height: 20px">共 {{ tableData.length }} 条</span>
       </div>
-      <div style="display: flex; align-items: center;">
+      <div style="display: flex; align-items: center">
         <!--  每页条数  -->
         <div style="display: flex; align-items: flex-start; margin-right: 10px; user-select: none">
           <el-select v-model="pageSize" style="width: 70px; margin: 0" @change="handleSizeChange">
             <el-option v-for="item in pageSizeOptions" :key="item" :label="item" :value="item" />
           </el-select>
-          <span style="line-height: 32px;margin-left: 10px;">条/页</span>
+          <span style="line-height: 32px; margin-left: 10px">条/页</span>
         </div>
         <!--  页码导航  -->
-        <div style="display: flex; align-items: center;">
+        <div style="display: flex; align-items: center">
           <el-pagination
             background
             v-model:current-page="currentPage"
@@ -1798,117 +1870,133 @@ onUnmounted(() => {
       title="告警详情"
       width="80%"
       center
-      style="user-select: text;min-height: 300px"
+      style="user-select: text; min-height: 300px"
       destroy-on-close
-      @close="() => { dialogVisibleView = false }"
+      @close="
+        () => {
+          dialogVisibleView = false
+        }
+      "
     >
-      <el-tabs
-        v-model="activeName"
-        type="card"
-        class="demo-tabs"
-        @tab-click="handleClick"
-
-        style="user-select: none;"
-      >
-        <el-tab-pane label="基本信息" name="基本信息" style="user-select: text;">
+      <el-tabs v-model="activeName" type="card" class="demo-tabs" @tab-click="handleClick" style="user-select: none">
+        <el-tab-pane label="基本信息" name="基本信息" style="user-select: text">
           <el-table
             :data="[currentRow]"
             border
-            style="width: 100%; font-size: 13px; color: #303133;"
+            style="width: 100%; font-size: 13px; color: #303133"
             :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
-            :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
+            :header-cell-style="{
+              textAlign: 'center',
+              background: '#f5f7fa',
+              color: '#303133',
+              fontWeight: '600',
+              fontSize: '14px',
+              padding: '12px 0',
+            }"
             :row-style="{ height: '60px' }"
           >
-            <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
+            <el-table-column prop="event_id" label="事件ID" min-width="10%" />
             <el-table-column prop="severity" label="级别" min-width="5%" :resizable="false">
               <template #default="scope">
-            <span
-              class="severity-indicator"
-              :class="{ 'severity-blink': scope.row.severity === '严重' }"
-              :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
-            ></span>
+                <span
+                  class="severity-indicator"
+                  :class="{ 'severity-blink': scope.row.severity === '严重' }"
+                  :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
+                ></span>
               </template>
             </el-table-column>
             <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 <span :class="getStateClass(row.state)">{{ row.state }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.system_name || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="category" label="分类" min-width="5%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.category || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="object" label="主机名" min-width="10%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.object || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="ip" label="IP地址" min-width="10%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.ip || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="alarm_details" label="告警描述" min-width="20%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.alarm_details || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.occurrenceTime || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.processingTime || '/' }}
               </template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
-        <el-tab-pane v-if="currentRow.state === '已关闭'" label="处理过程" name="处理过程" style="user-select: text;">
+        <el-tab-pane v-if="currentRow.state === '已关闭'" label="处理过程" name="处理过程" style="user-select: text">
           <el-table
             :data="[currentRow]"
             border
             :cell-style="{ textAlign: 'center', verticalAlign: 'middle', padding: '8px 0' }"
-            style="width: 100%; font-size: 13px; color: #303133;"
-            :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
+            style="width: 100%; font-size: 13px; color: #303133"
+            :header-cell-style="{
+              textAlign: 'center',
+              background: '#f5f7fa',
+              color: '#303133',
+              fontWeight: '600',
+              fontSize: '14px',
+              padding: '12px 0',
+            }"
             :row-style="{ height: '60px' }"
           >
-            <el-table-column prop="event_id" label="事件ID" min-width="10%"/>
+            <el-table-column prop="event_id" label="事件ID" min-width="10%" />
             <el-table-column prop="Alarm_Handler" label="处理人" min-width="15%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.Alarm_Handler || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="processingTime" label="处理时间" min-width="25%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.processingTime || '/' }}
               </template>
             </el-table-column>
             <el-table-column prop="alert_remarks" label="处理意见" min-width="50%" :resizable="false">
-              <template #default="{row}">
+              <template #default="{ row }">
                 {{ row.alert_remarks || '/' }}
               </template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
-
     </el-dialog>
     <!-- 关闭按钮模态框 -->
     <el-dialog
       v-model="DialogVisibleClose"
-      top="10%" title="关闭告警"
+      top="10%"
+      title="关闭告警"
       width="30%"
       center
       :show-close="false"
-      @close="() => { handleOpinion = ''; DialogVisibleClose = false }"
+      @close="
+        () => {
+          handleOpinion = ''
+          DialogVisibleClose = false
+        }
+      "
     >
       <div style="font-size: 20px; color: #606266; user-select: none">处理意见：</div>
       <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
@@ -1928,14 +2016,16 @@ onUnmounted(() => {
         <el-button type="primary" @click="closeCurrentAlert">确认</el-button>
         <el-button
           type="primary"
-          @click="async () =>{
-            DialogVisibleClose = false;
-            // 等待模态框关闭动画完成
-            await nextTick();
-            handleOpinion = ''
-          }
+          @click="
+            async () => {
+              DialogVisibleClose = false
+              // 等待模态框关闭动画完成
+              await nextTick()
+              handleOpinion = ''
+            }
           "
-        >取消</el-button>
+          >取消</el-button
+        >
       </div>
     </el-dialog>
     <!-- 触发工单按钮模态框 -->
@@ -1946,30 +2036,81 @@ onUnmounted(() => {
       width="30%"
       center
       :show-close="false"
-      @close="() => { orderModel.system_name = '';orderModel.eventId = '';orderModel.userGroup = '';orderModel.username ='';orderModel.orderHandleOpinion = '';dialogVisibleOrder = false}"
+      @close="
+        () => {
+          orderModel.system_name = ''
+          orderModel.eventId = ''
+          orderModel.userGroup = ''
+          orderModel.username = ''
+          orderModel.orderHandleOpinion = ''
+          dialogVisibleOrder = false
+        }
+      "
     >
-      <el-form
-        :inline="true"
-        :model="orderModel"
-        style=" display: flex;align-items: center;flex-wrap: wrap;user-select: none"
-      >
+      <el-form :inline="true" :model="orderModel" style="display: flex; align-items: center; flex-wrap: wrap; user-select: none">
         <div style="display: flex; justify-content: space-between; width: 100%">
           <el-form-item label="用户组名" prop="userGroup">
-            <el-select v-model="orderModel.userGroup" class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 150px" @change="orderModel.username = '';dataDictionary.username = []" @visible-change="(visible) => {isFilter = visible;getUserGroup(visible, '用户组')}" @clear="orderModel.userGroup = '';orderModel.username = '';dataDictionary.userGroup = [];dataDictionary.username = []">
+            <el-select
+              v-model="orderModel.userGroup"
+              class="center-placeholder"
+              :filterable="isFilter"
+              clearable
+              placeholder="请选择"
+              style="width: 150px"
+              @change="
+                () => {
+                  orderModel.username = ''
+                  dataDictionary.username = []
+                }
+              "
+              @visible-change="
+                (visible) => {
+                  isFilter = visible
+                  getUserGroup(visible, '用户组')
+                }
+              "
+              @clear="
+                () => {
+                  orderModel.userGroup = ''
+                  orderModel.username = ''
+                  dataDictionary.userGroup = []
+                  dataDictionary.username = []
+                }
+              "
+            >
               <el-option v-for="(item, index) in dataDictionary.userGroup" :key="index" :value="item" />
             </el-select>
           </el-form-item>
           <el-form-item label="用户名" prop="username">
-            <el-select v-model="orderModel.username" class="center-placeholder" :filterable="isFilter" clearable placeholder="请选择" style="width: 150px"  @visible-change="(visible) => {isFilter = visible;getUserGroup(visible, '用户')}" @clear="orderModel.username = '';dataDictionary.username = []">
+            <el-select
+              v-model="orderModel.username"
+              class="center-placeholder"
+              :filterable="isFilter"
+              clearable
+              placeholder="请选择"
+              style="width: 150px"
+              @visible-change="
+                (visible) => {
+                  isFilter = visible
+                  getUserGroup(visible, '用户')
+                }
+              "
+              @clear="
+                () => {
+                  orderModel.username = ''
+                  dataDictionary.username = []
+                }
+              "
+            >
               <el-option v-for="(item, index) in dataDictionary.username" :key="index" :label="item[1]" :value="item[0]" />
             </el-select>
           </el-form-item>
         </div>
         <el-form-item label="处理意见" prop="orderHandleOpinion" style="width: 100%">
-          <div style="display: flex; flex: 1;align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
+          <div style="display: flex; flex: 1; align-items: center; justify-content: center; margin-bottom: 15px; margin-top: 5px">
             <el-input
               v-model="orderModel.orderHandleOpinion"
-              style="font-size: 16px;width: 100%"
+              style="font-size: 16px; width: 100%"
               type="textarea"
               :autosize="{ maxRows: 10, minRows: 5 }"
               resize="none"
@@ -1979,28 +2120,30 @@ onUnmounted(() => {
             />
           </div>
         </el-form-item>
-        <el-form-item style="flex: none;margin-left: auto;margin-right: 5px;">
-          <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
+        <el-form-item style="flex: none; margin-left: auto; margin-right: 5px">
+          <div style="display: flex; justify-content: flex-end; gap: 10px; flex-wrap: nowrap">
             <el-button type="primary" @click="orderModel.orderHandleOpinion = ''">清空</el-button>
             <el-button type="primary" @click="createTicket">确认</el-button>
             <el-button
               type="primary"
               @click="
-                dialogVisibleOrder = false;
-                // 清空数据模型
-                orderModel.value.system_name = ''
-                orderModel.value.eventId = ''
-                orderModel.value.userGroup = ''
-                orderModel.value.username = ''
-                orderModel.value.orderHandleOpinion = ''
-                "
-            >取消</el-button>
+                () => {
+                  dialogVisibleOrder = false
+                  // 清空数据模型
+                  orderModel.value.system_name = ''
+                  orderModel.value.eventId = ''
+                  orderModel.value.userGroup = ''
+                  orderModel.value.username = ''
+                  orderModel.value.orderHandleOpinion = ''
+                }
+              "
+              >取消</el-button
+            >
           </div>
         </el-form-item>
       </el-form>
     </el-dialog>
   </div>
-
 </template>
 
 <style scoped>
@@ -2010,7 +2153,7 @@ onUnmounted(() => {
   height: 85%;
   flex-direction: column;
   box-sizing: border-box;
-  position: relative;  /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
+  position: relative; /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
 }
 
 /* 表格容器样式：防止表格行多时溢出 */
@@ -2037,7 +2180,8 @@ onUnmounted(() => {
   animation: blink 0.5s infinite;
 }
 @keyframes blink {
-  0%,100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -2053,11 +2197,15 @@ onUnmounted(() => {
   background-color: transparent !important;
 }
 .status-closed {
-  color: #67C23A; /* 已处理 - 绿色 */
+  color: #67c23a; /* 已处理 - 绿色 */
   background-color: transparent !important;
 }
 .status-assigned {
-  color: #E6A23C; /* 已分配 - 黄色 */
+  color: #e6a23c; /* 已分配 - 黄色 */
+  background-color: transparent !important;
+}
+.status-suspended {
+  color: #f56c6c; /* 已挂起 - 红色 */
   background-color: transparent !important;
 }
 .status-default {
@@ -2151,7 +2299,6 @@ onUnmounted(() => {
   text-align: center !important;
 }
 
-
 /* 自定义展开列样式 */
 .expand-column {
   display: flex;
@@ -2223,5 +2370,9 @@ onUnmounted(() => {
   margin-top: 10px;
   color: #6cbc45;
   font-size: 15px;
+}
+:deep(.el-dropdown-menu__item.isActive) {
+  color: #409eff !important;
+  font-weight: bold !important;
 }
 </style>
