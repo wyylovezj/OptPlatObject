@@ -67,7 +67,7 @@ export const searchQuery = ref({
   object: '',        // 主机名
   system_name: [],   // 业务系统
   occurrenceTime: [], // 发生时间
-  processingTime: '', // 处理时间
+  processingTime: [], // 处理时间
   state:'',         // 告警状态
   // source: ''         // 告警来源
 })

@@ -281,8 +281,9 @@ const clearSearch = () => {
       object: '', // 主机名
       system_name: [], // 业务系统
       occurrenceTime: [], // 发生时间
+      processingTime: [], // 处理时间
       state: '', // 告警状态
-      source: '', // 告警来源
+      // source: '', // 告警来源
     }
     // 重置数据字典值
     dataDictionary.value.category = []
@@ -372,7 +373,6 @@ const batchSuspend = async () => {
     return
   }
   console.log('endtime', new Date().getTime())
-
 }
 // 批量分派工单功能
 const batchCreateTickets = async () => {
@@ -646,11 +646,11 @@ onUnmounted(() => {
           :default-time="defaultTime"
         />
       </el-form-item>
-<!--      <el-form-item label="告警来源：" prop="source">-->
-<!--        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.source = ''">-->
-<!--          <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value" />-->
-<!--        </el-select>-->
-<!--      </el-form-item>-->
+      <!--      <el-form-item label="告警来源：" prop="source">-->
+      <!--        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.source = ''">-->
+      <!--          <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value" />-->
+      <!--        </el-select>-->
+      <!--      </el-form-item>-->
       <el-form-item style="flex: none; margin-left: auto; margin-right: 5px">
         <div style="display: flex; justify-content: flex-end; gap: 10px; flex-wrap: nowrap">
           <el-button v-if="permissionStore.hasPermission('alarm:reset')" type="primary" @click="clearSearch">重置</el-button>
@@ -658,7 +658,7 @@ onUnmounted(() => {
           <el-button v-if="permissionStore.hasPermission('alarm:search')" type="primary" @click="refresh">搜索</el-button>
           <el-button v-if="permissionStore.hasPermission('alarm:batchClose')" type="primary" @click="batchClose">批量关闭</el-button>
           <el-button v-if="permissionStore.hasPermission('alarm:export')" type="primary" @click="exportAlarmData">导出</el-button>
-<!--          <el-button type="primary" @click="batchCreateTickets">批量触发工单</el-button>-->
+          <!--          <el-button type="primary" @click="batchCreateTickets">批量触发工单</el-button>-->
         </div>
       </el-form-item>
     </el-form>
