@@ -15,24 +15,23 @@ import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { messageInstance, loginLoading } from '@/utils/publicData.js'
 
-
 // 获取store实例
 const authStore = useAuthStore()
 const router = useRouter()
 const loginForm = ref({
   username: '',
-  password: ''
+  password: '',
 })
 // 输入验证规则
 const loginRules = ref({
   username: [
     { required: true, message: '请输入用户名' },
-    { pattern: /^[a-zA-Z0-9]+$/, message: '用户名只能包含英文字母和数字' }
+    { pattern: /^[a-zA-Z0-9]+$/, message: '用户名只能包含英文字母和数字' },
   ],
   password: [
-    { required: true, message: '请输入密码'},
-    { pattern: /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/, message: '密码只能包含英文字母、数字和特殊字符' }
-  ]
+    { required: true, message: '请输入密码' },
+    { pattern: /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/, message: '密码只能包含英文字母、数字和特殊字符' },
+  ],
 })
 
 // 登录回调函数
@@ -44,15 +43,16 @@ const handleLogin = async () => {
       // 关闭所有消息
       ElMessage.closeAll()
       // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
-    messageInstance.value= ElMessage.warning({
+    messageInstance.value = ElMessage.warning({
       message: '用户名或密码不能为空',
-      duration: 500,  // 显示持续时间(毫秒)
-      offset: window.innerHeight / 2 - 140,  // 垂直偏移量，使消息垂直居中
-      onClose: () => {   // 消息关闭时的回调
-        messageInstance.value = null   // 清空消息实例引用
-      }
+      duration: 500, // 显示持续时间(毫秒)
+      offset: window.innerHeight / 2 - 140, // 垂直偏移量，使消息垂直居中
+      onClose: () => {
+        // 消息关闭时的回调
+        messageInstance.value = null // 清空消息实例引用
+      },
     })
     return
   }
@@ -63,10 +63,11 @@ const handleLogin = async () => {
     const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
     // 保存用户名到历史记录
     saveUsernameToHistory(loginForm.value.username)
-    // 存储登录状态到 pinia 仓库
-    await authStore.loginInfoStorage(userData.username, userData.status)
     // 登录成功后，设置标记表示这是登录重定向
     sessionStorage.setItem('isLoginRedirect', 'true')
+    // 存储登录状态到 pinia 仓库
+    await authStore.loginInfoStorage(userData.username, userData.status)
+
     // 登录成功后重定向到所输入的url
     const redirect = router.currentRoute.value.query.redirect || '/alarmManagement'
     await router.push(redirect)
@@ -75,15 +76,14 @@ const handleLogin = async () => {
       // 关闭所有消息
       ElMessage.closeAll()
       // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
-
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     messageInstance.value = ElMessage.success({
       message: '登录成功',
       duration: 1000,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
   } catch (error) {
     console.log(error)
@@ -92,14 +92,14 @@ const handleLogin = async () => {
       // 关闭所有消息
       ElMessage.closeAll()
       // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     messageInstance.value = ElMessage.error({
       message: '登录失败: ' + error.message,
       duration: 1000,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
   } finally {
     loginLoading.value = false
@@ -121,10 +121,8 @@ const saveUsernameToHistory = (username) => {
 }
 
 const querySearch = (queryString, cb) => {
-  const results = queryString
-    ? recentUsernames.value.filter(createFilter(queryString))
-    : recentUsernames.value
-  cb(results.map(item => ({ value: item })))
+  const results = queryString ? recentUsernames.value.filter(createFilter(queryString)) : recentUsernames.value
+  cb(results.map((item) => ({ value: item })))
 }
 
 const createFilter = (queryString) => {
@@ -136,7 +134,6 @@ const createFilter = (queryString) => {
 const handleSelect = (item) => {
   loginForm.value.username = item.value
 }
-
 </script>
 
 <template>
@@ -171,14 +168,7 @@ const handleSelect = (item) => {
       </el-form-item>
 
       <el-form-item>
-        <el-button
-          type="primary"
-          class="login-btn"
-          :loading="loginLoading"
-          @click="handleLogin"
-        >
-          登 录
-        </el-button>
+        <el-button type="primary" class="login-btn" :loading="loginLoading" @click="handleLogin"> 登 录 </el-button>
       </el-form-item>
     </el-form>
   </div>
