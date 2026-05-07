@@ -8,7 +8,7 @@
  * @lastModifiedTime： 2026-01-28 09:29:43
  */
 import '@/iconfonts/iconfont.js'
-import { useRouter } from 'vue-router'
+import { useRouter,useRoute } from 'vue-router'
 import { isCollapse } from '@/utils/publicData.js'
 import { ref,computed } from 'vue'
 import { usePermissionStore } from '@/stores/permissionStore.js'
@@ -41,9 +41,22 @@ const handleClose = (key, keyPath) => {
 }
 const router = useRouter()
 function routeTo(path) {
+  console.log('routeTo', path)
   router.push(path)
 }
-
+const route = useRoute()
+// 判断当前路由是否属于某个菜单或其子菜单
+const isActiveMenu = (menu) => {
+  // 如果菜单有 path 且当前路由完全匹配
+  if (menu.path && route.path === menu.path) {
+    return true
+  }
+  // 如果菜单有子菜单，检查当前路由是否以子菜单路径开头
+  if (menu.children && menu.children.length > 0) {
+    return menu.children.some(child => route.path.startsWith(child.path))
+  }
+  return false
+}
 </script>
 
 <template>
@@ -62,7 +75,7 @@ function routeTo(path) {
       >
         <!-- 动态渲染菜单 -->
         <template v-for="menu in dynamicMenus" :key="menu.id">
-          <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.id">
+          <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.id" :class="{ 'is-active': isActiveMenu(menu) }">
             <template #title>
               <el-icon>
                 <svg class="icon" aria-hidden="true">
@@ -93,39 +106,6 @@ function routeTo(path) {
             <span class="menu">{{ menu.name }}</span>
           </el-menu-item>
         </template>
-<!--        <el-sub-menu index="1">-->
-<!--          <template #title>-->
-<!--            <el-icon>-->
-<!--              <svg class="icon" aria-hidden="true">-->
-<!--                <use xlink:href="#icon-gaojingguanli"></use>-->
-<!--              </svg>-->
-<!--            </el-icon>-->
-<!--            <span class="menu">告警管理</span>-->
-<!--          </template>-->
-<!--          <el-menu-item @click="routeTo('/alarmManagement/alarmItem')" index="1-1">告警数据</el-menu-item>-->
-<!--        </el-sub-menu>-->
-<!--        <el-sub-menu index="2">-->
-<!--          <template #title>-->
-<!--            <el-icon>-->
-<!--              <svg class="icon" aria-hidden="true" >-->
-<!--                <use xlink:href="#icon-shijianguanli"></use>-->
-<!--              </svg>-->
-<!--            </el-icon>-->
-<!--            <span class="menu">工具管理</span>-->
-<!--          </template>-->
-<!--          <el-menu-item @click="routeTo('/toolsManagement/tools')" index="2-1">工具库</el-menu-item>-->
-<!--        </el-sub-menu>-->
-<!--        <el-sub-menu index="3">
-          <template #title>
-            <el-icon>
-              <svg class="icon" aria-hidden="true">
-                <use xlink:href="#icon-xitongguanli"></use>
-              </svg>
-            </el-icon>
-            <span class="menu">运维工具</span>
-          </template>
-          <el-menu-item @click="routeTo" index="3-1">参数配置</el-menu-item>
-        </el-sub-menu>-->
       </el-menu>
     </el-col>
   </el-row>
@@ -206,7 +186,9 @@ function routeTo(path) {
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
-
+:deep(.el-sub-menu.is-active > .el-sub-menu__title) .icon {
+  color: #409eff !important;
+}
 :deep(.el-menu-item:hover) .icon,
 :deep(.el-sub-menu__title:hover) .icon {
   color: rgba(255, 255, 255, 0.95);
