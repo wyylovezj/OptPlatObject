@@ -1,5 +1,6 @@
 <script setup>
 import { usePermissionStore } from '@/stores/permissionStore.js'
+import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 
 /**
  * @author： 魏阳阳
@@ -9,27 +10,15 @@ import { usePermissionStore } from '@/stores/permissionStore.js'
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-01-28 09:29:55
  */
-import { ref,watch,onUnmounted,nextTick } from 'vue'
-import {
-  selectedRows,
-  DialogVisibleClose,
-  refresh,
-  searchQuery,
-  dataDictionary,
-  isFilter,
-  tableData
-} from '@/utils/publicData.js'
+import { ref, watch, onUnmounted, nextTick } from 'vue'
+import { selectedRows, DialogVisibleClose, refresh, searchQuery, dataDictionary, isFilter, tableData } from '@/utils/publicData.js'
 import { getAlarmDictionary } from '@/api/interface.js'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
 
-
 // 权限状态管理
 const permissionStore = usePermissionStore()
-const defaultTime = ref([
-  new Date(2000, 1, 1, 0, 0, 0),
-  new Date(2000, 2, 1, 23, 59, 59),
-])
+const defaultTime = ref([new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 2, 1, 23, 59, 59)])
 const severityOptions = [
   {
     value: 4,
@@ -61,18 +50,21 @@ const stateOptions = [
     value: '已分派',
   },
   {
+    value: '已挂起',
+  },
+  {
     value: '已关闭',
   },
 ]
 
-const sourceOptions = [
-  {
-    value: '云上告警',
-  },
-  {
-    value: '云下告警',
-  },
-]
+// const sourceOptions = [
+//   {
+//     value: '云上告警',
+//   },
+//   {
+//     value: '云下告警',
+//   },
+// ]
 
 // IP地址输入处理函数
 const handleIpInput = (value) => {
@@ -157,124 +149,123 @@ const shortcuts = [
   },
 ]
 // 监听搜索数据模型变化：触发搜索框全选权限功能
-watch(searchQuery, (val) => {
-  if (val.category.length === 0) {
-    checkAllCategory.value = false
-    indeterminateCategory.value = false
-  } else if (val.category.length === dataDictionary.value.category.length) {
-    checkAllCategory.value = true
-    indeterminateCategory.value = false
-  } else if (val.category.length > 0) {
-    indeterminateCategory.value = true
-  }
-  if (val.system_name.length === 0) {
-    checkAllSystem.value = false
-    indeterminateSystem.value = false
-  }  else if (val.system_name.length === dataDictionary.value.system_name.length) {
-    checkAllSystem.value = true
-    indeterminateSystem.value = false
-  }  else if (val.system_name.length > 0) {
-    indeterminateSystem.value = true
-  }
-}, { deep: true }
+watch(
+  searchQuery,
+  (val) => {
+    if (val.category.length === 0) {
+      checkAllCategory.value = false
+      indeterminateCategory.value = false
+    } else if (val.category.length === dataDictionary.value.category.length) {
+      checkAllCategory.value = true
+      indeterminateCategory.value = false
+    } else if (val.category.length > 0) {
+      indeterminateCategory.value = true
+    }
+    if (val.system_name.length === 0) {
+      checkAllSystem.value = false
+      indeterminateSystem.value = false
+    } else if (val.system_name.length === dataDictionary.value.system_name.length) {
+      checkAllSystem.value = true
+      indeterminateSystem.value = false
+    } else if (val.system_name.length > 0) {
+      indeterminateSystem.value = true
+    }
+  },
+  { deep: true },
 )
 // 告警分类全选按钮标志
 const checkAllCategory = ref(false)
 const indeterminateCategory = ref(false)
 // 告警分类搜索关键词
-const searchKeywordCategory = ref('');
+const searchKeywordCategory = ref('')
 
 // 告警分类过滤后的选项列表
-const filteredOptionsCategory = ref([]);
+const filteredOptionsCategory = ref([])
 // 告警分类初始化过滤选项
 const initFilteredOptionsCategory = () => {
   if (searchKeywordCategory.value) {
     // 如果搜索关键词不为空，根据关键词过滤选项
     filteredOptionsCategory.value = dataDictionary.value.category.filter((item) =>
-      Object.values(item)[0].toLowerCase().includes(searchKeywordCategory.value)
-    );
+      Object.values(item)[0].toLowerCase().includes(searchKeywordCategory.value),
+    )
   } else {
     // 如果搜索关键词为空，显示所有选项
-    filteredOptionsCategory.value = [...dataDictionary.value.category];
+    filteredOptionsCategory.value = [...dataDictionary.value.category]
   }
-};
+}
 
 // 告警分类过滤选项函数
 const filterOptionsCategory = () => {
   if (!searchKeywordCategory.value) {
     // 如果搜索关键词为空，显示所有选项
-    filteredOptionsCategory.value = [...dataDictionary.value.category];
+    filteredOptionsCategory.value = [...dataDictionary.value.category]
   } else {
     // 根据关键词过滤选项
     filteredOptionsCategory.value = dataDictionary.value.category.filter((item) =>
-      Object.values(item)[0].toLowerCase().includes(searchKeywordCategory.value)
-    );
+      Object.values(item)[0].toLowerCase().includes(searchKeywordCategory.value),
+    )
   }
-};
+}
 // 告警分类监听下拉框显示状态，初始化过滤选项
 watch((visible) => {
   if (visible) {
-    initFilteredOptionsCategory();
+    initFilteredOptionsCategory()
   }
-});
+})
 // 告警分类全选按钮
 const handleCheckAllCategory = (val) => {
   indeterminateCategory.value = false
   if (val) {
-    searchQuery.value.category = [...filteredOptionsCategory.value];
+    searchQuery.value.category = filteredOptionsCategory.value.map((item) => Object.keys(item)[0])
   } else {
-    searchQuery.value.category = [];
+    searchQuery.value.category = []
   }
-};
+}
 // 业务系统按钮标志
 const checkAllSystem = ref(false)
 const indeterminateSystem = ref(false)
 
 // 业务系统搜索关键词
-const searchKeywordSystemName = ref('');
+const searchKeywordSystemName = ref('')
 
 // 业务系统过滤后的选项列表
-const filteredOptionsSystemName = ref([]);
+const filteredOptionsSystemName = ref([])
 // 业务系统初始化过滤选项
 const initFilteredOptionsSystemName = () => {
   if (searchKeywordSystemName.value) {
     // 如果搜索关键词不为空，根据关键词过滤选项
-    filteredOptionsSystemName.value = dataDictionary.value.system_name.filter((item) =>
-      item.includes(searchKeywordSystemName.value)
-    );
+    filteredOptionsSystemName.value = dataDictionary.value.system_name.filter((item) => item.includes(searchKeywordSystemName.value))
   } else {
     // 如果搜索关键词为空，显示所有选项
-    filteredOptionsSystemName.value = [...dataDictionary.value.system_name];
+    filteredOptionsSystemName.value = [...dataDictionary.value.system_name]
   }
-};
+}
 
 // 业务系统过滤选项函数
 const filterOptionsSystemName = () => {
   if (!searchKeywordSystemName.value) {
     // 如果搜索关键词为空，显示所有选项
-    filteredOptionsSystemName.value = [...dataDictionary.value.system_name];
+    filteredOptionsSystemName.value = [...dataDictionary.value.system_name]
   } else {
     // 根据关键词过滤选项
-    filteredOptionsSystemName.value = dataDictionary.value.system_name.filter((item) =>
-      item.includes(searchKeywordSystemName.value)
-    );
+    filteredOptionsSystemName.value = dataDictionary.value.system_name.filter((item) => item.includes(searchKeywordSystemName.value))
   }
-};
+}
 // 业务系统监听下拉框显示状态，初始化过滤选项
 watch((visible) => {
   if (visible) {
-    initFilteredOptionsSystemName();
+    initFilteredOptionsSystemName()
   }
-});
+})
 // 业务系统全选逻辑
 const handleCheckAllSystem = (val) => {
-  indeterminateSystem.value = false;
+  indeterminateSystem.value = false
   if (val) {
-    searchQuery.value.system_name = [...filteredOptionsSystemName.value];
+    searchQuery.value.system_name = [...filteredOptionsSystemName.value]
   } else {
-    searchQuery.value.system_name = [];
+    searchQuery.value.system_name = []
   }
-};
+}
 // 重置按钮清空搜索数据
 const formSearch = ref(null)
 
@@ -284,22 +275,22 @@ const clearSearch = () => {
     formSearch.value.resetFields()
     // 重置数据模型值
     searchQuery.value = {
-      category: [],      // 告警分类
-      severity: '',      // 告警级别
-      ip: '',            // IP地址
-      object: '',        // 主机名
-      system_name: [],   // 业务系统
+      category: [], // 告警分类
+      severity: '', // 告警级别
+      ip: '', // IP地址
+      object: '', // 主机名
+      system_name: [], // 业务系统
       occurrenceTime: [], // 发生时间
-      state: '',         // 告警状态
-      source: ''         // 告警来源
+      state: '', // 告警状态
+      source: '', // 告警来源
     }
     // 重置数据字典值
-    dataDictionary.value.category= []
-    dataDictionary.value.system_name= []
+    dataDictionary.value.category = []
+    dataDictionary.value.system_name = []
     indeterminateCategory.value = false
     indeterminateSystem.value = false
-    checkAllCategory.value= false
-    checkAllSystem.value= false
+    checkAllCategory.value = false
+    checkAllSystem.value = false
   }
 }
 
@@ -313,10 +304,10 @@ const batchClose = async () => {
     // 关闭所有消息
     ElMessage.closeAll()
     // 使用setTimeout给DOM更新留出时间
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0))
   }
   // 检查选中的节点中是否有状态为"已关闭"的告警
-  const closedRows = selectedRows.value.filter(row => row.state === '已关闭')
+  const closedRows = selectedRows.value.filter((row) => row.state === '已关闭')
   if (closedRows.length > 0) {
     // 显示警告消息
     messageInstance.value = ElMessage.warning({
@@ -325,7 +316,7 @@ const batchClose = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
     return
   }
@@ -336,7 +327,7 @@ const batchClose = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
     return
   }
@@ -345,14 +336,53 @@ const batchClose = async () => {
   // 等待模态框关闭动画完成
   await nextTick()
 }
+// 批量挂起功能
+const batchSuspend = async () => {
+  console.log('start', new Date().getTime())
+  // 如果已有提示框在显示，先关闭它
+  if (messageInstance.value) {
+    // 关闭所有消息
+    ElMessage.closeAll()
+    // 使用setTimeout给DOM更新留出时间
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  // 检查选中的节点中是否有状态为"已关闭"的告警
+  const closedRows = selectedRows.value.filter((row) => row.state === '已关闭')
+  if (closedRows.length > 0) {
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `选中的 ${closedRows.length} 条告警状态为"已关闭"，不允许挂起`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+    return
+  }
+  if (selectedRows.value.length === 0) {
+    messageInstance.value = ElMessage.warning({
+      message: '请先选择要挂起的数据',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+    return
+  }
+  console.log('endtime', new Date().getTime())
+
+}
+// 批量分派工单功能
 const batchCreateTickets = async () => {
   // 检查选中的节点中是否有状态为"已分派"的告警
-  const closedRows = selectedRows.value.filter(row => row.state === '已分派')
+  const closedRows = selectedRows.value.filter((row) => row.state === '已分派')
   if (closedRows.length > 0) {
     // 如果已有消息实例，先关闭所有消息
     if (messageInstance.value) {
       ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
 
     // 显示警告消息
@@ -362,7 +392,7 @@ const batchCreateTickets = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
     return
   }
@@ -372,7 +402,7 @@ const batchCreateTickets = async () => {
       // 关闭所有消息
       ElMessage.closeAll()
       // 使用setTimeout给DOM更新留出时间
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     messageInstance.value = ElMessage.warning({
       message: '请先选择要分派的数据',
@@ -380,7 +410,7 @@ const batchCreateTickets = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
     return
   }
@@ -400,7 +430,7 @@ const exportAlarmData = async () => {
     if (exportData.length === 0) {
       if (messageInstance.value) {
         ElMessage.closeAll()
-        await new Promise(resolve => setTimeout(resolve, 0))
+        await new Promise((resolve) => setTimeout(resolve, 0))
       }
       messageInstance.value = ElMessage.warning({
         message: '没有可导出的数据',
@@ -408,25 +438,25 @@ const exportAlarmData = async () => {
         offset: window.innerHeight / 2 - 20,
         onClose: () => {
           messageInstance.value = null
-        }
+        },
       })
       return
     }
 
-    const excelData = exportData.map(row => ({
-      '事件ID': row.event_id || '',
-      '告警级别': row.severity || '',
-      '告警状态': row.state || '',
-      '业务系统': row.system_name || '',
-      '告警分类': row.category || '',
-      '主机名': row.object || '',
-      'IP地址': row.ip || '',
-      '告警描述': row.alarm_details || '',
-      '发生时间': row.occurrenceTime || '',
-      '处理时间': row.processingTime || '',
-      '告警来源': row.source || '',
-      '处理意见': row.alart_remarks || '',
-      '处理人': row.Alarm_Handler || '',
+    const excelData = exportData.map((row) => ({
+      事件ID: row.event_id || '',
+      告警级别: row.severity || '',
+      告警状态: row.state || '',
+      业务系统: row.system_name || '',
+      告警分类: row.category || '',
+      主机名: row.object || '',
+      IP地址: row.ip || '',
+      告警描述: row.alarm_details || '',
+      发生时间: row.occurrenceTime || '',
+      处理时间: row.processingTime || '',
+      告警来源: row.source || '',
+      处理意见: row.alart_remarks || '',
+      处理人: row.Alarm_Handler || '',
     }))
 
     const worksheet = XLSX.utils.json_to_sheet(excelData)
@@ -441,7 +471,7 @@ const exportAlarmData = async () => {
 
     if (messageInstance.value) {
       ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     messageInstance.value = ElMessage.success({
       message: `成功导出 ${exportData.length} 条告警数据`,
@@ -449,13 +479,13 @@ const exportAlarmData = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
   } catch (error) {
     console.error('导出失败:', error)
     if (messageInstance.value) {
       ElMessage.closeAll()
-      await new Promise(resolve => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     messageInstance.value = ElMessage.error({
       message: '导出失败，请稍后重试',
@@ -463,7 +493,7 @@ const exportAlarmData = async () => {
       offset: window.innerHeight / 2 - 20,
       onClose: () => {
         messageInstance.value = null
-      }
+      },
     })
   }
 }
@@ -474,7 +504,7 @@ onUnmounted(() => {
 
 <template>
   <div class="search-page-container">
-    <el-form ref="formSearch" :inline="true" :model="searchQuery" style=" display: flex;align-items: center;  flex-wrap: wrap;width: 100%;">
+    <el-form ref="formSearch" :inline="true" :model="searchQuery" style="display: flex; align-items: center; flex-wrap: wrap; width: 100%">
       <el-form-item label="告警分类：" prop="category">
         <el-select
           v-model="searchQuery.category"
@@ -487,26 +517,25 @@ onUnmounted(() => {
           clearable
           placeholder="请选择"
           style="width: 200px"
-          @visible-change="(visible) => {getAlarmDictionary(visible, '告警分类')}"
-          @clear="checkAllCategory= false;searchQuery.category = [];dataDictionary.category = []">
+          @visible-change="
+            (visible) => {
+              getAlarmDictionary(visible, '告警分类')
+            }
+          "
+          @clear="
+            () => {
+              checkAllCategory = false
+              searchQuery.category = []
+              dataDictionary.category = []
+            }
+          "
+        >
           <template #header>
             <!-- 自定义搜索输入框 -->
-            <el-input
-              v-model="searchKeywordCategory"
-              placeholder="搜索选项"
-              @input="filterOptionsCategory"
-              clearable
-              spellcheck="false"
-            />
-            <el-checkbox
-              v-model="checkAllCategory"
-              :indeterminate="indeterminateCategory"
-              @change="handleCheckAllCategory"
-            >
-              全选
-            </el-checkbox>
+            <el-input v-model="searchKeywordCategory" placeholder="搜索选项" @input="filterOptionsCategory" clearable spellcheck="false" />
+            <el-checkbox v-model="checkAllCategory" :indeterminate="indeterminateCategory" @change="handleCheckAllCategory"> 全选 </el-checkbox>
           </template>
-          <el-option v-for="(item,index) in filteredOptionsCategory" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
+          <el-option v-for="(item, index) in filteredOptionsCategory" :key="index" :label="Object.values(item)[0]" :value="Object.keys(item)[0]" />
         </el-select>
       </el-form-item>
       <el-form-item label="告警级别：" prop="severity">
@@ -557,26 +586,30 @@ onUnmounted(() => {
           clearable
           placeholder="请选择"
           style="width: 200px"
-          @visible-change="(visible) => {getAlarmDictionary(visible, '系统名称');}"
-          @clear="checkAllSystem= false;searchQuery.system_name = [];dataDictionary.system_name = []">
+          @visible-change="
+            (visible) => {
+              getAlarmDictionary(visible, '系统名称')
+            }
+          "
+          @clear="
+            () => {
+              checkAllSystem = false
+              searchQuery.system_name = []
+              dataDictionary.system_name = []
+            }
+          "
+        >
           <template #header>
             <!-- 自定义搜索输入框 -->
-            <el-input
-              v-model="searchKeywordSystemName"
-              placeholder="搜索选项"
-              @input="filterOptionsSystemName"
-              clearable
-              spellcheck="false"
-            />
-            <el-checkbox
-              v-model="checkAllSystem"
-              :indeterminate="indeterminateSystem"
-              @change="handleCheckAllSystem"
-            >
-              全选
-            </el-checkbox>
+            <el-input v-model="searchKeywordSystemName" placeholder="搜索选项" @input="filterOptionsSystemName" clearable spellcheck="false" />
+            <el-checkbox v-model="checkAllSystem" :indeterminate="indeterminateSystem" @change="handleCheckAllSystem"> 全选 </el-checkbox>
           </template>
-          <el-option v-for="(item,index) in filteredOptionsSystemName" :key="index" :value="item" />
+          <el-option v-for="(item, index) in filteredOptionsSystemName" :key="index" :value="item" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="告警状态：" prop="state">
+        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.state = ''">
+          <el-option v-for="item in stateOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="发生时间：" prop="occurrenceTime">
@@ -588,22 +621,38 @@ onUnmounted(() => {
           value-format="YYYY-MM-DD HH:mm:ss"
           :shortcuts="shortcuts"
           unlink-panels
-          @clear="searchQuery.occurrenceTime = []"
+          @clear="
+            () => {
+              searchQuery.occurrenceTime = []
+            }
+          "
           :default-time="defaultTime"
         />
       </el-form-item>
-      <el-form-item label="告警状态：" prop="state">
-        <el-select v-model="searchQuery.state" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.state = ''">
-          <el-option v-for="item in stateOptions" :key="item.value" :label="item.label" :value="item.value"/>
-        </el-select>
+      <el-form-item label="处理时间：" prop="processingTime">
+        <el-date-picker
+          v-model="searchQuery.processingTime"
+          type="daterange"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          :shortcuts="shortcuts"
+          unlink-panels
+          @clear="
+            () => {
+              searchQuery.processingTime = []
+            }
+          "
+          :default-time="defaultTime"
+        />
       </el-form-item>
-      <el-form-item label="告警来源："  prop="source">
-        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.source = ''">
-          <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value"/>
-        </el-select>
-      </el-form-item>
-      <el-form-item style="flex: none;margin-left: auto;margin-right: 5px;">
-        <div style="display: flex;justify-content: flex-end;gap: 10px;flex-wrap: nowrap;">
+<!--      <el-form-item label="告警来源：" prop="source">-->
+<!--        <el-select v-model="searchQuery.source" clearable placeholder="请选择" style="width: 150px" @clear="searchQuery.source = ''">-->
+<!--          <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value" />-->
+<!--        </el-select>-->
+<!--      </el-form-item>-->
+      <el-form-item style="flex: none; margin-left: auto; margin-right: 5px">
+        <div style="display: flex; justify-content: flex-end; gap: 10px; flex-wrap: nowrap">
           <el-button v-if="permissionStore.hasPermission('alarm:reset')" type="primary" @click="clearSearch">重置</el-button>
           <el-button v-if="permissionStore.hasPermission('alarm:refresh')" type="primary" @click="refresh">刷新</el-button>
           <el-button v-if="permissionStore.hasPermission('alarm:search')" type="primary" @click="refresh">搜索</el-button>
@@ -652,5 +701,4 @@ onUnmounted(() => {
 .centerPlaceholder :deep(.el-input__inner)::placeholder {
   text-align: center;
 }
-
 </style>
