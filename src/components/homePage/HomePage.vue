@@ -5,168 +5,973 @@
  * @desc：首页 - 告警数据统计展示（重新设计版）
  * @date： 2026-04-22
  * @lastModifiedBy： 魏阳阳
- * @lastModifiedTime： 2026-04-24
+ * @lastModifiedTime： 2026-04-27
  */
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Bell, Warning, CircleCheck, Clock, TrendCharts, DataAnalysis, Document, Timer } from '@element-plus/icons-vue'
-import { ElScrollbar } from 'element-plus'
-
-const router = useRouter()
-
-// 模拟告警统计数据
-const alarmStats = ref({
-  todayTotal: 156,
-  yesterdayTotal: 142,
-  criticalCount: 23,
-  criticalRate: 14.74,
-  warningCount: 87,
-  warningRate: 55.77,
-  infoCount: 46,
-  infoRate: 29.49,
-  resolvedCount: 134,
-  resolveRate: 85.9,
-  pendingCount: 22,
-  avgHandleTime: 2.5,
-  monthTotal: 4523,
-  weekTotal: 1089,
-  criticalTrend: [5, 8, 3, 6, 4, 7, 2],
-  overtimeCount: 8,
-  estimatedCompleteTime: '16:30',
-  fastestHandleTime: 0.5,
-  slowestHandleTime: 8.2,
-  todayResolved: 89,
-  weekResolved: 623,
-})
+import { alarmMonitoringData, itsmTodoData } from '@/utils/homePageData.js'
+import { ref, computed, onMounted, watch, nextTick, h ,onUnmounted } from 'vue'
+import { Bell, Warning, CircleCheck, Clock, TrendCharts, Timer } from '@element-plus/icons-vue'
+import { ElScrollbar, ElNotification } from 'element-plus'
+import * as echarts from 'echarts'
+import {
+  getAlertLevelData,
+  getAlertClassData,
+  getAlertStatusData,
+  getAlertStatisticData,
+  getAlertTrendData,
+  getHandleTimeData,
+  getOrderData,
+} from '@/api/homePage.js'
 
 // 计算环比变化
 const totalChange = computed(() => {
-  const change = (((alarmStats.value.todayTotal - alarmStats.value.yesterdayTotal) / alarmStats.value.yesterdayTotal) * 100).toFixed(1)
+  const yesterdayTotal = alarmMonitoringData.value.added.yesterday
+  if (yesterdayTotal === 0) {
+    return 0
+  }
+  const change = (((alarmMonitoringData.value.added.today - yesterdayTotal) / yesterdayTotal) * 100).toFixed(1)
   return parseFloat(change)
 })
 
-// 告警级别分布数据
+// 告警级别分布数据 - 4个级别
 const alarmLevelData = computed(() => [
   {
     label: '严重',
-    value: alarmStats.value.criticalCount,
-    rate: alarmStats.value.criticalRate,
+    value: alarmMonitoringData.value.alertLevel.critical,
+    rate:
+      alarmMonitoringData.value.alertLevel.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.alertLevel.critical / alarmMonitoringData.value.alertLevel.total) * 100).toFixed(2)),
     color: '#ff4757',
-    icon: Warning,
+    type: 'danger',
   },
   {
-    label: '警告',
-    value: alarmStats.value.warningCount,
-    rate: alarmStats.value.warningRate,
+    label: '重要',
+    value: alarmMonitoringData.value.alertLevel.important,
+    rate:
+      alarmMonitoringData.value.alertLevel.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.alertLevel.important / alarmMonitoringData.value.alertLevel.total) * 100).toFixed(2)),
     color: '#ffa502',
-    icon: Bell,
+    type: 'warning',
   },
   {
-    label: '提示',
-    value: alarmStats.value.infoCount,
-    rate: alarmStats.value.infoRate,
+    label: '一般',
+    value: alarmMonitoringData.value.alertLevel.general,
+    rate:
+      alarmMonitoringData.value.alertLevel.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.alertLevel.general / alarmMonitoringData.value.alertLevel.total) * 100).toFixed(2)),
     color: '#2ed573',
-    icon: DataAnalysis,
+    type: 'success',
   },
-])
-
-// 处理状态分布
-const statusData = computed(() => [
   {
-    label: '已处理',
-    value: alarmStats.value.resolvedCount,
-    rate: alarmStats.value.resolveRate,
+    label: '普通',
+    value: alarmMonitoringData.value.alertLevel.ordinary,
+    rate:
+      alarmMonitoringData.value.alertLevel.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.alertLevel.ordinary / alarmMonitoringData.value.alertLevel.total) * 100).toFixed(2)),
     color: '#1e90ff',
-    bgColor: 'rgba(30, 144, 255, 0.1)',
+    type: 'primary',
+  },
+])
+
+// 告警分类分布数据（用于ECharts饼图）
+const alarmCategoryData = computed(() => [
+  { name: '网络', value: alarmMonitoringData.value.classification.network },
+  { name: '系统', value: alarmMonitoringData.value.classification.system },
+  { name: '云平台', value: alarmMonitoringData.value.classification.cloud },
+  { name: '数据库', value: alarmMonitoringData.value.classification.database },
+  { name: 'NBU备份', value: alarmMonitoringData.value.classification.NBU },
+  { name: '中间件', value: alarmMonitoringData.value.classification.middleware },
+  { name: '硬件服务器', value: alarmMonitoringData.value.classification.hardware },
+  { name: 'K8S', value: alarmMonitoringData.value.classification.K8S },
+  { name: '应用链路', value: alarmMonitoringData.value.classification.applicationLink },
+  { name: '大数据', value: alarmMonitoringData.value.classification.Hadoop },
+])
+
+// 告警状态分布
+const alarmStatusData = computed(() => [
+  {
+    label: '未处理',
+    value: alarmMonitoringData.value.status.unprocessed,
+    rate:
+      alarmMonitoringData.value.status.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.status.unprocessed / alarmMonitoringData.value.status.total) * 100).toFixed(2)),
+    color: '#ff6348',
+    type: 'danger',
   },
   {
-    label: '待处理',
-    value: alarmStats.value.pendingCount,
-    rate: (100 - alarmStats.value.resolveRate).toFixed(2),
-    color: '#ff6348',
-    bgColor: 'rgba(255, 99, 72, 0.1)',
+    label: '已分派',
+    value: alarmMonitoringData.value.status.assigned,
+    rate:
+      alarmMonitoringData.value.status.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.status.assigned / alarmMonitoringData.value.status.total) * 100).toFixed(2)),
+    color: '#ffa502',
+    type: 'warning',
+  },
+  {
+    label: '已关闭',
+    value: alarmMonitoringData.value.status.completed,
+    rate:
+      alarmMonitoringData.value.status.total === 0
+        ? 0
+        : Number(((alarmMonitoringData.value.status.completed / alarmMonitoringData.value.status.total) * 100).toFixed(2)),
+    color: '#2ed573',
+    type: 'success',
   },
 ])
 
-// 最近告警趋势（模拟7天数据）
-const trendData = ref([
-  { day: '周一', count: 128 },
-  { day: '周二', count: 145 },
-  { day: '周三', count: 132 },
-  { day: '周四', count: 156 },
-  { day: '周五', count: 142 },
-  { day: '周六', count: 98 },
-  { day: '周日', count: 87 },
-])
-
-// 计算趋势最大值用于进度条
-const maxTrendValue = computed(() => Math.max(...trendData.value.map((item) => item.count)))
-
-// OA待办工单数据 - 按类型分类
-const oaTodoList = ref({
-  publish: [
-    { id: 'OA2026042401', title: '系统升级审批', applicant: '张三', type: '审批', priority: 'high', createTime: '2026-04-24 09:15', status: 'pending' },
-    { id: 'OA2026042402', title: '采购申请审核', applicant: '李四', type: '审核', priority: 'medium', createTime: '2026-04-24 10:30', status: 'pending' },
-    { id: 'OA2026042402', title: '采购申请审核', applicant: '李四', type: '审核', priority: 'medium', createTime: '2026-04-24 10:30', status: 'pending' },
-    { id: 'OA2026042402', title: '采购申请审核', applicant: '李四', type: '审核', priority: 'medium', createTime: '2026-04-24 10:30', status: 'pending' },
-  ],
-  event: [
-    { id: 'OA2026042403', title: '请假申请审批', applicant: '王五', type: '审批', priority: 'low', createTime: '2026-04-24 11:20', status: 'processing' },
-    { id: 'OA2026042404', title: '费用报销审核', applicant: '赵六', type: '审核', priority: 'medium', createTime: '2026-04-24 13:45', status: 'pending' },
-  ],
-  change: [
-  ],
-})
 
 // 当前激活的标签页
-const activeTab = ref('publish')
+const activeTab = ref('request')
 
 // 获取当前标签页的工单列表
 const currentTodoList = computed(() => {
-  return oaTodoList.value[activeTab.value] || []
+  return itsmTodoData.value[activeTab.value] || []
 })
 
 // 获取各类型工单数量
 const todoCounts = computed(() => ({
-  publish: oaTodoList.value.publish.length,
-  event: oaTodoList.value.event.length,
-  change: oaTodoList.value.change.length,
+  publish: itsmTodoData.value.publish.length,
+  event: itsmTodoData.value.event.length,
+  change: itsmTodoData.value.change.length,
+  request: itsmTodoData.value.request.length,
+  problem: itsmTodoData.value.problem.length,
 }))
 
-// OA本周统计数据
-const oaWeekStats = ref({
-  total: 45,
-  completed: 38,
-  processing: 5,
-  pending: 2,
-  avgProcessTime: 1.8,
-  completionRate: 84.44,
+// ITSM待办颜色映射
+const tabColorMap = {
+  publish: {
+    primary: '#409eff',
+    border: '#409eff',
+    bg: 'linear-gradient(135deg, #e8f4ff 0%, #ffffff 100%)',
+    bgLight: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%)',
+    bgHover: 'linear-gradient(135deg, #d6ebff 0%, #ffffff 100%)',
+    bgLightHover: 'linear-gradient(135deg, #e3f2ff 0%, #ffffff 100%)',
+  },
+  event: {
+    primary: '#67c23a',
+    border: '#67c23a',
+    bg: 'linear-gradient(135deg, #eef7e8 0%, #ffffff 100%)',
+    bgLight: 'linear-gradient(135deg, #f3faf0 0%, #ffffff 100%)',
+    bgHover: 'linear-gradient(135deg, #dff0d6 0%, #ffffff 100%)',
+    bgLightHover: 'linear-gradient(135deg, #e9f5e3 0%, #ffffff 100%)',
+  },
+  change: {
+    primary: '#e6a23c',
+    border: '#e6a23c',
+    bg: 'linear-gradient(135deg, #fdf5e8 0%, #ffffff 100%)',
+    bgLight: 'linear-gradient(135deg, #fef8f0 0%, #ffffff 100%)',
+    bgHover: 'linear-gradient(135deg, #faefd6 0%, #ffffff 100%)',
+    bgLightHover: 'linear-gradient(135deg, #fdf2e3 0%, #ffffff 100%)',
+  },
+  request: {
+    primary: '#9c27b0',
+    border: '#9c27b0',
+    bg: 'linear-gradient(135deg, #f3e5f5 0%, #ffffff 100%)',
+    bgLight: 'linear-gradient(135deg, #f8f0fa 0%, #ffffff 100%)',
+    bgHover: 'linear-gradient(135deg, #e8d5f0 0%, #ffffff 100%)',
+    bgLightHover: 'linear-gradient(135deg, #f0e3f5 0%, #ffffff 100%)',
+  },
+  problem: {
+    primary: '#f56c6c',
+    border: '#f56c6c',
+    bg: 'linear-gradient(135deg, #fef0f0 0%, #ffffff 100%)',
+    bgLight: 'linear-gradient(135deg, #fdf6f6 0%, #ffffff 100%)',
+    bgHover: 'linear-gradient(135deg, #fde2e2 0%, #ffffff 100%)',
+    bgLightHover: 'linear-gradient(135deg, #feeeee 0%, #ffffff 100%)',
+  },
+}
+
+// 获取当前tab颜色
+const getCurrentTabColor = computed(() => {
+  return tabColorMap[activeTab.value] || tabColorMap.publish
 })
+
+// OA本周统计数据
+// const oaWeekStats = ref({
+//   total: 45,
+//   completed: 38,
+//   processing: 5,
+//   pending: 2,
+//   avgProcessTime: 1.8,
+//   completionRate: 84.44,
+// })
+
+// // OA本月统计数据
+// const oaMonthStats = ref({
+//   total: 180,
+//   completed: 152,
+//   processing: 20,
+//   pending: 8,
+//   avgProcessTime: 2.1,
+//   completionRate: 84.44,
+// })
+//
+// // OA全部统计数据
+// const oaAllStats = ref({
+//   total: 1250,
+//   completed: 1089,
+//   processing: 120,
+//   pending: 41,
+//   avgProcessTime: 2.3,
+//   completionRate: 87.12,
+// })
+
+// tabs激活状态
+const statsActiveTab = ref('level')
+const timingActiveTab = ref('trend')
+// const workOrderActiveTab = ref('week')
+
+// 当前日期显示
+const currentDateDisplay = ref('')
+// 定时刷新定时器
+let refreshTimer = null
+// 刷新所有数据
+const refreshAllData =  () => {
+  // 更新日期显示
+  const now = new Date()
+  currentDateDisplay.value = now
+    .toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+    .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
+
+  // 调用所有接口更新数据
+  getLevelData()
+  getStatisticData()
+  getTrendData()
+
+  console.log('数据自动刷新完成 -', new Date().toLocaleTimeString())
+}
+// 格式化日期为 yyyy-mm-dd
+const formatDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// 获取本周周一的日期
+const getMondayOfThisWeek = () => {
+  const today = new Date()
+  const dayOfWeek = today.getDay() // 0是周日，1是周一
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek // 计算到周一的差值
+  const monday = new Date(today)
+  monday.setDate(today.getDate() + diff)
+  return monday
+}
+const getWeekTrendData = computed(() => {
+  const monday = getMondayOfThisWeek()
+  const today = new Date()
+  const todayStr = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+  // 获取后端返回的本周趋势数据
+  const weekTrendData = alarmMonitoringData.value.alarmTrend.week || []
+
+  return weekDays.map((day, index) => {
+    const currentDate = new Date(monday)
+    currentDate.setDate(monday.getDate() + index)
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+    const days = String(currentDate.getDate()).padStart(2, '0')
+    const dateStr = `${month}-${days}`
+
+    // 根据索引从后端数据中获取对应的值，如果没有则为 0
+    const count = weekTrendData[index] !== undefined ? weekTrendData[index] : 0
+
+    return {
+      day: dateStr === todayStr ? '今日' : dateStr,
+      isToday: dateStr === todayStr,
+      count: count,
+    }
+  })
+})
+// 获取本月周数据
+const getMonthTrendData = computed(() => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+
+  // 找到本月第一个周一（如果1号不是周一，则找到1号所在周的周一）
+  const firstDayOfWeek = firstDay.getDay() // 0是周日，1是周一
+  const diffToMonday = firstDayOfWeek === 0 ? -6 : 1 - firstDayOfWeek
+  const firstMonday = new Date(firstDay)
+  firstMonday.setDate(firstDay.getDate() + diffToMonday)
+
+  // 从第一个周一开始，按日历周划分
+  let currentWeekStart = new Date(firstMonday)
+  const weeks = []
+  let weekIndex = 1
+
+  // 获取后端返回的本月趋势数据
+  const monthTrendData = alarmMonitoringData.value.alarmTrend.month || []
+
+  while (currentWeekStart <= lastDay) {
+    const weekEnd = new Date(currentWeekStart)
+    weekEnd.setDate(currentWeekStart.getDate() + 6)
+
+    // 计算本周在本月的实际天数
+    let actualDaysCount = 0
+    let tempDate = new Date(currentWeekStart)
+
+    // 逐天检查是否在本月范围内
+    for (let i = 0; i < 7; i++) {
+      if (tempDate >= firstDay && tempDate <= lastDay) {
+        actualDaysCount++
+      }
+      tempDate.setDate(tempDate.getDate() + 1)
+    }
+
+    // 判断是否为本週（今天的日期在本周范围内）
+    const isCurrentWeek = today >= currentWeekStart && today <= weekEnd
+
+    // 只有当本周有在本月的天数时才添加
+    if (actualDaysCount > 0) {
+      // 根据 weekIndex 从后端数据中获取对应的值，如果没有则为 0
+      const count = monthTrendData[weekIndex - 1] !== undefined ? monthTrendData[weekIndex - 1] : 0
+
+      weeks.push({
+        period: isCurrentWeek
+          ? `本周(${actualDaysCount}天)`
+          : `第${['一', '二', '三', '四', '五', '六'][weekIndex - 1] || weekIndex}周(${actualDaysCount}天)`,
+        isCurrentWeek: isCurrentWeek,
+        count: count,
+      })
+      weekIndex++
+    }
+
+    // 移动到下一周的起始日（下一个周一）
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7)
+  }
+
+  return weeks
+})
+// 获取上月周数据
+const getLastMonthTrendData = computed(() => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth(), 0)
+
+  // 找到上月第一个周一
+  const firstDayOfWeek = firstDay.getDay()
+  const diffToMonday = firstDayOfWeek === 0 ? -6 : 1 - firstDayOfWeek
+  const firstMonday = new Date(firstDay)
+  firstMonday.setDate(firstDay.getDate() + diffToMonday)
+
+  // 从第一个周一开始，按日历周划分
+  let currentWeekStart = new Date(firstMonday)
+  const weeks = []
+  let weekIndex = 1
+
+  // 获取后端返回的上月趋势数据
+  const lastMonthTrendData = alarmMonitoringData.value.alarmTrend.lastMonth || []
+
+  while (currentWeekStart <= lastDay) {
+    const weekEnd = new Date(currentWeekStart)
+    weekEnd.setDate(currentWeekStart.getDate() + 6)
+
+    // 计算本周在上月的实际天数
+    let actualDaysCount = 0
+    let tempDate = new Date(currentWeekStart)
+
+    // 逐天检查是否在上月范围内
+    for (let i = 0; i < 7; i++) {
+      if (tempDate >= firstDay && tempDate <= lastDay) {
+        actualDaysCount++
+      }
+      tempDate.setDate(tempDate.getDate() + 1)
+    }
+
+    // 只有当本周有在上月的天数时才添加
+    if (actualDaysCount > 0) {
+      // 根据 weekIndex 从后端数据中获取对应的值，如果没有则为 0
+      const count = lastMonthTrendData[weekIndex - 1] !== undefined ? lastMonthTrendData[weekIndex - 1] : 0
+
+      weeks.push({
+        period: `第${['一', '二', '三', '四', '五', '六'][weekIndex - 1] || weekIndex}周(${actualDaysCount}天)`,
+        isCurrentWeek: false,
+        count: count,
+      })
+      weekIndex++
+    }
+
+    // 移动到下一周的起始日（下一个周一）
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7)
+  }
+
+  return weeks
+})
+
+// 计算不同时间范围的日期值
+const todayValue = computed(() => formatDate(new Date()))
+
+// 告警统计时间范围选项配置
+const alertTimeRangeOptions = {
+  today: 'today',
+  week: 'week',
+  month: 'month',
+  lastMonth: 'lastMonth',
+}
+
+// 获取今日的时间范围数组 [开始日期, 结束日期]
+const getTodayRange = () => {
+  const today = new Date()
+  return [formatDate(today), formatDate(today)]
+}
+
+// 获取本周的时间范围数组 [周一日期, 今天日期]
+const getThisWeekRange = () => {
+  const monday = getMondayOfThisWeek()
+  const today = new Date()
+  return [formatDate(monday), formatDate(today)]
+}
+
+// 获取本月的时间范围数组 [本月第一天, 本月最后一天]
+const getThisMonthRange = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  return [formatDate(firstDay), formatDate(lastDay)]
+}
+
+// 获取上月的时间范围数组 [上月第一天, 上月最后一天]
+const getLastMonthRange = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth(), 0)
+  return [formatDate(firstDay), formatDate(lastDay)]
+}
+// 告警统计时间范围选择器绑定的值
+const alertTimeRangeSelect = ref(alertTimeRangeOptions.today)
+// 监听告警统计时间范围变化，重新获取数据
+const handleAlertTimeRangeChange = (value) => {
+  alertTimeRange.value = getAlertTimeRangeByType(value)
+  console.log('告警统计时间范围变更:', value, alertTimeRange.value)
+
+  if (statsActiveTab.value === 'level') {
+    getLevelData()
+  } else if (statsActiveTab.value === 'category') {
+    getClassData()
+  } else if (statsActiveTab.value === 'status') {
+    getStatusData()
+  }
+}
+// 根据选择的类型获取对应的时间范围数组
+const getAlertTimeRangeByType = (type) => {
+  switch (type) {
+    case alertTimeRangeOptions.today:
+      return getTodayRange()
+    case alertTimeRangeOptions.week:
+      return getThisWeekRange()
+    case alertTimeRangeOptions.month:
+      return getThisMonthRange()
+    case alertTimeRangeOptions.lastMonth:
+      return getLastMonthRange()
+    default:
+      return getTodayRange()
+  }
+}
+// 告警统计时间范围
+const alertTimeRange = ref(todayValue.value)
+// 获取本周的日期范围数组
+const getWeekRange = () => {
+  const monday = getMondayOfThisWeek()
+  const today = new Date()
+  return [formatDate(monday), formatDate(today)]
+}
+
+// 获取本月的周日期范围数组
+const getMonthRanges = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+
+  // 找到本月第一个周一
+  const firstDayOfWeek = firstDay.getDay()
+  const diffToMonday = firstDayOfWeek === 0 ? -6 : 1 - firstDayOfWeek
+  const firstMonday = new Date(firstDay)
+  firstMonday.setDate(firstDay.getDate() + diffToMonday)
+
+  // 从第一个周一开始，按日历周划分
+  let currentWeekStart = new Date(firstMonday)
+  const ranges = []
+
+  while (currentWeekStart <= lastDay) {
+    const weekEnd = new Date(currentWeekStart)
+    weekEnd.setDate(currentWeekStart.getDate() + 6)
+
+    // 计算本周在本月的实际起始和结束日期
+    let actualStart = null
+    let actualEnd = null
+    let tempDate = new Date(currentWeekStart)
+
+    // 逐天检查，找到本周在本月的第一天和最后一天
+    for (let i = 0; i < 7; i++) {
+      if (tempDate >= firstDay && tempDate <= lastDay) {
+        if (!actualStart) {
+          actualStart = new Date(tempDate)
+        }
+        actualEnd = new Date(tempDate)
+      }
+      tempDate.setDate(tempDate.getDate() + 1)
+    }
+
+    // 只有当本周有在本月的天数时才添加
+    if (actualStart && actualEnd) {
+      ranges.push([formatDate(actualStart), formatDate(actualEnd)])
+    }
+
+    // 移动到下一周的起始日（下一个周一）
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7)
+  }
+
+  return ranges
+}
+
+// 获取上月的周日期范围数组
+const getLastMonthRanges = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth(), 0)
+
+  // 找到上月第一个周一
+  const firstDayOfWeek = firstDay.getDay()
+  const diffToMonday = firstDayOfWeek === 0 ? -6 : 1 - firstDayOfWeek
+  const firstMonday = new Date(firstDay)
+  firstMonday.setDate(firstDay.getDate() + diffToMonday)
+
+  // 从第一个周一开始，按日历周划分
+  let currentWeekStart = new Date(firstMonday)
+  const ranges = []
+
+  while (currentWeekStart <= lastDay) {
+    const weekEnd = new Date(currentWeekStart)
+    weekEnd.setDate(currentWeekStart.getDate() + 6)
+
+    // 计算本周在上月的实际起始和结束日期
+    let actualStart = null
+    let actualEnd = null
+    let tempDate = new Date(currentWeekStart)
+
+    // 逐天检查，找到本周在上月的第一天和最后一天
+    for (let i = 0; i < 7; i++) {
+      if (tempDate >= firstDay && tempDate <= lastDay) {
+        if (!actualStart) {
+          actualStart = new Date(tempDate)
+        }
+        actualEnd = new Date(tempDate)
+      }
+      tempDate.setDate(tempDate.getDate() + 1)
+    }
+
+    // 只有当本周有在上月的天数时才添加
+    if (actualStart && actualEnd) {
+      ranges.push([formatDate(actualStart), formatDate(actualEnd)])
+    }
+
+    // 移动到下一周的起始日（下一个周一）
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7)
+  }
+
+  return ranges
+}
+// 告警分析时间范围选择器类型，0为本周，1为本月
+const timeRangeSelect = ref('0')
+// 告警分析时间范围
+const timeRange = ref(getWeekRange())
+
+// 获取本周的时间范围数组（用于处理时效）[周一日期, 今天日期]
+const getThisWeekRangeForHandle = () => {
+  const monday = getMondayOfThisWeek()
+  const today = new Date()
+  return [formatDate(monday), formatDate(today)]
+}
+
+// 获取本月的时间范围数组（用于处理时效）[本月1号, 今天]
+const getThisMonthRangeForHandle = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+  return [formatDate(firstDay), formatDate(today)]
+}
+
+// 获取上月的时间范围数组（用于处理时效）[上月1号, 上月最后一天]
+const getLastMonthRangeForHandle = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  const lastDay = new Date(today.getFullYear(), today.getMonth(), 0)
+  return [formatDate(firstDay), formatDate(lastDay)]
+}
+const handleTimeRange = ref(getThisWeekRangeForHandle())
+// 监听时间范围选择变化
+const handleTimeRangeChange = (value, tabPanel) => {
+  if (value === '0') {
+    timeRange.value = getWeekRange()
+    handleTimeRange.value = getThisWeekRangeForHandle()
+  } else if (value === '1') {
+    timeRange.value = getMonthRanges()
+    handleTimeRange.value = getThisMonthRangeForHandle()
+  } else if (value === '2') {
+    handleTimeRange.value = getLastMonthRangeForHandle()
+    timeRange.value = getLastMonthRanges()
+  }
+  // 根据当前激活的tab页执行不同的函数
+  if (tabPanel === 'trend') {
+    getTrendData()
+  } else if (tabPanel === 'time') {
+    getHandTimeData()
+  }
+}
+
+const getLevelData = async () => {
+  const response = await getAlertLevelData(alertTimeRange.value)
+  if (response.status === 'success') {
+    alarmMonitoringData.value.alertLevel.total = response.total
+    alarmMonitoringData.value.alertLevel.critical = response.critical
+    alarmMonitoringData.value.alertLevel.important = response.important
+    alarmMonitoringData.value.alertLevel.general = response.general
+    alarmMonitoringData.value.alertLevel.ordinary = response.ordinary
+  }
+}
+const getClassData = async () => {
+  const response = await getAlertClassData(alertTimeRange.value)
+  if (response.status === 'success') {
+    alarmMonitoringData.value.classification.total = response.total
+    alarmMonitoringData.value.classification.network = response.network
+    alarmMonitoringData.value.classification.system = response.system
+    alarmMonitoringData.value.classification.cloud = response.cloud
+    alarmMonitoringData.value.classification.database = response.database
+    alarmMonitoringData.value.classification.NBU = response.NBU
+    alarmMonitoringData.value.classification.middleware = response.middleware
+    alarmMonitoringData.value.classification.hardware = response.hardware
+    alarmMonitoringData.value.classification.applicationLink = response.applicationLink
+    alarmMonitoringData.value.classification.Hadoop = response.Hadoop
+  }
+}
+const getStatusData = async () => {
+  const response = await getAlertStatusData(alertTimeRange.value)
+  if (response.status === 'success') {
+    alarmMonitoringData.value.status.total = response.total
+    alarmMonitoringData.value.status.unprocessed = response.unprocessed
+    alarmMonitoringData.value.status.assigned = response.assigned
+    alarmMonitoringData.value.status.completed = response.completed
+  }
+}
+const getStatisticData = async () => {
+  const response = await getAlertStatisticData()
+  if (response.status === 'success') {
+    alarmMonitoringData.value.unprocessed.totalCount = response.unprocessed.totalCount
+    alarmMonitoringData.value.unprocessed.critical = response.unprocessed.critical
+    alarmMonitoringData.value.unprocessed.assigned = response.unprocessed.assigned
+    alarmMonitoringData.value.added.today = response.added.today
+    alarmMonitoringData.value.added.yesterday = response.added.yesterday
+    alarmMonitoringData.value.added.week = response.added.week
+    alarmMonitoringData.value.added.month = response.added.month
+    alarmMonitoringData.value.serious.count = response.serious.count
+    alarmMonitoringData.value.serious.recently = response.serious.recently
+    alarmMonitoringData.value.serious.furthest = response.serious.furthest
+    alarmMonitoringData.value.completed.count = response.completed.count
+    alarmMonitoringData.value.completed.average = response.completed.average
+    alarmMonitoringData.value.completed.fastest = response.completed.fastest
+    alarmMonitoringData.value.completed.slowest = response.completed.slowest
+  }
+}
+const getTrendData = async () => {
+  console.log('当前时间范围:', timeRange.value)
+  const response = await getAlertTrendData(timeRange.value, timeRangeSelect.value)
+  if (response.status === 'success') {
+    alarmMonitoringData.value.alarmTrend.week = response.week
+    alarmMonitoringData.value.alarmTrend.month = response.month
+    alarmMonitoringData.value.alarmTrend.lastMonth = response.lastMonth
+    console.log('lastMonth', response.lastMonth)
+  }
+}
+
+const getHandTimeData = async () => {
+  const response = await getHandleTimeData(handleTimeRange.value)
+  if (response.status === 'success') {
+    alarmMonitoringData.value.handlerTime.average = response.average
+    alarmMonitoringData.value.handlerTime.fastest = response.fastest
+    alarmMonitoringData.value.handlerTime.slowest = response.slowest
+    alarmMonitoringData.value.handlerTime.overtime = response.overtime
+  }
+}
+
+// const getAllOrderData = async () => {
+//   const username = sessionStorage.getItem('user')
+//   const response = await getOrderData(username)
+//   // 收集接口返回的所有待办项ID
+//   if (response.status === 'success') {
+//     // 收集接口返回的所有待办项ID
+//     const newTodoIds = new Set()
+//
+//     // 遍历所有类型的待办项，收集ID
+//     const allTodos = [
+//       ...response.publish.map((item) => ({ ...item, type: '发布' })),
+//       ...response.event.map((item) => ({ ...item, type: '事件' })),
+//       ...response.change.map((item) => ({ ...item, type: '变更' })),
+//       ...response.request.map((item) => ({ ...item, type: '请求' })),
+//       ...response.problem.map((item) => ({ ...item, type: '问题' })),
+//     ]
+//
+//     // 将新返回的ID添加到集合中
+//     allTodos.forEach((todo) => {
+//       newTodoIds.add(todo.id)
+//     })
+//
+//     // 找出新增的待办项（在新集合中但不在旧集合中）
+//     const newTodos = allTodos.filter((todo) => !todoIdSet.value.has(todo.id))
+//
+//     // 找出已移除的待办项（在旧集合中但不在新集合中）
+//     const removedIds = [...todoIdSet.value].filter((id) => !newTodoIds.has(id))
+//
+//     // 如果有新增的待办项，发送通知
+//     if (newTodos.length > 0) {
+//       // 按类型分组统计
+//       const typeGroups = {}
+//       newTodos.forEach((todo) => {
+//         if (!typeGroups[todo.type]) {
+//           typeGroups[todo.type] = []
+//         }
+//         typeGroups[todo.type].push(todo.id)
+//       })
+//
+//       const typeColors = {
+//         '发布': { bg: '#ecf5ff', border: '#409eff', text: '#409eff' },
+//         '事件': { bg: '#f0f9eb', border: '#67c23a', text: '#67c23a' },
+//         '变更': { bg: '#fdf6ec', border: '#e6a23c', text: '#e6a23c' },
+//         '请求': { bg: '#f3e5f5', border: '#9c27b0', text: '#9c27b0' },
+//         '问题': { bg: '#fef0f0', border: '#f56c6c', text: '#f56c6c' }
+//       }
+//
+//       // 使用 VNode 渲染通知内容
+//       const notificationContent = h('div', { class: 'notification-content' }, [
+//         // 标题部分
+//         h('div', { class: 'notification-header' }, [
+//           h('span', null, '🎯 共有 '),
+//           h('span', {
+//             style: { color: '#409eff', fontSize: '18px', fontWeight: '700' }
+//           }, newTodos.length),
+//           h('span', null, ' 条新待办')
+//         ]),
+//
+//         // 滚动列表部分 - 使用 el-scrollbar
+//         h(ElScrollbar, { maxHeight: '600px' }, {
+//           default: () => h('div', { class: 'notification-list' },
+//             Object.entries(typeGroups).map(([type, ids]) => {
+//               const colors = typeColors[type] || { bg: '#f4f4f5', border: '#909399', text: '#909399' }
+//               return h('div', {
+//                 class: 'type-card',
+//                 style: {
+//                   marginBottom: '10px',
+//                   padding: '10px 12px',
+//                   background: colors.bg,
+//                   borderLeft: `3px solid ${colors.border}`,
+//                   borderRadius: '4px'
+//                 }
+//               }, [
+//                 // 类型标题
+//                 h('div', {
+//                   style: {
+//                     fontSize: '12px',
+//                     color: colors.text,
+//                     fontWeight: '600',
+//                     marginBottom: '6px'
+//                   }
+//                 }, type),
+//
+//                 // ID 列表
+//                 h('div', {
+//                   style: {
+//                     display: 'flex',
+//                     flexDirection: 'column',
+//                     gap: '4px'
+//                   }
+//                 }, ids.map(id =>
+//                   h('div', {
+//                     style: {
+//                       fontSize: '13px',
+//                       color: '#606266',
+//                       paddingLeft: '8px',
+//                       lineHeight: '1.6'
+//                     }
+//                   }, `• ${id}`)
+//                 ))
+//               ])
+//             })
+//           )
+//         })
+//       ])
+//
+//       const Notification = ElNotification({
+//         title: '🔔 新待办提醒',
+//         message: notificationContent,
+//         type: 'primary',
+//         duration: 2000,
+//         position: 'top-right',
+//         offset: 60,
+//         customClass: 'custom-todo-notification',
+//         showClose: false,
+//         onClick: () => {
+//           // 手动触发自定义关闭动画
+//           const element = document.querySelector('.custom-todo-notification')
+//           if (element) {
+//             // 添加关闭动画类
+//             element.classList.add('notification-closing')
+//             // 等待动画完成后真正关闭
+//             setTimeout(() => {
+//               Notification.close()
+//             }, 400)
+//           } else {
+//             Notification.close()
+//           }
+//         },
+//         onClose: () => {
+//           // 手动触发自定义关闭动画
+//           const element = document.querySelector('.custom-todo-notification')
+//           if (element) {
+//             // 添加关闭动画类
+//             element.classList.add('notification-closing')
+//             // 等待动画完成后真正关闭
+//             setTimeout(() => {
+//               Notification.close()
+//             }, 400)
+//           }
+//         }
+//       })
+//     }
+//     // 更新Set：删除已移除的ID，添加新增的ID
+//     removedIds.forEach((id) => todoIdSet.value.delete(id))
+//     newTodoIds.forEach((id) => todoIdSet.value.add(id))
+//     // 持久化到 localStorage
+//     saveTodoIdsToStorage()
+//
+//     itsmTodoData.value.publish = response.publish
+//     itsmTodoData.value.event = response.event
+//     itsmTodoData.value.change = response.change
+//     itsmTodoData.value.request = response.request
+//     itsmTodoData.value.problem = response.problem
+//   }
+// }
+// ECharts图表实例
+let categoryChart = null
 
 // 格式化数字
 const formatNumber = (num) => {
   return num.toLocaleString('zh-CN')
 }
 
-// 获取优先级标签类型
-const getPriorityType = (priority) => {
-  const map = { high: 'danger', medium: 'warning', low: 'info' }
-  return map[priority] || 'info'
+const categoryChartRef = ref(null)
+// 初始化ECharts饼图
+const initCategoryChart = () => {
+  if (!categoryChartRef.value) return
+
+  categoryChart = echarts.init(categoryChartRef.value)
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)',
+    },
+    series: [
+      {
+        type: 'pie',
+        top: '10',
+        radius: ['30%', '85%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 10,
+          borderColor: '#fff',
+          borderWidth: 2,
+        },
+        label: {
+          show: true,
+          position: 'outside',
+          formatter: '{b}\n{d}%',
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: 'bold',
+          },
+        },
+        data: alarmCategoryData.value,
+      },
+    ],
+  }
+
+  categoryChart.setOption(option)
 }
 
-// 获取优先级文本
-const getPriorityText = (priority) => {
-  const map = { high: '紧急', medium: '普通', low: '低' }
-  return map[priority] || '普通'
-}
-
-// 跳转到告警列表
-const goToAlarmList = () => {
-  router.push('/alarmManagement/alarmItem')
-}
+// 根据时间范围生成动态数据
+const getDynamicTrendData = computed(() => {
+  if (timeRangeSelect.value === '0') {
+    return getWeekTrendData.value
+  } else if (timeRangeSelect.value === '1') {
+    return getMonthTrendData.value
+  } else {
+    return getLastMonthTrendData.value
+  }
+})
+// 计算当前趋势数据的最大值
+const currentMaxTrendValue = computed(() => {
+  return Math.max(...getDynamicTrendData.value.map((item) => item.count))
+})
+// 监听tabs切换，重新渲染图表
+watch(statsActiveTab, (newVal) => {
+  if (newVal === 'category') {
+    nextTick(() => {
+      // 如果图表已存在，先销毁
+      if (categoryChart) {
+        categoryChart.dispose()
+        categoryChart = null
+      }
+      initCategoryChart()
+    })
+  }
+})
+// 监听告警分类数据变化，更新饼图
+watch(
+  () => alarmCategoryData.value,
+  (newData) => {
+    if (categoryChart && statsActiveTab.value === 'category') {
+      categoryChart.setOption({
+        series: [
+          {
+            data: newData,
+          },
+        ],
+      })
+    }
+  },
+  { deep: true },
+)
+// 监听时间范围变化
+watch(timeRange, () => {
+  // 可以在这里添加其他逻辑
+})
 
 onMounted(() => {
+  getLevelData()
+  getStatisticData()
+  getTrendData()
+  // 初始化日期显示
+  const now = new Date()
+  currentDateDisplay.value = now
+    .toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+    .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
+  // 启动定时刷新任务，每60秒（1分钟）执行一次
+  refreshTimer = setInterval(refreshAllData, 30000)
   console.log('首页数据加载完成')
+})
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+    console.log('定时刷新任务已清除')
+  }
 })
 </script>
 
@@ -174,7 +979,7 @@ onMounted(() => {
   <div class="dashboard-container">
     <!-- 主内容区：左右3:1布局 -->
     <div class="main-content">
-      <!-- 左侧：告警统计（占3份） -->
+      <!-- 左侧面板 -->
       <div class="left-panel">
         <!-- 顶部欢迎区域 -->
         <div class="welcome-section">
@@ -187,109 +992,13 @@ onMounted(() => {
           </div>
           <div class="time-badge">
             <el-icon :size="18"><Clock /></el-icon>
-            <span class="time-text">{{
-                new Date()
-                  .toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
-                  .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
-              }}</span>
+            <span class="time-text">{{ currentDateDisplay }}</span>
           </div>
         </div>
 
         <!-- 核心指标卡片 -->
         <div class="metrics-grid">
-          <!-- 今日告警总数 -->
-          <div class="metric-card metric-primary">
-            <div class="metric-bg-pattern"></div>
-            <div class="metric-content">
-              <div class="metric-header">
-                <div class="metric-icon-wrapper">
-                  <el-icon :size="28"><Bell /></el-icon>
-                </div>
-                <div class="metric-trend" :class="totalChange >= 0 ? 'trend-up' : 'trend-down'">
-                  <span class="trend-arrow">{{ totalChange >= 0 ? '↑' : '↓' }}</span>
-                  <span>{{ Math.abs(totalChange) }}%</span>
-                </div>
-              </div>
-              <div class="metric-body">
-                <div class="metric-value">{{ formatNumber(alarmStats.todayTotal) }}</div>
-                <div class="metric-label">今日告警总数</div>
-              </div>
-              <div class="metric-details">
-                <div class="detail-row">
-                  <span class="detail-label">昨日</span>
-                  <span class="detail-value">{{ formatNumber(alarmStats.yesterdayTotal) }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">本周</span>
-                  <span class="detail-value">{{ formatNumber(alarmStats.weekTotal) }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">本月</span>
-                  <span class="detail-value">{{ formatNumber(alarmStats.monthTotal) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 严重告警 -->
-          <div class="metric-card metric-danger">
-            <div class="metric-bg-pattern"></div>
-            <div class="metric-content">
-              <div class="metric-header">
-                <div class="metric-icon-wrapper">
-                  <el-icon :size="28"><Warning /></el-icon>
-                </div>
-                <div class="metric-rate-badge">{{ alarmStats.criticalRate }}%</div>
-              </div>
-              <div class="metric-body">
-                <div class="metric-value">{{ formatNumber(alarmStats.criticalCount) }}</div>
-                <div class="metric-label">严重告警</div>
-              </div>
-              <div class="metric-details">
-                <div class="detail-row highlight">
-                  <span class="detail-label">需立即处理</span>
-                  <span class="detail-value danger-text">{{ alarmStats.criticalCount }} 条</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">占比</span>
-                  <span class="detail-value">{{ alarmStats.criticalRate }}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 处理率 -->
-          <div class="metric-card metric-success">
-            <div class="metric-bg-pattern"></div>
-            <div class="metric-content">
-              <div class="metric-header">
-                <div class="metric-icon-wrapper">
-                  <el-icon :size="28"><CircleCheck /></el-icon>
-                </div>
-                <div class="metric-rate-badge success">{{ alarmStats.resolveRate }}%</div>
-              </div>
-              <div class="metric-body">
-                <div class="metric-value">{{ formatNumber(alarmStats.resolvedCount) }}</div>
-                <div class="metric-label">已处理告警</div>
-              </div>
-              <div class="metric-details">
-                <div class="detail-row">
-                  <span class="detail-label">平均耗时</span>
-                  <span class="detail-value">{{ alarmStats.avgHandleTime }}h</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">最快处理</span>
-                  <span class="detail-value">{{ alarmStats.fastestHandleTime }}h</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">最慢处理</span>
-                  <span class="detail-value">{{ alarmStats.slowestHandleTime }}h</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 待处理 -->
+          <!-- 待处理告警（第一位） -->
           <div class="metric-card metric-warning">
             <div class="metric-bg-pattern"></div>
             <div class="metric-content">
@@ -303,21 +1012,108 @@ onMounted(() => {
                 </div>
               </div>
               <div class="metric-body">
-                <div class="metric-value">{{ formatNumber(alarmStats.pendingCount) }}</div>
+                <div class="metric-value">{{ alarmMonitoringData.unprocessed.totalCount }}</div>
                 <div class="metric-label">待处理告警</div>
               </div>
               <div class="metric-details">
-                <div class="detail-row highlight">
-                  <span class="detail-label">超时未处理</span>
-                  <span class="detail-value warning-text">{{ alarmStats.overtimeCount }} 条</span>
+                <div class="detail-row">
+                  <span class="detail-label">严重</span>
+                  <span class="detail-value danger-text">{{ alarmMonitoringData.unprocessed.critical }} 条</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">预计完成</span>
-                  <span class="detail-value">{{ alarmStats.estimatedCompleteTime }}</span>
+                  <span class="detail-label">已分派</span>
+                  <span class="detail-value">{{ alarmMonitoringData.unprocessed.assigned }} 条</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 今日新增告警（第二位） -->
+          <div class="metric-card metric-primary">
+            <div class="metric-bg-pattern"></div>
+            <div class="metric-content">
+              <div class="metric-header">
+                <div class="metric-icon-wrapper">
+                  <el-icon :size="28"><Bell /></el-icon>
+                </div>
+                <div class="metric-trend" :class="totalChange >= 0 ? 'trend-up' : 'trend-down'">
+                  <span>较昨日</span>
+                  <span class="trend-arrow"  :class="totalChange >= 0 ? 'arrow-danger' : 'arrow-success'">{{ totalChange >= 0 ? '↑' : '↓' }}</span>
+                  <span :class="totalChange >= 0 ? 'trend-value-danger' : 'trend-value-success'">{{ Math.abs(totalChange) }} %</span>
+                </div>
+              </div>
+              <div class="metric-body">
+                <div class="metric-value">{{ alarmMonitoringData.added.today }}</div>
+                <div class="metric-label">今日新增告警</div>
+              </div>
+              <div class="metric-details">
+                <div class="detail-row">
+                  <span class="detail-label">昨日新增</span>
+                  <span class="detail-value">{{ alarmMonitoringData.added.yesterday }}</span>
                 </div>
                 <div class="detail-row">
-                  <span class="detail-label">本月累计</span>
-                  <span class="detail-value">{{ formatNumber(alarmStats.monthTotal) }}</span>
+                  <span class="detail-label">本周新增</span>
+                  <span class="detail-value">{{ alarmMonitoringData.added.week }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">本月新增</span>
+                  <span class="detail-value">{{ alarmMonitoringData.added.month }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 严重告警（第三位） -->
+          <div class="metric-card metric-danger">
+            <div class="metric-bg-pattern"></div>
+            <div class="metric-content">
+              <div class="metric-header">
+                <div class="metric-icon-wrapper">
+                  <el-icon :size="28"><Warning /></el-icon>
+                </div>
+              </div>
+              <div class="metric-body">
+                <div class="metric-value">{{ alarmMonitoringData.serious.count }}</div>
+                <div class="metric-label">严重告警</div>
+              </div>
+              <div class="metric-details">
+                <div class="detail-row">
+                  <span class="detail-label">最近发生</span>
+                  <span class="detail-value">{{ alarmMonitoringData.serious.recently }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">最远发生</span>
+                  <span class="detail-value">{{ alarmMonitoringData.serious.furthest }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 已处理告警（第四位） -->
+          <div class="metric-card metric-success">
+            <div class="metric-bg-pattern"></div>
+            <div class="metric-content">
+              <div class="metric-header">
+                <div class="metric-icon-wrapper">
+                  <el-icon :size="28"><CircleCheck /></el-icon>
+                </div>
+              </div>
+              <div class="metric-body">
+                <div class="metric-value">{{ alarmMonitoringData.completed.count }}</div>
+                <div class="metric-label">已处理告警</div>
+              </div>
+              <div class="metric-details">
+                <div class="detail-row">
+                  <span class="detail-label">平均耗时</span>
+                  <span class="detail-value">{{ alarmMonitoringData.completed.average }} h</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">最快处理</span>
+                  <span class="detail-value">{{ alarmMonitoringData.completed.fastest }} h</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">最慢处理</span>
+                  <span class="detail-value">{{ alarmMonitoringData.completed.slowest }} h</span>
                 </div>
               </div>
             </div>
@@ -331,26 +1127,59 @@ onMounted(() => {
             <div class="panel-header">
               <div class="panel-title">
                 <span class="title-bar"></span>
-                <h3>告警总数统计</h3>
+                <h3>告警统计</h3>
               </div>
-              <span class="panel-subtitle">综合数据分析</span>
+              <el-select
+                v-model="alertTimeRangeSelect"
+                size="small"
+                style="width: 100px"
+                @change="
+                  () => {
+                    handleAlertTimeRangeChange(alertTimeRangeSelect)
+                    getStatisticData()
+                    handleTimeRangeChange(timeRangeSelect, timingActiveTab)
+                  }
+                "
+              >
+                <el-option label="今日" :value="alertTimeRangeOptions.today" />
+                <el-option label="本周" :value="alertTimeRangeOptions.week" />
+                <el-option label="本月" :value="alertTimeRangeOptions.month" />
+                <el-option label="上月" :value="alertTimeRangeOptions.lastMonth" />
+              </el-select>
             </div>
             <div class="panel-body stats-body">
-              <div class="stats-content">
+              <el-tabs
+                v-model="statsActiveTab"
+                class="stats-tabs"
+                @tab-change="
+                  (TabPaneName) => {
+                    TabPaneName === 'level'
+                      ? getLevelData()
+                      : TabPaneName === 'category'
+                        ? getClassData()
+                        : TabPaneName === 'status'
+                          ? getStatusData()
+                          : null
+                    getStatisticData()
+                    handleTimeRangeChange(timeRangeSelect, timingActiveTab)
+                  }
+                "
+              >
                 <!-- 告警级别分布 -->
-                <div class="stats-section">
-                  <div class="section-title">告警级别分布</div>
+                <el-tab-pane name="level" label="按告警级别">
                   <div class="level-items">
-                    <div v-for="(level, index) in alarmLevelData" :key="level.label" class="level-item-modern" :style="{ animationDelay: `${index * 0.1}s` }">
+                    <div
+                      v-for="(level, index) in alarmLevelData"
+                      :key="level.label"
+                      class="level-item-modern"
+                      :style="{ animationDelay: `${index * 0.1}s` }"
+                    >
                       <div class="level-main">
-                        <div class="level-icon-box" :style="{ backgroundColor: level.color + '20' }">
-                          <el-icon :size="22" :color="level.color">
-                            <component :is="level.icon" />
-                          </el-icon>
-                        </div>
                         <div class="level-info">
-                          <div class="level-name">{{ level.label }}</div>
-                          <div class="level-count-large">{{ formatNumber(level.value) }}</div>
+                          <span class="level-name">{{ level.label }}</span>
+                          <el-tag :type="level.type"
+                            ><span class="level-count-large">{{ formatNumber(level.value) }}</span></el-tag
+                          >
                         </div>
                       </div>
                       <div class="level-progress-modern">
@@ -363,32 +1192,50 @@ onMounted(() => {
                             }"
                           ></div>
                         </div>
-                        <div class="progress-label">{{ level.rate }}%</div>
+                        <div style="font-size: 14px" class="progress-label">{{ level.rate }} %</div>
                       </div>
                     </div>
                   </div>
-                </div>
+                </el-tab-pane>
 
-                <!-- 处理状态 -->
-                <div class="stats-section">
-                  <div class="section-title">处理状态</div>
-                  <div class="status-circles">
-                    <div v-for="status in statusData" :key="status.label" class="status-circle-item">
-                      <div class="circle-wrapper">
-                        <svg class="circle-svg" viewBox="0 0 100 100">
-                          <circle class="circle-bg" cx="50" cy="50" r="40" :stroke="status.bgColor" />
-                          <circle class="circle-progress" cx="50" cy="50" r="40" :stroke="status.color" :stroke-dasharray="`${status.rate * 2.51} 251`" />
-                        </svg>
-                        <div class="circle-center">
-                          <div class="circle-value">{{ status.rate }}%</div>
+                <!-- 告警分类分布 -->
+                <el-tab-pane name="category" label="按告警分类">
+                  <div ref="categoryChartRef" class="category-chart-container"></div>
+                </el-tab-pane>
+
+                <!-- 告警状态分布 -->
+                <el-tab-pane name="status" label="按告警状态">
+                  <div class="level-items">
+                    <div
+                      v-for="(status, index) in alarmStatusData"
+                      :key="status.label"
+                      class="level-item-modern"
+                      :style="{ animationDelay: `${index * 0.1}s` }"
+                    >
+                      <div class="level-main">
+                        <div class="level-info">
+                          <span class="level-name">{{ status.label }}</span>
+                          <el-tag :type="status.type"
+                            ><span class="level-count-large">{{ formatNumber(status.value) }}</span></el-tag
+                          >
                         </div>
                       </div>
-                      <div class="circle-label">{{ status.label }}</div>
-                      <div class="circle-count">{{ formatNumber(status.value) }}</div>
+                      <div class="level-progress-modern">
+                        <div class="progress-track">
+                          <div
+                            class="progress-fill"
+                            :style="{
+                              width: status.rate + '%',
+                              background: `linear-gradient(90deg, ${status.color}, ${status.color}dd)`,
+                            }"
+                          ></div>
+                        </div>
+                        <div class="progress-label">{{ status.rate }}%</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </el-tab-pane>
+              </el-tabs>
             </div>
           </div>
 
@@ -397,36 +1244,66 @@ onMounted(() => {
             <div class="panel-header">
               <div class="panel-title">
                 <span class="title-bar"></span>
-                <h3>处理时效分析</h3>
+                <h3>告警分析</h3>
               </div>
-              <span class="panel-subtitle">时间维度统计</span>
+              <el-select
+                v-model="timeRangeSelect"
+                size="small"
+                style="width: 100px"
+                @change="
+                  (value) => {
+                    handleTimeRangeChange(value, timingActiveTab)
+                    getStatisticData()
+                    handleAlertTimeRangeChange(alertTimeRangeSelect)
+                  }
+                "
+              >
+                <el-option label="本周" value="0" />
+                <el-option label="本月" value="1" />
+                <el-option label="上月" value="2" />
+              </el-select>
             </div>
             <div class="panel-body timing-body">
-              <div class="timing-content">
+              <el-tabs
+                v-model="timingActiveTab"
+                class="timing-tabs"
+                @tab-change="
+                  (TabPaneName) => {
+                    handleTimeRangeChange(timeRangeSelect, TabPaneName)
+                    getStatisticData()
+                    handleAlertTimeRangeChange(alertTimeRangeSelect)
+                  }
+                "
+              >
                 <!-- 告警趋势 -->
-                <div class="timing-section">
-                  <div class="section-title">近7天告警趋势</div>
+                <el-tab-pane name="trend" label="告警趋势">
                   <div class="trend-chart">
-                    <div v-for="(item, index) in trendData" :key="item.day" class="trend-bar-wrapper" :style="{ animationDelay: `${index * 0.08}s` }">
+                    <div
+                      v-for="(item, index) in getDynamicTrendData"
+                      :key="`${timeRangeSelect}-${item.period || item.day}`"
+                      class="trend-bar-wrapper"
+                      :style="{ animationDelay: `${index * 0.08}s` }"
+                    >
                       <div class="trend-bar-container">
                         <div
                           class="trend-bar"
                           :style="{
-                            height: (item.count / maxTrendValue) * 100 + '%',
+                            height: (item.count / currentMaxTrendValue) * 100 + '%',
                             background: `linear-gradient(180deg, #667eea 0%, #764ba2 100%)`,
                           }"
                         >
                           <div class="trend-bar-value">{{ item.count }}</div>
                         </div>
                       </div>
-                      <div class="trend-bar-label">{{ item.day }}</div>
+                      <div class="trend-bar-label" :class="{ 'today-highlight': item.isToday, 'current-week-highlight': item.isCurrentWeek }">
+                        {{ item.period || item.day }}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </el-tab-pane>
 
                 <!-- 处理时间统计 -->
-                <div class="timing-section">
-                  <div class="section-title">处理时间统计</div>
+                <el-tab-pane name="time" label="处理时效">
                   <div class="time-stats-grid">
                     <div class="time-stat-card">
                       <div class="stat-icon avg">
@@ -434,7 +1311,7 @@ onMounted(() => {
                       </div>
                       <div class="stat-info">
                         <div class="stat-label">平均处理时长</div>
-                        <div class="stat-value">{{ alarmStats.avgHandleTime }}h</div>
+                        <div class="stat-value">{{ alarmMonitoringData.handlerTime.average }} h</div>
                       </div>
                     </div>
                     <div class="time-stat-card">
@@ -443,7 +1320,7 @@ onMounted(() => {
                       </div>
                       <div class="stat-info">
                         <div class="stat-label">最快处理</div>
-                        <div class="stat-value">{{ alarmStats.fastestHandleTime }}h</div>
+                        <div class="stat-value">{{ alarmMonitoringData.handlerTime.fastest }} h</div>
                       </div>
                     </div>
                     <div class="time-stat-card">
@@ -452,7 +1329,7 @@ onMounted(() => {
                       </div>
                       <div class="stat-info">
                         <div class="stat-label">最慢处理</div>
-                        <div class="stat-value">{{ alarmStats.slowestHandleTime }}h</div>
+                        <div class="stat-value">{{ alarmMonitoringData.handlerTime.slowest }} h</div>
                       </div>
                     </div>
                     <div class="time-stat-card">
@@ -460,33 +1337,76 @@ onMounted(() => {
                         <el-icon :size="24"><Warning /></el-icon>
                       </div>
                       <div class="stat-info">
-                        <div class="stat-label">超时工单</div>
-                        <div class="stat-value danger">{{ alarmStats.overtimeCount }}</div>
+                        <div class="stat-label">超时未处理</div>
+                        <div class="stat-value danger">{{ alarmMonitoringData.handlerTime.overtime }}</div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </el-tab-pane>
+              </el-tabs>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧：OA待办（占1份） -->
+      <!-- 右侧面板 -->
       <div class="right-panel">
         <!-- 上半部分：实时待办工单（占2份） -->
         <div class="oa-section oa-todo-list">
           <div class="section-header">
             <div class="section-title">
-<!--              <el-icon :size="18"><Document /></el-icon>-->
               <svg class="icon" aria-hidden="true">
                 <use xlink:href="#icon-daiban"></use>
               </svg>
-              <h3>ITSM 待办</h3>
+              <h2>ITSM 待办</h2>
             </div>
           </div>
           <div class="section-body">
             <el-tabs v-model="activeTab" class="oa-tabs">
+              <el-tab-pane name="request">
+                <template #label>
+                  <span class="tab-label">
+                    请求
+                    <el-tag size="small" class="request-tag" effect="plain">{{ todoCounts.request }}</el-tag>
+                  </span>
+                </template>
+                <el-scrollbar class="todo-scrollbar">
+                  <div class="todo-list todo-list-stacked">
+                    <div
+                      v-for="(todo, index) in currentTodoList"
+                      :key="todo.id"
+                      class="todo-item todo-item-stacked"
+                      :style="{
+                        zIndex: index + 1,
+                        borderLeftColor: getCurrentTabColor.border,
+                        '--card-primary-color': getCurrentTabColor.primary,
+                        '--card-bg-color': getCurrentTabColor.bg,
+                        '--card-bg-color-light': getCurrentTabColor.bgLight,
+                        '--card-bg-color-hover': getCurrentTabColor.bgHover,
+                        '--card-bg-color-light-hover': getCurrentTabColor.bgLightHover,
+                      }"
+                    >
+                      <div class="todo-header">
+                        <span class="todo-id" :style="{ color: getCurrentTabColor.primary }">{{ todo.id }}</span>
+                        <el-tag type="primary" size="small">{{ '普通' }}</el-tag>
+                      </div>
+                      <div class="todo-title">{{ todo.title }}</div>
+                      <div class="todo-meta">
+                        <span class="meta-item">申请人：{{ todo.applicant }}</span>
+                        <span class="meta-item">{{ todo.createTime }}</span>
+                      </div>
+                      <div class="todo-footer">
+                        <el-tag size="small" type="warning">
+                          {{ '待处理' }}
+                        </el-tag>
+                      </div>
+                    </div>
+                    <div v-if="currentTodoList.length === 0" class="empty-state">
+                      <el-empty description="暂无请求待办" :image-size="200" />
+                    </div>
+                  </div>
+                </el-scrollbar>
+              </el-tab-pane>
               <el-tab-pane name="publish">
                 <template #label>
                   <span class="tab-label">
@@ -495,11 +1415,24 @@ onMounted(() => {
                   </span>
                 </template>
                 <el-scrollbar class="todo-scrollbar">
-                  <div class="todo-list">
-                    <div v-for="todo in currentTodoList" :key="todo.id" class="todo-item">
+                  <div class="todo-list todo-list-stacked">
+                    <div
+                      v-for="(todo, index) in currentTodoList"
+                      :key="todo.id"
+                      class="todo-item todo-item-stacked"
+                      :style="{
+                        zIndex: index + 1,
+                        borderLeftColor: getCurrentTabColor.border,
+                        '--card-primary-color': getCurrentTabColor.primary,
+                        '--card-bg-color': getCurrentTabColor.bg,
+                        '--card-bg-color-light': getCurrentTabColor.bgLight,
+                        '--card-bg-color-hover': getCurrentTabColor.bgHover,
+                        '--card-bg-color-light-hover': getCurrentTabColor.bgLightHover,
+                      }"
+                    >
                       <div class="todo-header">
-                        <span class="todo-id">{{ todo.id }}</span>
-                        <el-tag :type="getPriorityType(todo.priority)" size="small">{{ getPriorityText(todo.priority) }}</el-tag>
+                        <span class="todo-id" :style="{ color: getCurrentTabColor.primary }">{{ todo.id }}</span>
+                        <el-tag type="primary" size="small">{{ '普通' }}</el-tag>
                       </div>
                       <div class="todo-title">{{ todo.title }}</div>
                       <div class="todo-meta">
@@ -507,13 +1440,13 @@ onMounted(() => {
                         <span class="meta-item">{{ todo.createTime }}</span>
                       </div>
                       <div class="todo-footer">
-                        <el-tag size="small" :type="todo.status === 'pending' ? 'warning' : 'primary'">
-                          {{ todo.status === 'pending' ? '待处理' : '处理中' }}
+                        <el-tag size="small" type="warning">
+                          {{ '待处理' }}
                         </el-tag>
                       </div>
                     </div>
                     <div v-if="currentTodoList.length === 0" class="empty-state">
-                      <el-empty description="暂无待办工单" :image-size="60" />
+                      <el-empty description="暂无发布待办" :image-size="200" />
                     </div>
                   </div>
                 </el-scrollbar>
@@ -527,11 +1460,24 @@ onMounted(() => {
                   </span>
                 </template>
                 <el-scrollbar class="todo-scrollbar">
-                  <div class="todo-list">
-                    <div v-for="todo in currentTodoList" :key="todo.id" class="todo-item">
+                  <div class="todo-list todo-list-stacked">
+                    <div
+                      v-for="(todo, index) in currentTodoList"
+                      :key="todo.id"
+                      class="todo-item todo-item-stacked"
+                      :style="{
+                        zIndex: index + 1,
+                        borderLeftColor: getCurrentTabColor.border,
+                        '--card-primary-color': getCurrentTabColor.primary,
+                        '--card-bg-color': getCurrentTabColor.bg,
+                        '--card-bg-color-light': getCurrentTabColor.bgLight,
+                        '--card-bg-color-hover': getCurrentTabColor.bgHover,
+                        '--card-bg-color-light-hover': getCurrentTabColor.bgLightHover,
+                      }"
+                    >
                       <div class="todo-header">
-                        <span class="todo-id">{{ todo.id }}</span>
-                        <el-tag :type="getPriorityType(todo.priority)" size="small">{{ getPriorityText(todo.priority) }}</el-tag>
+                        <span class="todo-id" :style="{ color: getCurrentTabColor.primary }">{{ todo.id }}</span>
+                        <el-tag type="primary" size="small">{{ '普通' }}</el-tag>
                       </div>
                       <div class="todo-title">{{ todo.title }}</div>
                       <div class="todo-meta">
@@ -539,13 +1485,13 @@ onMounted(() => {
                         <span class="meta-item">{{ todo.createTime }}</span>
                       </div>
                       <div class="todo-footer">
-                        <el-tag size="small" :type="todo.status === 'pending' ? 'warning' : 'primary'">
-                          {{ todo.status === 'pending' ? '待处理' : '处理中' }}
+                        <el-tag size="small" type="warning">
+                          {{ '待处理' }}
                         </el-tag>
                       </div>
                     </div>
                     <div v-if="currentTodoList.length === 0" class="empty-state">
-                      <el-empty description="暂无待办工单" :image-size="60" />
+                      <el-empty description="暂无事件待办" :image-size="200" />
                     </div>
                   </div>
                 </el-scrollbar>
@@ -559,11 +1505,24 @@ onMounted(() => {
                   </span>
                 </template>
                 <el-scrollbar class="todo-scrollbar">
-                  <div class="todo-list">
-                    <div v-for="todo in currentTodoList" :key="todo.id" class="todo-item">
+                  <div class="todo-list todo-list-stacked">
+                    <div
+                      v-for="(todo, index) in currentTodoList"
+                      :key="todo.id"
+                      class="todo-item todo-item-stacked"
+                      :style="{
+                        zIndex: index + 1,
+                        borderLeftColor: getCurrentTabColor.border,
+                        '--card-primary-color': getCurrentTabColor.primary,
+                        '--card-bg-color': getCurrentTabColor.bg,
+                        '--card-bg-color-light': getCurrentTabColor.bgLight,
+                        '--card-bg-color-hover': getCurrentTabColor.bgHover,
+                        '--card-bg-color-light-hover': getCurrentTabColor.bgLightHover,
+                      }"
+                    >
                       <div class="todo-header">
-                        <span class="todo-id">{{ todo.id }}</span>
-                        <el-tag :type="getPriorityType(todo.priority)" size="small">{{ getPriorityText(todo.priority) }}</el-tag>
+                        <span class="todo-id" :style="{ color: getCurrentTabColor.primary }">{{ todo.id }}</span>
+                        <el-tag type="primary" size="small">{{ '普通' }}</el-tag>
                       </div>
                       <div class="todo-title">{{ todo.title }}</div>
                       <div class="todo-meta">
@@ -571,13 +1530,57 @@ onMounted(() => {
                         <span class="meta-item">{{ todo.createTime }}</span>
                       </div>
                       <div class="todo-footer">
-                        <el-tag size="small" :type="todo.status === 'pending' ? 'warning' : 'primary'">
-                          {{ todo.status === 'pending' ? '待处理' : '处理中' }}
+                        <el-tag size="small" type="warning">
+                          {{ '待处理' }}
                         </el-tag>
                       </div>
                     </div>
                     <div v-if="currentTodoList.length === 0" class="empty-state">
-                      <el-empty description="暂无待办工单"/>
+                      <el-empty description="暂无变更待办" :image-size="200" />
+                    </div>
+                  </div>
+                </el-scrollbar>
+              </el-tab-pane>
+              <el-tab-pane name="problem">
+                <template #label>
+                  <span class="tab-label">
+                    问题
+                    <el-tag size="small" type="danger" effect="plain">{{ todoCounts.problem }}</el-tag>
+                  </span>
+                </template>
+                <el-scrollbar class="todo-scrollbar">
+                  <div class="todo-list todo-list-stacked">
+                    <div
+                      v-for="(todo, index) in currentTodoList"
+                      :key="todo.id"
+                      class="todo-item todo-item-stacked"
+                      :style="{
+                        zIndex: index + 1,
+                        borderLeftColor: getCurrentTabColor.border,
+                        '--card-primary-color': getCurrentTabColor.primary,
+                        '--card-bg-color': getCurrentTabColor.bg,
+                        '--card-bg-color-light': getCurrentTabColor.bgLight,
+                        '--card-bg-color-hover': getCurrentTabColor.bgHover,
+                        '--card-bg-color-light-hover': getCurrentTabColor.bgLightHover,
+                      }"
+                    >
+                      <div class="todo-header">
+                        <span class="todo-id" :style="{ color: getCurrentTabColor.primary }">{{ todo.id }}</span>
+                        <el-tag type="primary" size="small">{{ '普通' }}</el-tag>
+                      </div>
+                      <div class="todo-title">{{ todo.title }}</div>
+                      <div class="todo-meta">
+                        <span class="meta-item">申请人：{{ todo.applicant }}</span>
+                        <span class="meta-item">{{ todo.createTime }}</span>
+                      </div>
+                      <div class="todo-footer">
+                        <el-tag size="small" type="warning">
+                          {{ '待处理' }}
+                        </el-tag>
+                      </div>
+                    </div>
+                    <div v-if="currentTodoList.length === 0" class="empty-state">
+                      <el-empty description="暂无问题待办" :image-size="200" />
                     </div>
                   </div>
                 </el-scrollbar>
@@ -586,56 +1589,111 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 下半部分：本周工单统计（占1份） -->
-        <div class="oa-section oa-week-stats">
-          <div class="section-header">
-            <div class="section-title">
-              <el-icon :size="18"><TrendCharts /></el-icon>
-              <h3>本周工单统计</h3>
-            </div>
-          </div>
-          <div class="section-body">
-            <div class="week-stats-content">
-              <div class="stats-overview">
-                <div class="overview-item total">
-                  <div class="overview-value">{{ oaWeekStats.total }}</div>
-                  <div class="overview-label">工单总数</div>
-                </div>
-                <div class="overview-item completed">
-                  <div class="overview-value">{{ oaWeekStats.completed }}</div>
-                  <div class="overview-label">已完成</div>
-                </div>
-              </div>
-              <div class="stats-details">
-                <div class="detail-item">
-                  <span class="detail-label">处理中</span>
-                  <span class="detail-value primary">{{ oaWeekStats.processing }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">待处理</span>
-                  <span class="detail-value warning">{{ oaWeekStats.pending }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">完成率</span>
-                  <span class="detail-value success">{{ oaWeekStats.completionRate }}%</span>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">平均耗时</span>
-                  <span class="detail-value">{{ oaWeekStats.avgProcessTime }}h</span>
-                </div>
-              </div>
-              <div class="completion-progress">
-                <div class="progress-label">
-                  <span>完成进度</span>
-                  <span>{{ oaWeekStats.completionRate }}%</span>
-                </div>
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: oaWeekStats.completionRate + '%' }"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- 下半部分：工单统计（占1份） -->
+<!--        <div class="oa-section oa-week-stats">-->
+<!--          <div class="section-header">-->
+<!--            <div class="section-title">-->
+<!--              <el-icon :size="18"><TrendCharts /></el-icon>-->
+<!--              <h2>工单统计</h2>-->
+<!--            </div>-->
+<!--          </div>-->
+<!--          <div class="section-body">-->
+<!--            <el-tabs v-model="workOrderActiveTab" class="workorder-tabs">-->
+<!--              <el-tab-pane name="week" label="本周">-->
+<!--                <div class="week-stats-content">-->
+<!--                  <div class="stats-overview">-->
+<!--                    <div class="overview-item total">-->
+<!--                      <div class="overview-value">{{ oaWeekStats.total }}</div>-->
+<!--                      <div class="overview-label">工单总数</div>-->
+<!--                    </div>-->
+<!--                    <div class="overview-item completed">-->
+<!--                      <div class="overview-value">{{ oaWeekStats.completed }}</div>-->
+<!--                      <div class="overview-label">已完成</div>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                  <div class="stats-details">-->
+<!--                    <div class="detail-item">-->
+<!--                      <span class="detail-label">待处理</span>-->
+<!--                      <span class="detail-value warning">{{ oaWeekStats.pending }}</span>-->
+<!--                    </div>-->
+<!--                    <div class="detail-item">-->
+<!--                      <span class="detail-label">完成率</span>-->
+<!--                      <span class="detail-value success">{{ oaWeekStats.completionRate }}%</span>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                </div>-->
+<!--              </el-tab-pane>-->
+
+<!--              <el-tab-pane name="month" label="本月">-->
+<!--                <div class="week-stats-content">-->
+<!--                  <div class="stats-overview">-->
+<!--                    <div class="overview-item total">-->
+<!--                      <div class="overview-value">{{ oaMonthStats.total }}</div>-->
+<!--                      <div class="overview-label">工单总数</div>-->
+<!--                    </div>-->
+<!--                    <div class="overview-item completed">-->
+<!--                      <div class="overview-value">{{ oaMonthStats.completed }}</div>-->
+<!--                      <div class="overview-label">已完成</div>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                  <div class="stats-details">-->
+<!--                    <div class="detail-item">-->
+<!--                      <span class="detail-label">待处理</span>-->
+<!--                      <span class="detail-value warning">{{ oaMonthStats.pending }}</span>-->
+<!--                    </div>-->
+<!--                    <div class="detail-item">-->
+<!--                      <span class="detail-label">完成率</span>-->
+<!--                      <span class="detail-value success">{{ oaMonthStats.completionRate }}%</span>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                  <div class="completion-progress">-->
+<!--                    <div class="progress-label">-->
+<!--                      <span>完成进度</span>-->
+<!--                      <span>{{ oaMonthStats.completionRate }}%</span>-->
+<!--                    </div>-->
+<!--                    <div class="progress-bar">-->
+<!--                      <div class="progress-fill" :style="{ width: oaMonthStats.completionRate + '%' }"></div>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                </div>-->
+<!--              </el-tab-pane>-->
+
+<!--              <el-tab-pane name="all" label="全部">-->
+<!--                <div class="week-stats-content">-->
+<!--                  <div class="stats-overview">-->
+<!--                    <div class="overview-item total">-->
+<!--                      <div class="overview-value">{{ oaAllStats.total }}</div>-->
+<!--                      <div class="overview-label">工单总数</div>-->
+<!--                    </div>-->
+<!--                    <div class="overview-item completed">-->
+<!--                      <div class="overview-value">{{ oaAllStats.completed }}</div>-->
+<!--                      <div class="overview-label">已完成</div>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                  <div class="stats-details">-->
+<!--                    <div class="detail-item">-->
+<!--                      <span class="detail-label">待处理</span>-->
+<!--                      <span class="detail-value warning">{{ oaAllStats.pending }}</span>-->
+<!--                    </div>-->
+<!--                    <div class="detail-item">-->
+<!--                      <span class="detail-label">完成率</span>-->
+<!--                      <span class="detail-value success">{{ oaAllStats.completionRate }}%</span>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                  <div class="completion-progress">-->
+<!--                    <div class="progress-label">-->
+<!--                      <span>完成进度</span>-->
+<!--                      <span>{{ oaAllStats.completionRate }}%</span>-->
+<!--                    </div>-->
+<!--                    <div class="progress-bar">-->
+<!--                      <div class="progress-fill" :style="{ width: oaAllStats.completionRate + '%' }"></div>-->
+<!--                    </div>-->
+<!--                  </div>-->
+<!--                </div>-->
+<!--              </el-tab-pane>-->
+<!--            </el-tabs>-->
+<!--          </div>-->
+<!--        </div>-->
       </div>
     </div>
   </div>
@@ -643,8 +1701,7 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-container {
-  padding: 20px 28px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+  padding: 10px 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -781,7 +1838,7 @@ onMounted(() => {
 }
 
 .metric-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
 .metric-danger {
@@ -789,13 +1846,12 @@ onMounted(() => {
 }
 
 .metric-success {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: linear-gradient(135deg, #60cd2a 0%, #8ec673 100%);
 }
 
 .metric-warning {
   background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
 }
-
 .metric-content {
   position: relative;
   z-index: 1;
@@ -848,7 +1904,7 @@ onMounted(() => {
 .metric-trend {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
   padding: 6px 12px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 20px;
@@ -857,11 +1913,13 @@ onMounted(() => {
 }
 
 .trend-up {
-  background: rgba(46, 213, 115, 0.3);
+  background: transparent;
+  border: none;
 }
 
 .trend-down {
-  background: rgba(255, 71, 87, 0.3);
+  background: transparent;
+  border: none;
 }
 
 .trend-arrow {
@@ -871,6 +1929,41 @@ onMounted(() => {
   align-items: center;
   transform: translateY(-3px);
 }
+
+.arrow-danger {
+  color: #fd0324;
+  font-weight: 700;
+  animation: pulse-warning 1.5s infinite;
+}
+
+.arrow-success {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.trend-value-danger {
+  color: #fd0324;
+  font-weight: 700;
+}
+
+.trend-value-success {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+@keyframes pulse-warning {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translateY(-3px) scale(1.2);
+  }
+}
+
+
 .metric-rate-badge {
   padding: 6px 12px;
   background: rgba(255, 255, 255, 0.2);
@@ -1065,7 +2158,7 @@ onMounted(() => {
 }
 
 .section-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #636e72;
   margin-bottom: 12px;
@@ -1073,17 +2166,55 @@ onMounted(() => {
   border-left: 3px solid #667eea;
 }
 
+/* Tabs样式 */
+.stats-tabs,
+.timing-tabs,
+.workorder-tabs {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-tabs :deep(.el-tabs__header),
+.timing-tabs :deep(.el-tabs__header),
+.workorder-tabs :deep(.el-tabs__header) {
+  margin: 0 0 12px 0;
+  flex-shrink: 0;
+}
+
+.stats-tabs :deep(.el-tabs__content),
+.timing-tabs :deep(.el-tabs__content),
+.workorder-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+  height: 0;
+}
+
+.stats-tabs :deep(.el-tab-pane),
+.timing-tabs :deep(.el-tab-pane),
+.workorder-tabs :deep(.el-tab-pane) {
+  height: 100%;
+}
+
 /* 告警级别分布 */
 .level-items {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
+  height: 100%;
+  justify-content: space-between;
+  padding: 8px 4px;
 }
 
 .level-item-modern {
   animation: slideInLeft 0.5s ease-out forwards;
   opacity: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 @keyframes slideInLeft {
@@ -1100,23 +2231,8 @@ onMounted(() => {
 .level-main {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.level-icon-box {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.level-icon-box :deep(.el-icon) {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+  gap: 4px;
+  margin-bottom: 1px;
 }
 
 .level-info {
@@ -1126,106 +2242,53 @@ onMounted(() => {
 .level-name {
   font-size: 12px;
   color: #636e72;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
+  margin-right: 20px;
 }
 
 .level-count-large {
-  font-size: 20px;
+  font-size: 14px;
   font-weight: 700;
   color: #2d3436;
 }
 
 .level-progress-modern {
+  width: 95%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 3px;
 }
 
 .progress-track {
-  flex: 1;
+  flex: 9;
   height: 6px;
   background: #f0f2f5;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
+  margin-right: 5px;
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 3px;
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .progress-label {
-  font-size: 12px;
+  flex: 1;
+  display: flex;
+  font-size: 11px;
   font-weight: 600;
   color: #636e72;
-  min-width: 40px;
+  min-width: 36px;
   text-align: right;
+  align-items: flex-end;
 }
 
-/* 状态圆环 */
-.status-circles {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  gap: 16px;
-}
-
-.status-circle-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.circle-wrapper {
-  position: relative;
-  width: 80px;
-  height: 80px;
-}
-
-.circle-svg {
+/* ECharts饼图容器 */
+.category-chart-container {
   width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-
-.circle-bg {
-  fill: none;
-  stroke-width: 8;
-}
-
-.circle-progress {
-  fill: none;
-  stroke-width: 8;
-  stroke-linecap: round;
-  transition: stroke-dasharray 0.8s ease;
-}
-
-.circle-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-}
-
-.circle-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: #2d3436;
-}
-
-.circle-label {
-  font-size: 12px;
-  color: #636e72;
-  font-weight: 500;
-}
-
-.circle-count {
-  font-size: 14px;
-  font-weight: 700;
-  color: #2d3436;
+  height: 280px;
 }
 
 /* 趋势图表 */
@@ -1233,9 +2296,9 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  height: 140px;
+  height: 200px;
   gap: 8px;
-  padding-top: 10px;
+  padding: 30px 0 20px 0;
   width: 100%;
 }
 
@@ -1262,7 +2325,7 @@ onMounted(() => {
 
 .trend-bar-container {
   width: 100%;
-  height: 110px;
+  height: 120px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1298,22 +2361,34 @@ onMounted(() => {
   color: #636e72;
   font-weight: 500;
 }
-
+.today-highlight {
+  color: #ffa502;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 165, 2, 0.3);
+}
+.current-week-highlight {
+  color: #ffa502;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 165, 2, 0.3);
+}
 /* 处理时间统计网格 */
 .time-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
   gap: 12px;
+  height: 100%;
 }
 
 .time-stat-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 16px;
+  padding: 20px;
   background: #f8f9fa;
-  border-radius: 10px;
+  border-radius: 12px;
   transition: all 0.3s ease;
+  min-height: 0;
 }
 
 .time-stat-card:hover {
@@ -1322,15 +2397,14 @@ onMounted(() => {
 }
 
 .stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
-
 .stat-icon.avg {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
@@ -1356,13 +2430,13 @@ onMounted(() => {
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 13px;
   color: #636e72;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .stat-value {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: #2d3436;
 }
@@ -1407,7 +2481,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
@@ -1417,9 +2491,9 @@ onMounted(() => {
   gap: 8px;
 }
 
-.section-title h3 {
+.section-title h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: #2d3436;
 }
@@ -1472,14 +2546,29 @@ onMounted(() => {
 .tab-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   font-size: 13px;
+}
+/* 请求tab的紫色tag样式 */
+.request-tag {
+  background-color: rgba(156, 39, 176, 0);
+  border-color: rgba(156, 39, 176, 0.4);
+  color: #9c27b0;
 }
 
 .tab-label :deep(.el-tag) {
   margin-left: 2px;
+  transform: scale(0.9);
+}
+/* 调整 tabs 头部间距 */
+.oa-tabs :deep(.el-tabs__item) {
+  padding: 0 14px;
+  font-size: 12px;
 }
 
+.oa-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 0 2px;
+}
 /* Element Plus滚动条样式 */
 .todo-scrollbar {
   height: 100%;
@@ -1514,46 +2603,114 @@ onMounted(() => {
   padding-right: 8px;
 }
 
+/* 堆叠式待办列表 */
+.todo-list-stacked {
+  position: relative;
+  padding: 8px;
+}
+
 .todo-item {
-  padding: 12px;
-  background: #f8f9fa;
-  border-radius: 10px;
-  border-left: 3px solid #667eea;
-  transition: all 0.3s ease;
+  padding: 14px 16px;
+  background: var(--card-bg-color);
+  border-radius: 12px;
+  border: 2px solid transparent;
+  border-left: 5px solid var(--card-primary-color, #409eff);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
+  box-shadow:
+    0 4px 12px rgba(64, 158, 255, 0.15),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.todo-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--card-primary-color, #409eff) 0%, var(--card-primary-color-light, #66b1ff) 100%);
+  opacity: 0.6;
+}
+/* 堆叠式待办卡片 */
+.todo-item-stacked {
+  position: relative;
+  margin-bottom: -75px;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.todo-item-stacked:last-child {
+  margin-bottom: 0;
+}
+
+.todo-item-stacked:hover {
+  margin-bottom: 0;
+  transform: translate3d(0, -6px, 0);
+  box-shadow:
+    0 16px 40px rgba(64, 158, 255, 0.35),
+    0 8px 16px rgba(0, 0, 0, 0.12);
+  background: var(--card-bg-color-hover);
+  border-color: rgba(64, 158, 255, 0.3);
+  border-left-width: 6px;
+  will-change: transform;
+}
+.todo-item-stacked:hover::before {
+  opacity: 1;
+  height: 4px;
+}
+.todo-item-stacked:hover ~ .todo-item-stacked {
+  transform: translate3d(0, 10px, 0);
 }
 
 .todo-item:hover {
-  background: #f0f2f5;
+  background: var(--card-bg-color-hover);
   transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 8px 20px rgba(64, 158, 255, 0.25),
+    0 4px 8px rgba(0, 0, 0, 0.1);
+  border-color: rgba(64, 158, 255, 0.2);
 }
 
 .todo-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
   gap: 4px;
 }
-
+.todo-item:hover::before {
+  opacity: 1;
+}
 .todo-id {
   font-size: 11px;
-  color: #b2bec3;
-  font-weight: 500;
+  color: var(--card-primary-color, #409eff);
+  font-weight: 700;
   word-break: break-all;
   flex-shrink: 0;
+  background: linear-gradient(135deg, var(--card-bg-color, #ecf5ff) 0%, var(--card-bg-color-light, #d9ecff) 100%);
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(64, 158, 255, 0.2);
 }
 
 .todo-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #2d3436;
-  margin-bottom: 6px;
-  line-height: 1.4;
+  color: #303133;
+  margin-bottom: 8px;
+  line-height: 1.5;
   word-break: break-word;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 90%;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1563,9 +2720,9 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   color: #636e72;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
   gap: 4px;
 }
@@ -1588,6 +2745,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
+  width: 100%;
   min-height: 150px;
 }
 
@@ -1606,7 +2764,7 @@ onMounted(() => {
 }
 
 .overview-item {
-  padding: 12px;
+  padding: 10px;
   border-radius: 10px;
   text-align: center;
   transition: all 0.3s ease;
@@ -1703,6 +2861,37 @@ onMounted(() => {
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Tabs标签页自定义样式 */
+.stats-tabs :deep(.el-tabs__header) {
+  margin: 0 0 16px 0;
+}
+
+.stats-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+.timing-tabs :deep(.el-tabs__header) {
+  margin: 0 0 16px 0;
+}
+
+.timing-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+.workorder-tabs :deep(.el-tabs__header) {
+  margin: 0 0 12px 0;
+}
+
+.workorder-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+/* 图表容器 */
+.chart-container {
+  width: 100%;
+  height: 280px;
+}
+
 /* 响应式调整 */
 @media (max-width: 1400px) {
   .main-content {
@@ -1776,4 +2965,5 @@ onMounted(() => {
   fill: currentColor;
   overflow: hidden;
 }
+
 </style>
