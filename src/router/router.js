@@ -15,6 +15,8 @@ import { generateUUIDModern,isSsoLogin } from '@/utils/publicData.js'
 import { createRouter, createWebHistory } from 'vue-router'
 import ToolsPage from '@/components/toolsManage/ToolsPage.vue'
 import { usePermissionStore } from '@/stores/permissionStore.js'
+import HomePage from '@/components/homePage/HomePage.vue'
+
 
 // 创建路由实例
 const router = createRouter({
@@ -53,6 +55,23 @@ const router = createRouter({
       },
       meta: {
         requiresAuth: false,
+      },
+    },
+    /**
+     * 首页路由
+     * @path /home
+     * @name HomePage
+     * @requiresAuth true - 不需要认证
+     */
+    {
+      path: '/home',
+      name: 'HomePage',
+      component: HomePage,
+      meta: {
+        requiresAuth: true,
+        title: '首页',
+        breadcrumb: '首页',
+        permission: 'home:homePage',
       },
     },
     /**
