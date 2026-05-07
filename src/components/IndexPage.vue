@@ -72,12 +72,12 @@ const toggleCollapse = debounce(() => {
 }
 
 .slide-fade-enter-from {
-  transform: translateX(20px);
+  transform: translateX(10px);
   opacity: 0;
 }
 
 .slide-fade-leave-to {
-  transform: translateX(-20px);
+  transform: translateX(-10px);
   opacity: 0;
 }
 
