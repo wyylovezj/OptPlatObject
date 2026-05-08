@@ -35,7 +35,7 @@ const router = createRouter({
       name: 'IndexPage',
       redirect: () => {
         // 该函数接收目标路由作为参数
-        return { path: '/alarmManagement' }
+        return { path: '/home' }
       },
       meta: {
         requiresAuth: true,

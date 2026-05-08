@@ -11,6 +11,7 @@ import { alarmMonitoringData, itsmTodoData } from '@/utils/homePageData.js'
 import { ref, computed, onMounted, watch, nextTick, h ,onUnmounted } from 'vue'
 import { Bell, Warning, CircleCheck, Clock, TrendCharts, Timer } from '@element-plus/icons-vue'
 import { ElScrollbar, ElNotification } from 'element-plus'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import {
   getAlertLevelData,
@@ -405,7 +406,7 @@ const getLastMonthTrendData = computed(() => {
 })
 
 // 计算不同时间范围的日期值
-const todayValue = computed(() => formatDate(new Date()))
+const todayValue = computed(() => getTodayRange())
 
 // 告警统计时间范围选项配置
 const alertTimeRangeOptions = {
@@ -862,6 +863,55 @@ const formatNumber = (num) => {
   return num.toLocaleString('zh-CN')
 }
 
+// 智能时间格式化函数：根据秒数自动选择合适的单位
+const formatTimeDuration = (seconds) => {
+  if (seconds === null || seconds === undefined || isNaN(seconds)) {
+    return '0 s'
+  }
+
+  if (seconds < 60) {
+    // 小于60秒，显示秒
+    return `${seconds} 秒`
+  } else if (seconds < 3600) {
+    // 60秒到3600秒之间，显示分钟
+    const minutes = seconds / 60
+    return `${minutes.toFixed(2)} 分钟`
+  } else if (seconds < 86400) {
+    // 3600秒到86400秒之间，显示小时
+    const hours = seconds / 3600
+    return `${hours.toFixed(2)} 小时`
+  } else {
+    // 大于等于86400秒，显示天
+    const days = seconds / 86400
+    return `${days.toFixed(2)} 天`
+  }
+
+}
+
+// 待办工单点击跳转函数 - 打开外部链接
+const handleTodoClick = (todo, type) => {
+
+  // 根据工单类型构建不同的外部URL
+  const urlMap = {
+    request: `${todo.task_url}`,
+    publish: `${todo.task_url}`,
+    event: `${todo.task_url}`,
+    change: `${todo.task_url}`,
+    problem: `${todo.task_url}`
+  }
+
+  const targetUrl = urlMap[type]
+
+  // 在新窗口打开外部链接
+  window.open(targetUrl, '_blank')
+}
+// 路由实例
+const router = useRouter()
+// 核心指标卡片点击跳转函数
+const handleMetricCardClick = () => {
+  const targetRoute = '/alarmManagement/alarmItem'
+  router.push(targetRoute)
+}
 const categoryChartRef = ref(null)
 // 初始化ECharts饼图
 const initCategoryChart = () => {
@@ -874,11 +924,18 @@ const initCategoryChart = () => {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
     },
+    legend: {
+      orient: 'vertical',
+      left: 'left',
+      bottom: '0',
+      gap: 2,
+    },
     series: [
       {
         type: 'pie',
-        top: '10',
-        radius: ['30%', '85%'],
+        top: '30',
+        left:'80',
+        radius: ['30%', '80%'],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 10,
@@ -999,7 +1056,7 @@ onUnmounted(() => {
         <!-- 核心指标卡片 -->
         <div class="metrics-grid">
           <!-- 待处理告警（第一位） -->
-          <div class="metric-card metric-warning">
+          <div class="metric-card metric-warning"  @click="handleMetricCardClick">
             <div class="metric-bg-pattern"></div>
             <div class="metric-content">
               <div class="metric-header">
@@ -1029,7 +1086,7 @@ onUnmounted(() => {
           </div>
 
           <!-- 今日新增告警（第二位） -->
-          <div class="metric-card metric-primary">
+          <div class="metric-card metric-primary" @click="handleMetricCardClick">
             <div class="metric-bg-pattern"></div>
             <div class="metric-content">
               <div class="metric-header">
@@ -1064,7 +1121,7 @@ onUnmounted(() => {
           </div>
 
           <!-- 严重告警（第三位） -->
-          <div class="metric-card metric-danger">
+          <div class="metric-card metric-danger" @click="handleMetricCardClick">
             <div class="metric-bg-pattern"></div>
             <div class="metric-content">
               <div class="metric-header">
@@ -1090,7 +1147,7 @@ onUnmounted(() => {
           </div>
 
           <!-- 已处理告警（第四位） -->
-          <div class="metric-card metric-success">
+          <div class="metric-card metric-success" @click="handleMetricCardClick">
             <div class="metric-bg-pattern"></div>
             <div class="metric-content">
               <div class="metric-header">
@@ -1105,15 +1162,15 @@ onUnmounted(() => {
               <div class="metric-details">
                 <div class="detail-row">
                   <span class="detail-label">平均耗时</span>
-                  <span class="detail-value">{{ alarmMonitoringData.completed.average }} h</span>
+                  <span class="detail-value">{{ formatTimeDuration(alarmMonitoringData.completed.average) }}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">最快处理</span>
-                  <span class="detail-value">{{ alarmMonitoringData.completed.fastest }} h</span>
+                  <span class="detail-value">{{ formatTimeDuration(alarmMonitoringData.completed.fastest) }}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">最慢处理</span>
-                  <span class="detail-value">{{ alarmMonitoringData.completed.slowest }} h</span>
+                  <span class="detail-value">{{ formatTimeDuration(alarmMonitoringData.completed.slowest) }}</span>
                 </div>
               </div>
             </div>
@@ -1311,7 +1368,7 @@ onUnmounted(() => {
                       </div>
                       <div class="stat-info">
                         <div class="stat-label">平均处理时长</div>
-                        <div class="stat-value">{{ alarmMonitoringData.handlerTime.average }} h</div>
+                        <div class="stat-value">{{ formatTimeDuration(alarmMonitoringData.handlerTime.average) }}</div>
                       </div>
                     </div>
                     <div class="time-stat-card">
@@ -1320,7 +1377,7 @@ onUnmounted(() => {
                       </div>
                       <div class="stat-info">
                         <div class="stat-label">最快处理</div>
-                        <div class="stat-value">{{ alarmMonitoringData.handlerTime.fastest }} h</div>
+                        <div class="stat-value">{{ formatTimeDuration(alarmMonitoringData.handlerTime.fastest) }}</div>
                       </div>
                     </div>
                     <div class="time-stat-card">
@@ -1329,7 +1386,7 @@ onUnmounted(() => {
                       </div>
                       <div class="stat-info">
                         <div class="stat-label">最慢处理</div>
-                        <div class="stat-value">{{ alarmMonitoringData.handlerTime.slowest }} h</div>
+                        <div class="stat-value">{{ formatTimeDuration(alarmMonitoringData.handlerTime.slowest) }}</div>
                       </div>
                     </div>
                     <div class="time-stat-card">
@@ -1376,6 +1433,7 @@ onUnmounted(() => {
                       v-for="(todo, index) in currentTodoList"
                       :key="todo.id"
                       class="todo-item todo-item-stacked"
+                      @click="handleTodoClick(todo, 'request')"
                       :style="{
                         zIndex: index + 1,
                         borderLeftColor: getCurrentTabColor.border,
@@ -1420,6 +1478,7 @@ onUnmounted(() => {
                       v-for="(todo, index) in currentTodoList"
                       :key="todo.id"
                       class="todo-item todo-item-stacked"
+                      @click="handleTodoClick(todo, 'publish')"
                       :style="{
                         zIndex: index + 1,
                         borderLeftColor: getCurrentTabColor.border,
@@ -1465,6 +1524,7 @@ onUnmounted(() => {
                       v-for="(todo, index) in currentTodoList"
                       :key="todo.id"
                       class="todo-item todo-item-stacked"
+                      @click="handleTodoClick(todo, 'event')"
                       :style="{
                         zIndex: index + 1,
                         borderLeftColor: getCurrentTabColor.border,
@@ -1510,6 +1570,7 @@ onUnmounted(() => {
                       v-for="(todo, index) in currentTodoList"
                       :key="todo.id"
                       class="todo-item todo-item-stacked"
+                      @click="handleTodoClick(todo, 'change')"
                       :style="{
                         zIndex: index + 1,
                         borderLeftColor: getCurrentTabColor.border,
@@ -1554,6 +1615,7 @@ onUnmounted(() => {
                       v-for="(todo, index) in currentTodoList"
                       :key="todo.id"
                       class="todo-item todo-item-stacked"
+                      @click="handleTodoClick(todo, 'problem')"
                       :style="{
                         zIndex: index + 1,
                         borderLeftColor: getCurrentTabColor.border,
@@ -1825,7 +1887,11 @@ onUnmounted(() => {
   transform: translateY(-4px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
 }
-
+.metric-card:active {
+  transform: translateY(-2px) scale(0.98);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transition: all 0.1s ease;
+}
 .metric-bg-pattern {
   position: absolute;
   top: 0;
@@ -2288,7 +2354,7 @@ onUnmounted(() => {
 /* ECharts饼图容器 */
 .category-chart-container {
   width: 100%;
-  height: 280px;
+  height: 90%;
 }
 
 /* 趋势图表 */

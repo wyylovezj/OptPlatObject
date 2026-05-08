@@ -69,7 +69,7 @@ const handleLogin = async () => {
     await authStore.loginInfoStorage(userData.username, userData.status)
 
     // 登录成功后重定向到所输入的url
-    const redirect = router.currentRoute.value.query.redirect || '/alarmManagement'
+    const redirect = router.currentRoute.value.query.redirect || '/home'
     await router.push(redirect)
     // 如果已有提示框在显示，先关闭它
     if (messageInstance.value) {
