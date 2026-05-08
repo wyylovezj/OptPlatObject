@@ -866,26 +866,29 @@ const formatNumber = (num) => {
 // 智能时间格式化函数：根据秒数自动选择合适的单位
 const formatTimeDuration = (seconds) => {
   if (seconds === null || seconds === undefined || isNaN(seconds)) {
-    return '0 s'
+    return '0 秒'
   }
 
   if (seconds < 60) {
     // 小于60秒，显示秒
-    return `${seconds} 秒`
+    const value = Number(seconds.toFixed(2))
+    return `${value % 1 === 0 ? Math.round(value) : value.toFixed(2)} 秒`
   } else if (seconds < 3600) {
     // 60秒到3600秒之间，显示分钟
     const minutes = seconds / 60
-    return `${minutes.toFixed(2)} 分钟`
+    const value = Number(minutes.toFixed(2))
+    return `${value % 1 === 0 ? Math.round(value) : value.toFixed(2)} 分钟`
   } else if (seconds < 86400) {
     // 3600秒到86400秒之间，显示小时
     const hours = seconds / 3600
-    return `${hours.toFixed(2)} 小时`
+    const value = Number(hours.toFixed(2))
+    return `${value % 1 === 0 ? Math.round(value) : value.toFixed(2)} 小时`
   } else {
     // 大于等于86400秒，显示天
     const days = seconds / 86400
-    return `${days.toFixed(2)} 天`
+    const value = Number(days.toFixed(2))
+    return `${value % 1 === 0 ? Math.round(value) : value.toFixed(2)} 天`
   }
-
 }
 
 // 待办工单点击跳转函数 - 打开外部链接
