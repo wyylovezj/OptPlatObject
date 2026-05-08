@@ -2679,16 +2679,14 @@ onUnmounted(() => {
 }
 
 .todo-item {
-  padding: 14px 16px;
-  background: var(--card-bg-color);
-  border-radius: 12px;
-  border: 2px solid transparent;
-  border-left: 5px solid var(--card-primary-color, #409eff);
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 16px 18px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e4e7ed;
+  border-left: 3px solid var(--card-primary-color, #409eff);
+  transition: all 0.2s ease;
   min-width: 0;
-  box-shadow:
-    0 4px 12px rgba(64, 158, 255, 0.15),
-    0 2px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   position: relative;
   overflow: hidden;
 }
@@ -2699,19 +2697,17 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--card-primary-color, #409eff) 0%, var(--card-primary-color-light, #66b1ff) 100%);
-  opacity: 0.6;
+  height: 2px;
+  background: var(--card-primary-color, #409eff);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 /* 堆叠式待办卡片 */
 .todo-item-stacked {
   position: relative;
-  margin-bottom: -75px;
+  margin-bottom: -60px;
   cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  transition: all 0.2s ease;
 }
 
 .todo-item-stacked:last-child {
@@ -2720,66 +2716,63 @@ onUnmounted(() => {
 
 .todo-item-stacked:hover {
   margin-bottom: 0;
-  transform: translate3d(0, -6px, 0);
-  box-shadow:
-    0 16px 40px rgba(64, 158, 255, 0.35),
-    0 8px 16px rgba(0, 0, 0, 0.12);
-  background: var(--card-bg-color-hover);
-  border-color: rgba(64, 158, 255, 0.3);
-  border-left-width: 6px;
-  will-change: transform;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  border-color: #dcdfe6;
+  border-left-width: 4px;
 }
+
 .todo-item-stacked:hover::before {
   opacity: 1;
-  height: 4px;
 }
+
 .todo-item-stacked:hover ~ .todo-item-stacked {
-  transform: translate3d(0, 10px, 0);
+  transform: translateY(8px);
 }
 
 .todo-item:hover {
-  background: var(--card-bg-color-hover);
-  transform: translateX(4px);
-  box-shadow:
-    0 8px 20px rgba(64, 158, 255, 0.25),
-    0 4px 8px rgba(0, 0, 0, 0.1);
-  border-color: rgba(64, 158, 255, 0.2);
+  background: #f5f7fa;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #dcdfe6;
+}
+
+.todo-item:hover::before {
+  opacity: 1;
 }
 
 .todo-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
-.todo-item:hover::before {
-  opacity: 1;
-}
+
 .todo-id {
-  font-size: 11px;
-  color: var(--card-primary-color, #409eff);
-  font-weight: 700;
+  font-size: 12px;
+  color: #606266;
+  font-weight: 600;
   word-break: break-all;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--card-bg-color, #ecf5ff) 0%, var(--card-bg-color-light, #d9ecff) 100%);
-  padding: 3px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(64, 158, 255, 0.2);
+  background: #f5f7fa;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+  font-family: 'Courier New', monospace;
 }
 
 .todo-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: #303133;
-  margin-bottom: 8px;
-  line-height: 1.5;
+  margin-bottom: 10px;
+  line-height: 1.6;
   word-break: break-word;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 90%;
+  max-width: 100%;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2790,10 +2783,10 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #636e72;
-  margin-bottom: 8px;
+  color: #909399;
+  margin-bottom: 10px;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .meta-item {
