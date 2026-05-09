@@ -289,7 +289,7 @@ const handleSSO = (provider) => {
                 @invalid="($event) => { $event.target.setCustomValidity('请填写用户名') }"
                 @input="($event) => { $event.target.setCustomValidity('') }"
               />
-              <button v-if="loginForm.username" type="button" class="clear-btn" @click="clearUsername" aria-label="清除">
+              <button v-if="loginForm.username" type="button" class="clear-btn" tabindex="-1" @click="clearUsername" aria-label="清除">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
@@ -323,13 +323,13 @@ const handleSSO = (provider) => {
                 @invalid="($event) => { $event.target.setCustomValidity('请填写密码') }"
                 @input="($event) => { $event.target.setCustomValidity('') }"
               />
-              <button v-if="loginForm.password" type="button" class="clear-btn" @click="clearPassword" aria-label="清除">
+              <button v-if="loginForm.password" type="button" class="clear-btn" tabindex="-1" @click="clearPassword" aria-label="清除">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
-              <button type="button" class="password-toggle-btn" @click="togglePassword" aria-label="显示密码">
+              <button type="button" class="password-toggle-btn" tabindex="-1" @click="togglePassword" aria-label="显示密码">
                 <svg
                   v-if="!passwordVisible"
                   viewBox="0 0 24 24"
