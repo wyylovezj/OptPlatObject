@@ -931,7 +931,7 @@ const initCategoryChart = () => {
       orient: 'vertical',
       left: 'left',
       bottom: '0',
-      gap: 2,
+      itemGap: 2,
     },
     series: [
       {
