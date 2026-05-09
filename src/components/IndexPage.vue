@@ -10,7 +10,6 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import SideBar from '@/components/SideBar.vue'
 import { isCollapse, debounce } from '@/utils/publicData.js'
-import { Expand,Fold } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 
 // 获取路由实例
@@ -30,9 +29,11 @@ const toggleCollapse = debounce(() => {
         <!-- 侧边栏开始 -->
         <el-aside :width="isCollapse ? '64px' : '150px'">
           <div class="side-bar">
-            <div style="height: 40px;width: 64px;display: flex;align-items: center;justify-content: center;">
-              <el-button v-if="!isCollapse" style="font-size: 20px" type="primary"  color="#1a1f2e" :icon="Expand" @click="toggleCollapse"/>
-              <el-button v-if="isCollapse" style="font-size: 20px" type="primary"  color="#1a1f2e" :icon="Fold" @click="toggleCollapse"/>
+            <div class="logo-wrapper" @click="toggleCollapse">
+              <svg class="logo-icon" viewBox="0 0 24 24">
+                <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l7 3.5v7.64l-7 3.5-7-3.5V7.68l7-3.5zM12 8a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z"/>
+              </svg>
+              <span v-show="!isCollapse" class="logo-text">信维通</span>
             </div>
             <div class="side-menu">
               <SideBar></SideBar>
@@ -117,41 +118,49 @@ const toggleCollapse = debounce(() => {
   flex-direction: column;
 }
 
-.collapse-btn-wrapper {
-  height: 40px;
+.logo-wrapper {
+  height: 50px;
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-left: 20px;
+  gap: 8px;
   background-color: rgba(0, 0, 0, 0.2);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.collapse-btn {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  background-color: transparent;
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 16px;
-  transition: all 0.2s ease;
+.logo-wrapper:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-.collapse-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+.logo-icon {
+  width: 24px;
+  height: 24px;
+  fill: #1a73e8;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  vertical-align: middle;
+  transform: skewX(-10deg);
 }
 
-.collapse-btn:active {
-  transform: scale(0.95);
+.logo-text {
+  font-size: 15px;
+  font-weight: 500;
+  font-style: italic;
+  color: #409eff;
+  white-space: nowrap;
+  letter-spacing: 1px;
+  line-height: 24px;
 }
 
 .side-menu {
   position: absolute;
-  top: 40px;
+  top: 50px;
   width: 100%;
-  height: calc(100% - 40px);
+  height: calc(100% - 50px);
   overflow-y: auto;
   overflow-x: hidden;
 }
