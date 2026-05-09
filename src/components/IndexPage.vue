@@ -27,7 +27,7 @@ const toggleCollapse = debounce(() => {
       <!-- element 布局总容器开始 -->
       <el-container>
         <!-- 侧边栏开始 -->
-        <el-aside :width="isCollapse ? '64px' : '150px'">
+        <el-aside :width="isCollapse ? '64px' : '160px'">
           <div class="side-bar">
             <div class="logo-wrapper" @click="toggleCollapse">
               <svg class="logo-icon" viewBox="0 0 24 24">
@@ -98,6 +98,7 @@ const toggleCollapse = debounce(() => {
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 10;
+  overflow: hidden;
 }
 
 .el-header {
@@ -116,6 +117,8 @@ const toggleCollapse = debounce(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  overflow: hidden;
 }
 
 .logo-wrapper {
@@ -130,6 +133,8 @@ const toggleCollapse = debounce(() => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
   transition: all 0.3s ease;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .logo-wrapper:hover {
@@ -159,6 +164,8 @@ const toggleCollapse = debounce(() => {
 .side-menu {
   position: absolute;
   top: 50px;
+  left: 0;
+  right: 0;
   width: 100%;
   height: calc(100% - 50px);
   overflow-y: auto;

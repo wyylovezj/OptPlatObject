@@ -80,7 +80,7 @@ const isActiveMenu = (menu) => {
 
 <template>
   <el-row class="tac">
-    <el-col :span="50">
+    <el-col :span="24">
       <el-menu
         class="el-menu-vertical"
         :text-color="isCollapse ? '#000' : '#fff'"
@@ -126,11 +126,16 @@ const isActiveMenu = (menu) => {
 .tac {
   user-select: none;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 .el-menu-vertical {
   border-right: none !important;
   background: transparent !important;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 :deep(.el-menu) {
@@ -139,8 +144,13 @@ const isActiveMenu = (menu) => {
 
 :deep(.el-sub-menu__title) {
   transition: all 0.2s ease;
-  margin: 2px 6px;
+  margin: 2px 4px;
   border-radius: 4px;
+  padding: 0 8px !important;
+}
+
+:deep(.el-sub-menu__title .el-icon) {
+  flex-shrink: 0;
 }
 
 :deep(.el-sub-menu__title:hover) {
@@ -155,10 +165,11 @@ const isActiveMenu = (menu) => {
 :deep(.el-menu-item) {
   color: rgba(255, 255, 255, 0.65) !important;
   transition: all 0.2s ease;
-  margin: 2px 6px;
+  margin: 2px 4px;
   border-radius: 4px;
   height: 44px;
   line-height: 44px;
+  padding: 0 8px !important;
 }
 
 :deep(.el-menu-item:hover) {
@@ -179,6 +190,8 @@ const isActiveMenu = (menu) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 :deep(.el-sub-menu__icon-arrow) {
@@ -226,16 +239,17 @@ const isActiveMenu = (menu) => {
 
 :deep(.el-menu--inline) {
   background-color: rgba(0, 0, 0, 0.15) !important;
-  margin: 0 6px;
+  margin: 0 4px;
   border-radius: 4px;
 }
 
 :deep(.el-menu--inline .el-menu-item) {
-  padding-left: 48px !important;
+  padding-left: 40px !important;
   height: 40px;
   line-height: 40px;
   font-size: 13px;
   margin: 1px 4px;
+  padding-right: 8px !important;
 }
 
 :deep(.el-menu)::-webkit-scrollbar {
