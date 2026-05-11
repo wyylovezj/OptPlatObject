@@ -412,3 +412,19 @@ export const downloadGroupUsers = async (groupName) => {
     throw error
   }
 }
+
+// 邮件别名查询接口
+export const mailUserView = async (userList) => {
+  try {
+    console.log('userList', userList)
+    // 发送POST请求，设置响应类型为blob以接收文件
+    const response = await axios.post(`${serverIp.value}/mailUserView`, {
+      user_list: userList,
+    }, {
+      responseType: 'blob',
+    })
+    return response
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败')
+  }
+}
