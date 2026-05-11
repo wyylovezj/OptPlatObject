@@ -172,8 +172,10 @@ onMounted(() => {
       message: '登录成功',
       duration: 2000,
     })
-    // 清除 URL 中的标记，避免刷新时重复显示
-    router.replace({ query: { ...route.query, loginSuccess: undefined } })
+    // 使用 nextTick 确保在下一个 tick 才清除 URL 参数，避免与组件初始化冲突
+    nextTick(() => {
+      router.replace({ query: { ...route.query, loginSuccess: undefined } })
+    })
   }
   
   console.log('首页数据加载完成')
