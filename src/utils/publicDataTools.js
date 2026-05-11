@@ -131,6 +131,8 @@ export const EmailAccountDataModel = ref(
     groupEmail: '', // 邮件组
     username: '', // 解锁邮箱
     type: '2', // 解锁类型
+    emailAliasText: '', // 邮件别名文本域内容
+    emailAliasArray: [], // 邮件别名数组
     reset: function() {
       this.newEmail = '';
       this.oldEmail = '';
@@ -140,6 +142,8 @@ export const EmailAccountDataModel = ref(
       this.resetType = '';
       this.groupEmail = '';
       this.username = '';
+      this.emailAliasText = '';
+      this.emailAliasArray = [];
     }
   }
 )
