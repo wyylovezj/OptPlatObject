@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 设置加载状态
       isLoadingPermissions.value = true
       permissionsLoaded.value = false
-      
+
       // 获取用户信息
       const userInfo = await getUserInfo(username)
       permissionStore.setUserInfo(userInfo)
@@ -58,7 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
       const isAdmin = roles.some(role => role.code === 'admin' || role.type === 'admin')
       userType.value = isAdmin ? 'admin' : 'user'
       sessionStorage.setItem('userType', userType.value)
-      
+
       // 标记权限加载完成
       permissionsLoaded.value = true
       isLoadingPermissions.value = false
@@ -79,6 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = savedUser
       // 自动加载权限数据（如果是刷新页面）
       if (!permissionsLoaded.value && !isLoadingPermissions.value) {
+        console.log('自动加载权限开始...')
         loadUserPermissions(savedUser).catch(error => {
           console.error('自动加载权限失败:', error)
           // 加载失败时清除登录信息
@@ -99,12 +100,12 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.setItem('user', user.value)
     sessionStorage.setItem('status', state.value)
     sessionStorage.setItem('userType', userType.value)
-    
+
     // 只有在权限未加载时才加载用户权限信息，避免重复加载
     if (!permissionsLoaded.value && !isLoadingPermissions.value) {
       await loadUserPermissions(username)
     }
-    
+
     if (isSsoLogin.value) {
       // 登录成功后，设置标记表示这是登录重定向
       sessionStorage.setItem('isLoginRedirect', 'true')
