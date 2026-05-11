@@ -51,7 +51,8 @@ const toggleCollapse = debounce(() => {
             <router-view v-slot="{ Component }">
               <transition name="slide-fade" mode="out-in" >
 <!--                <keep-alive :exclude="['AlarmItemPage']" >-->
-                  <component :is="Component" :key="route.fullPath"/>
+                  <!-- 只使用 path 作为 key，避免 query 参数变化导致组件重新渲染 -->
+                  <component :is="Component" :key="route.path"/>
 <!--                </keep-alive>-->
               </transition>
             </router-view>

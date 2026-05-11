@@ -327,16 +327,26 @@ router.beforeEach(async (to, from, next) => {
           } else if (!authStore.permissionsLoaded) {
             // 还未开始加载权限，触发加载
             console.log('检测到已登录用户，开始加载权限...')
-            authStore.loadUserPermissions(authStore.user)
-              .catch(error => {
-                console.error('权限加载失败，清除登录状态', error)
-                authStore.logoutInfoClear()
-                next({ name: 'LoginPage', query: { redirect: to.fullPath } })
-              })
-            // 在权限加载完成前，暂时允许访问
-            console.log('权限加载中，暂时允许访问')
-            next()
-            return
+            // 使用 await 等待权限加载完成后再放行，避免组件重复渲染
+            try {
+              await authStore.loadUserPermissions(authStore.user)
+              console.log('权限加载完成，继续导航')
+              // 权限加载完成后，重新检查权限
+              if (checkRoutePermission(to, permissionStore)) {
+                next()
+              } else {
+                next({
+                  name: 'NotFound',
+                  replace: true
+                })
+              }
+              return
+            } catch (error) {
+              console.error('权限加载失败，清除登录状态', error)
+              authStore.logoutInfoClear()
+              next({ name: 'LoginPage', query: { redirect: to.fullPath } })
+              return
+            }
           }
         }
         if (checkRoutePermission(to, permissionStore)) {
