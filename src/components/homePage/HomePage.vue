@@ -129,6 +129,38 @@ const alarmStatusData = computed(() => [
 // 当前激活的标签页
 const activeTab = ref('request')
 
+// 获取第一个有数据的tab页名称
+const getFirstTabWithData = () => {
+  const tabOrder = ['request','publish', 'event', 'change', 'problem']
+  for (const tabName of tabOrder) {
+    if (itsmTodoData.value[tabName] && itsmTodoData.value[tabName].length > 0) {
+      return tabName
+    }
+  }
+  // 如果所有tab都是空的，返回第一个tab（publish）
+  return 'request'
+}
+
+// 在组件挂载时设置默认tab
+onMounted(() => {
+  // 先加载其他数据
+  getLevelData()
+  getStatisticData()
+  getTrendData()
+
+  // 设置默认tab为第一个有数据的tab
+  activeTab.value = getFirstTabWithData()
+
+  // 初始化日期显示
+  const now = new Date()
+  currentDateDisplay.value = now
+    .toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+    .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
+  // 启动定时刷新任务，每60秒（1分钟）执行一次
+  refreshTimer = setInterval(refreshAllData, 30000)
+  console.log('首页数据加载完成')
+})
+
 // 获取当前标签页的工单列表
 const currentTodoList = computed(() => {
   return itsmTodoData.value[activeTab.value] || []
@@ -1013,19 +1045,18 @@ watch(timeRange, () => {
   // 可以在这里添加其他逻辑
 })
 
-onMounted(() => {
-  getLevelData()
-  getStatisticData()
-  getTrendData()
-  // 初始化日期显示
-  const now = new Date()
-  currentDateDisplay.value = now
-    .toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
-    .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
-  // 启动定时刷新任务，每60秒（1分钟）执行一次
-  refreshTimer = setInterval(refreshAllData, 30000)
-  console.log('首页数据加载完成')
-})
+// 监听待办数据变化，自动切换到第一个有数据的tab
+watch(
+  () => itsmTodoData.value,
+  (newData) => {
+    // 只在当前tab没有数据时，才自动切换
+    if (!newData[activeTab.value] || newData[activeTab.value].length === 0) {
+      activeTab.value = getFirstTabWithData()
+    }
+  },
+  { deep: true }
+)
+
 onUnmounted(() => {
   if (refreshTimer) {
     clearInterval(refreshTimer)
