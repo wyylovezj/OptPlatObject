@@ -137,6 +137,9 @@ export const useAuthStore = defineStore('auth', () => {
       state.value = null
       // 设置登录标志为未登录
       isAuthenticated.value = false
+      // 重置权限加载状态
+      isLoadingPermissions.value = false
+      permissionsLoaded.value = false
       // 清除本地存储
       if (sessionStorage.getItem('user')) {
         sessionStorage.removeItem('user')
