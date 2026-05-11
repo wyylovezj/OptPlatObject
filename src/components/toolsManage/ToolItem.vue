@@ -4,7 +4,7 @@ import {
   mobileTokenInterface,
   unlockAccountInterface,
   historyTask,
-  renameEmail, expiredEmail, resetPasswdEmail, downloadGroupUsers
+  renameEmail, expiredEmail, resetPasswdEmail, downloadGroupUsers, mailUserView
 } from '@/api/interface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { currentPage, messageInstance, searchQuery, user } from '@/utils/publicData.js'
@@ -24,6 +24,9 @@ import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox } from 'elemen
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
 import { Search, Edit,Key,Timer,Download,Unlock } from '@element-plus/icons-vue'
+
+// 邮件别名查询相关 ref
+const emailAliasInputFile = ref(null)
 
 
 
@@ -658,6 +661,16 @@ const unlockEmailRules = ref({
     },
   ]
 })
+// 邮件别名查询表单校验规则
+const emailAliasQueryRules = ref({
+  emailAliasText: [
+    {
+      required: true,
+      message: '请输入邮件别名',
+      trigger: 'change',
+    },
+  ]
+})
 // 用户解锁模态框中确定按钮点击事件
 const unlockAccount = async () => {
   if (!unlockAccountForm.value) return
@@ -1259,6 +1272,7 @@ const expiredEmailForm = ref(null)
 const resetPasswordForm = ref(null)
 const groupEmailForm = ref(null)
 const unlockEmailForm = ref(null)
+const emailAliasQueryForm = ref(null)
 const activeEmailTab = ref('rename')
 const shortcuts = [
   {
@@ -1299,6 +1313,9 @@ const emailSubmit = async () => {
       break
     case 'unlockEmail':
       await unlockEmailSubmit()
+      break
+    case 'emailAliasQuery':
+      await handleEmailAliasQuerySubmit()
       break
     default:
       ElMessage.warning('未知的操作类型')
@@ -1578,6 +1595,72 @@ const unlockEmailSubmit = async () => {
     }
   })
 }
+// 邮件别名查询功能函数
+const handleEmailAliasQuerySubmit = async () => {
+  if (!emailAliasQueryForm.value) return
+  await emailAliasQueryForm.value.validate(async (valid, fields) => {
+    if (valid) {
+      try {
+        // 检查是否有数据
+        if (!EmailAccountDataModel.value.emailAliasArray || EmailAccountDataModel.value.emailAliasArray.length === 0) {
+          ElMessage.warning('请输入或导入邮件别名数据')
+          return
+        }
+        
+        exportDisabled.value.renameSubmit = true
+        
+        // 调用邮件别名查询接口
+        const response = await mailUserView(EmailAccountDataModel.value.emailAliasArray)
+        
+        // 处理文件下载
+        const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        
+        // 生成文件名：邮件别名查询-时间戳.xlsx
+        const datetime = new Date()
+        const formattedDatetime =
+          datetime.getFullYear().toString() +
+          (datetime.getMonth() + 1).toString().padStart(2, '0') +
+          datetime.getDate().toString().padStart(2, '0') +
+          datetime.getHours().toString().padStart(2, '0') +
+          datetime.getMinutes().toString().padStart(2, '0') +
+          datetime.getSeconds().toString().padStart(2, '0')
+        link.setAttribute('download', `邮件别名查询-${formattedDatetime}.xlsx`)
+        
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        ElMessage.success({
+          message: `文件下载成功！共查询 ${EmailAccountDataModel.value.emailAliasArray.length} 个账号`,
+          type: 'success',
+          duration: 2000,
+        })
+        
+        // 重置表单
+        EmailAccount.value.reset()
+        EmailAccountDataModel.value.reset()
+        exportDisabled.value.renameSubmit = false
+      } catch (e) {
+        exportDisabled.value.renameSubmit = false
+        ElMessage.error('查询失败：' + e.message)
+        throw new Error(e)
+      }
+    } else {
+      if (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (emailAliasQueryForm.value) {
+          emailAliasQueryForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
+}
 // 脚本下发历史任务时间格式
 const defaultTime = ref([
   new Date(2000, 1, 1, 0, 0, 0),
@@ -1784,6 +1867,205 @@ const handleExceedInput = async (files, fileList) => {
   // file.uid = genFileId()
   // inputFile.value?.handleStart(file)
   // ElMessage.warning(`只能上传 1 个文件，当前选择了 ${files.length} 个文件`)
+}
+
+// 邮件别名查询 - 从文本中提取别名（按换行符分隔）
+const extractEmailAliasesFromText = (content) => {
+  // 按换行符分割
+  const lines = content.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line) // 过滤空行
+  
+  return lines
+}
+
+// 邮件别名查询 - 从文件中读取别名列表
+const readEmailAliasesFromFile = async (file) => {
+  const fileName = file.name.toLowerCase()
+  
+  // 根据文件扩展名选择读取方式
+  if (fileName.endsWith('.txt')) {
+    return await readEmailAliasesFromTXT(file)
+  } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+    return await readEmailAliasesFromExcel(file)
+  } else {
+    throw new Error(`不支持的文件格式：${fileName.split('.').pop()}`)
+  }
+}
+
+// 邮件别名查询 - 从 TXT 文件中读取
+const readEmailAliasesFromTXT = async (file) => {
+  try {
+    const content = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      
+      reader.onload = (event) => {
+        resolve(event.target.result)
+      }
+      
+      reader.onerror = () => {
+        reject(new Error('文件读取失败'))
+      }
+      
+      reader.readAsText(file.raw || file, 'UTF-8')
+    })
+    
+    return extractEmailAliasesFromText(content)
+  } catch (error) {
+    console.error('读取 TXT 文件失败:', error)
+    throw error
+  }
+}
+
+// 邮件别名查询 - 从 Excel 文件中读取
+const readEmailAliasesFromExcel = async (file) => {
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      
+      reader.onload = (event) => {
+        try {
+          resolve(event.target.result)
+        } catch (error) {
+          reject(error)
+        }
+      }
+      
+      reader.onerror = () => {
+        reject(new Error('文件读取失败'))
+      }
+      
+      reader.readAsArrayBuffer(file.raw || file)
+    })
+    
+    // 解析 Excel 文件
+    const workbook = XLSX.read(data, { type: 'array' })
+    
+    // 获取所有工作表名称
+    const sheetNames = workbook.SheetNames
+    
+    if (sheetNames.length === 0) {
+      throw new Error('Excel 文件中没有工作表')
+    }
+    
+    // 读取第一个工作表
+    const worksheet = workbook.Sheets[sheetNames[0]]
+    
+    // 转换为 JSON 数组（二维数组）
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+    
+    // 扁平化数组并提取非空值
+    const allValues = jsonData.flat()
+    const aliasStrings = allValues
+      .filter((val) => val !== null && val !== undefined && val !== '')
+      .map((val) => String(val).trim())
+    
+    return aliasStrings
+  } catch (error) {
+    console.error('读取 Excel 文件失败:', error)
+    throw error
+  }
+}
+
+// 邮件别名查询 - 文件导入文件变化回调
+const handleEmailAliasFileChange = async (file, fileList) => {
+  // 如果没有文件，直接返回
+  if (!file || !file.raw) {
+    return
+  }
+  
+  // 检查文件大小（不超过 1MB）
+  const maxSize = 1024 * 1024 * 1
+  if ((file.raw.size || file.size) > maxSize) {
+    ElMessage.error('文件大小不能超过 1MB')
+    emailAliasInputFile.value?.clearFiles()
+    return
+  }
+  
+  // 严格检查文件扩展名
+  const fileName = file.name.toLowerCase()
+  const fileExtension = '.' + fileName.split('.').pop()
+  
+  if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    ElMessage.error({
+      message: `不支持 ${fileExtension.toUpperCase()} 格式，仅支持 TXT、XLS、XLSX 格式`,
+      type: 'error',
+      duration: 3000,
+    })
+    emailAliasInputFile.value?.clearFiles()
+    return
+  }
+  
+  try {
+    // 读取文件内容
+    const aliasList = await readEmailAliasesFromFile(file)
+    
+    if (aliasList.length === 0) {
+      ElMessage.warning('文件中未找到有效的数据')
+      emailAliasInputFile.value?.clearFiles()
+      return
+    }
+    
+    // 将别名列表转换为以分号分隔的字符串
+    EmailAccountDataModel.value.emailAliasText = aliasList.join('; ')
+    
+    // 将数据存储到数组中
+    EmailAccountDataModel.value.emailAliasArray = aliasList
+    
+    console.log('EmailAccountDataModel.value.emailAliasText:', EmailAccountDataModel.value.emailAliasText)
+    console.log('EmailAccountDataModel.value.emailAliasArray:', EmailAccountDataModel.value.emailAliasArray)
+    
+    // 显示成功提示
+    ElMessage.success({
+      message: `已导入 ${aliasList.length} 条数据`,
+      type: 'success',
+      duration: 2000,
+    })
+    
+    console.log(`从文件 "${file.name}" 中导入的数据:`, aliasList)
+    
+    // 清空文件列表（因为只需要触发读取，不需要保留文件）
+    emailAliasInputFile.value?.clearFiles()
+  } catch (error) {
+    console.error('读取文件失败:', error)
+    ElMessage.error({
+      message: '读取文件失败，请确保文件格式正确',
+      type: 'error',
+      duration: 2000,
+    })
+    emailAliasInputFile.value?.clearFiles()
+  }
+}
+
+// 邮件别名查询 - 文件导入超出限制回调
+const handleEmailAliasExceed = async (files, fileList) => {
+  // 清空之前的文件列表
+  emailAliasInputFile.value?.clearFiles()
+  // 获取第一个新选择的文件（忽略其他文件）
+  const file = files[0]
+  // 手动触发文件变化处理
+  await handleEmailAliasFileChange(file, [])
+}
+
+// 邮件别名查询 - 文本域输入变化监听
+const handleEmailAliasInput = () => {
+  const text = EmailAccountDataModel.value.emailAliasText
+  
+  if (!text || !text.trim()) {
+    // 如果文本为空，清空数组
+    EmailAccountDataModel.value.emailAliasArray = []
+    return
+  }
+  
+  // 按分号或换行符分隔，并去除空白
+  const aliases = text.split(/[;\r\n]+/)
+    .map(alias => alias.trim())
+    .filter(alias => alias) // 过滤空字符串
+  
+  // 更新数组
+  EmailAccountDataModel.value.emailAliasArray = aliases
+  
+  console.log('EmailAccountDataModel.value.emailAliasArray:', EmailAccountDataModel.value.emailAliasArray)
 }
 
 // 上传
@@ -3653,7 +3935,7 @@ onBeforeUnmount(() => {
       v-model="dialogVisible.emailManage"
       top="10%"
       title="邮箱账号管理"
-      width="650px"
+      width="900px"
       center
       destroy-on-close
       :close-on-click-modal="false"
@@ -3858,6 +4140,55 @@ onBeforeUnmount(() => {
               >
                 <template #append>@cinda.com.cn</template>
               </el-input>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane name="emailAliasQuery" label="邮件别名查询">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><Search /></el-icon>
+              <span>邮件别名查询</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="emailAliasQueryForm"
+            label-position="right"
+            label-width="auto"
+            :rules="emailAliasQueryRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="邮件别名" prop="emailAliasText">
+              <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <el-input
+                  v-model="EmailAccountDataModel.emailAliasText"
+                  style="width: 350px"
+                  placeholder="请输入邮件别名，每行一个，支持从文件导入"
+                  :rows="8"
+                  type="textarea"
+                  clearable
+                  resize="none"
+                  spellcheck="false"
+                  @input="handleEmailAliasInput"
+                />
+                <div style="display: flex; flex-direction: column; gap: 5px; min-width: 120px;">
+                  <el-upload
+                    ref="emailAliasInputFile"
+                    accept=".txt,.xls,.xlsx"
+                    class="upload-demo-input"
+                    :auto-upload="false"
+                    :limit="1"
+                    :on-exceed="handleEmailAliasExceed"
+                    :on-change="handleEmailAliasFileChange"
+                    style="margin: 0;"
+                  >
+                    <template #trigger>
+                      <el-button type="primary">从文件导入</el-button>
+                    </template>
+                  </el-upload>
+                  <div class="el-upload__tip" style="white-space: normal; word-break: break-word; line-height: 1.4;">支持导入 txt/xls/xlsx 文件，且不超过 1MB</div>
+                </div>
+              </div>
             </el-form-item>
           </el-form>
         </el-tab-pane>
