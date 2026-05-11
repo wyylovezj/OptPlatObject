@@ -10,8 +10,8 @@
 import { alarmMonitoringData, itsmTodoData } from '@/utils/homePageData.js'
 import { ref, computed, onMounted, watch, nextTick, h ,onUnmounted } from 'vue'
 import { Bell, Warning, CircleCheck, Clock, TrendCharts, Timer } from '@element-plus/icons-vue'
-import { ElScrollbar, ElNotification } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { ElScrollbar, ElNotification, ElMessage } from 'element-plus'
+import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import {
   getAlertLevelData,
@@ -158,6 +158,24 @@ onMounted(() => {
     .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
   // 启动定时刷新任务，每60秒（1分钟）执行一次
   refreshTimer = setInterval(refreshAllData, 30000)
+  
+  // HomePage 挂载完成后，延迟触发待办检查（确保页面完全加载）
+  setTimeout(() => {
+    // 触发待办检查（通过自定义事件通知 App.vue）
+    window.dispatchEvent(new CustomEvent('check-todos'))
+    console.log('首页加载完成，触发待办检查')
+  }, 500)
+  
+  // 检测是否是登录成功后跳转，立刻显示成功提示
+  if (route.query.loginSuccess === 'true') {
+    ElMessage.success({
+      message: '登录成功',
+      duration: 2000,
+    })
+    // 清除 URL 中的标记，避免刷新时重复显示
+    router.replace({ query: { ...route.query, loginSuccess: undefined } })
+  }
+  
   console.log('首页数据加载完成')
 })
 
@@ -942,6 +960,7 @@ const handleTodoClick = (todo, type) => {
 }
 // 路由实例
 const router = useRouter()
+const route = useRoute()
 // 核心指标卡片点击跳转函数
 const handleMetricCardClick = () => {
   const targetRoute = '/alarmManagement/alarmItem'

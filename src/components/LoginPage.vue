@@ -125,37 +125,15 @@ const handleLogin = async () => {
     // 同步更新 publicData 中的 user 变量（用于 HeaderBar 显示）
     user.value = userData.username
 
-    // 登录成功后重定向到所输入的url
+    // 等待0.3秒，让用户看到 loading 动画
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    
+    // 登录成功后重定向到所输入的url，并带上成功标记
     const redirect = router.currentRoute.value.query.redirect || '/home'
-    await router.push(redirect)
-    // 如果已有提示框在显示，先关闭它
-    if (messageInstance.value) {
-      // 关闭所有消息
-      ElMessage.closeAll()
-      // 等待消息关闭动画完成
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-    messageInstance.value = ElMessage.success({
-      message: '登录成功',
-      duration: 1000,
-      onClose: () => {
-        messageInstance.value = null
-      },
-    })
-    // 如果已有提示框在显示，先关闭它
-    if (messageInstance.value) {
-      // 关闭所有消息
-      ElMessage.closeAll()
-      // 等待消息关闭动画完成
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-    messageInstance.value = ElMessage.success({
-      message: '登录成功',
-      duration: 1000,
-      onClose: () => {
-        messageInstance.value = null
-      },
-    })
+    await router.push({ path: redirect, query: { ...router.currentRoute.value.query, loginSuccess: 'true' } })
+    
+    // 跳转完成后才关闭 loading（虽然此时组件即将销毁，但确保状态正确）
+    loginLoading.value = false
   } catch (error) {
     console.log(error)
     // 如果已有提示框在显示，先关闭它
@@ -173,7 +151,10 @@ const handleLogin = async () => {
       },
     })
   } finally {
-    loginLoading.value = false
+    // 只在异常情况下关闭 loading（成功时已在跳转前关闭）
+    if (loginLoading.value) {
+      loginLoading.value = false
+    }
   }
 }
 // 保存用户名到历史记录
@@ -925,6 +906,16 @@ const handleSSO = (provider) => {
 
 .login-btn :deep(.el-icon) {
   display: none;
+}
+
+/* 允许 loading 状态下的图标显示 */
+.login-btn.is-loading :deep(.el-icon) {
+  display: inline-flex !important;
+}
+
+/* loading 状态下隐藏文字 */
+.login-btn.is-loading .btn-text {
+  display: none !important;
 }
 
 /* Divider */

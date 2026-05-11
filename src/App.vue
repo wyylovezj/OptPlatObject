@@ -16,7 +16,7 @@ import { itsmTodoData } from '@/utils/homePageData.js'
 import { isSsoLogin, messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
 import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 import { ElMessage, ElMessageBox, ElNotification, ElScrollbar } from 'element-plus'
-import { computed, onBeforeUnmount, onMounted, watch, h, } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch, h } from 'vue'
 import { useRoute } from 'vue-router'
 
 // 获取store实例
@@ -255,15 +255,9 @@ const startTodoCheckTimer = async (isFirstLogin = false) => {
     clearInterval(todoCheckTimer)
   }
 
-  if (isFirstLogin) {
-    // 首次登录：延迟执行，等待页面完全加载
-    setTimeout(() => {
-      checkAndNotifyTodos()
-    }, 1000)
-  } else {
-    // 页面刷新或定时触发：立即执行检查
-    checkAndNotifyTodos()
-  }
+  // 不再在这里检查待办，统一由 HomePage 组件挂载后触发
+  // 这样可以确保用户已经进入首页界面
+  console.log('待办检查定时器已启动，等待 HomePage 触发首次检查')
 
   // 每30秒检查一次
   todoCheckTimer = setInterval(checkAndNotifyTodos, 30000)
@@ -276,7 +270,11 @@ const stopTodoCheckTimer = () => {
     todoCheckTimer = null
   }
 }
-
+// 监听 HomePage 发出的待办检查事件
+const handleCheckTodos = () => {
+  console.log('收到待办检查事件，执行检查')
+  checkAndNotifyTodos()
+}
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
 onMounted(() => {
   // 初始化用户信息
@@ -286,6 +284,9 @@ onMounted(() => {
     // 初始化工单导出接口用户名
     WorkOrderDataModel.value.username = user.value
   }
+
+  window.addEventListener('check-todos', handleCheckTodos)
+
   unwatch = watch(
     () => authStore.isAuthenticated,
     (newValue) => {
@@ -371,6 +372,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   // 移除页面卸载事件监听
   window.removeEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
+  // 移除待办检查事件监听
+  window.removeEventListener('check-todos', handleCheckTodos)
   // 关闭页面时清除标记
   if (isSsoLogin.value) {
     authStore.logoutInfoClear()
