@@ -82,10 +82,8 @@
   .nav-children .nav-item.active { background: transparent; color: var(--primary-light); }
   .nav-children .nav-item.active::before { display: none; }
 
-  /* ═══ MAIN ═══ */
+  /* ═══ MAIN & HEADER ═══ */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-
-  /* ═══ HEADER ═══ */
   .header {
     height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
@@ -115,132 +113,107 @@
   }
   .user-name { font-size: 13px; color: var(--text-1); font-weight: 500; }
 
-  /* ═══ CONTENT ═══ */
+  /* ═══ CONTENT LAYOUT ═══ */
   .content { flex: 1; padding: 20px 24px; overflow-y: auto; max-width: 1680px; }
 
-  /* ═══ WELCOME ═══ */
+  /* Main Grid (Top & Middle merge) */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .dashboard-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ═══ WELCOME (Shrunk & Aligned) ═══ */
   .welcome-banner {
     background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #7c3aed 100%);
-    border-radius: var(--radius); padding: 20px 28px; margin-bottom: 16px;
+    border-radius: var(--radius); padding: 16px 24px;
     display: flex; align-items: center; justify-content: space-between;
     color: #fff; position: relative; overflow: hidden;
+    height: 90px; /* Fixed height to align with on-call nicely */
   }
   .welcome-banner::after {
     content: ''; position: absolute; right: -40px; top: -40px;
-    width: 200px; height: 200px; border-radius: 50%;
+    width: 150px; height: 150px; border-radius: 50%;
     background: rgba(255,255,255,0.06);
   }
-  .welcome-text h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-  .welcome-text p { font-size: 13px; opacity: 0.8; }
+  .welcome-text h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .welcome-text p { font-size: 12px; opacity: 0.85; }
   .welcome-date {
     background: rgba(255,255,255,0.15); backdrop-filter: blur(4px);
-    padding: 8px 16px; border-radius: 8px; font-size: 13px; text-align: right;
+    padding: 6px 14px; border-radius: 8px; font-size: 12px; text-align: right;
     position: relative; z-index: 1;
   }
-  .welcome-date .day { font-size: 22px; font-weight: 700; }
+  .welcome-date .day { font-size: 18px; font-weight: 700; line-height: 1.2;}
 
-  /* ═══ TOP ROW: ITSM + ONCALL ═══ */
-  .top-row {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 14px;
-    margin-bottom: 14px;
-  }
-  .top-card {
+  /* ═══ SHARED CARD ═══ */
+  .card {
     background: var(--bg-card); border-radius: var(--radius);
     border: 1px solid var(--border); overflow: hidden;
+    display: flex; flex-direction: column;
   }
-  .top-card-header {
+  .card-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 11px 18px; border-bottom: 1px solid var(--border-light);
+    padding: 11px 18px; border-bottom: 1px solid var(--border-light); flex-shrink: 0;
   }
-  .top-card-title {
+  .card-title {
     font-size: 13px; font-weight: 600; color: var(--text-1);
     display: flex; align-items: center; gap: 7px;
   }
-  .top-card-title svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
-  .top-card-body { padding: 12px 18px; }
-  .top-card-link { font-size: 11px; color: var(--primary); cursor: pointer; text-decoration: none; }
-  .top-card-link:hover { text-decoration: underline; }
+  .card-title svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .card-link { font-size: 11px; color: var(--primary); cursor: pointer; text-decoration: none; }
+  .card-link:hover { text-decoration: underline; }
+  .card-body { padding: 14px 18px; flex: 1; }
 
-  /* ITSM */
-  .itsm-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
-  .itsm-tab {
-    padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--bg-card); color: var(--text-3);
-    transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+  /* ═══ ON-CALL (2x2 Grid) ═══ */
+  .oncall-card { height: 90px; } /* Match welcome banner */
+  .oncall-card .card-body { padding: 10px 14px; display: flex; align-items: center; }
+  .oncall-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; width: 100%;
   }
-  .itsm-tab:hover { border-color: var(--primary-border); color: var(--primary); }
-  .itsm-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .itsm-count {
-    background: var(--border-light); padding: 0 5px; border-radius: 8px;
-    font-size: 10px; font-weight: 600;
-  }
-  .itsm-tab.active .itsm-count { background: rgba(255,255,255,0.25); }
-  .itsm-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
-  .itsm-mini {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
-    transition: all 0.2s; cursor: pointer; gap: 8px;
-  }
-  .itsm-mini:hover { border-color: var(--primary-border); background: var(--primary-bg); }
-  .itsm-mini-left { flex: 1; min-width: 0; }
-  .itsm-mini-title {
-    font-size: 12px; font-weight: 500; color: var(--text-1);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .itsm-mini-meta { font-size: 10px; color: var(--text-4); margin-top: 2px; }
-  .itsm-mini-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
-  .itsm-mini-badge.problem { background: var(--warning-bg); color: #92400e; }
-  .itsm-mini-badge.incident { background: var(--danger-bg); color: var(--danger); }
-  .itsm-mini-badge.change { background: var(--primary-bg); color: var(--primary); }
-  .itsm-mini-badge.request { background: var(--purple-bg); color: var(--purple); }
-
-  /* On-Call */
-  .oncall-card {
-    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-    border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px;
-  }
-  .oncall-card:last-child { margin-bottom: 0; }
+  .oncall-item { display: flex; align-items: center; gap: 8px; }
   .oncall-avatar {
-    width: 34px; height: 34px; border-radius: 50%; display: flex;
-    align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0;
+    width: 28px; height: 28px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-weight: 600; font-size: 11px; flex-shrink: 0;
   }
   .oncall-avatar.primary { background: var(--primary-bg); color: var(--primary); }
   .oncall-avatar.backup { background: var(--border-light); color: var(--text-3); }
-  .oncall-info { flex: 1; }
-  .oncall-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
-  .oncall-role { font-size: 11px; color: var(--text-4); }
-  .oncall-shift { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .oncall-avatar.dev { background: var(--purple-bg); color: var(--purple); }
+  .oncall-avatar.net { background: var(--cyan-bg); color: var(--cyan); }
+  .oncall-info { flex: 1; overflow: hidden; }
+  .oncall-name { font-size: 12px; font-weight: 500; color: var(--text-1); line-height: 1.2; }
+  .oncall-role { font-size: 10px; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
 
-  /* ═══ MIDDLE ROW: STATS + QUICK ACTIONS ═══ */
-  .mid-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 14px;
+  /* ═══ QUICK ACTIONS ═══ */
+  .qa-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .qa-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-card); cursor: pointer; transition: all 0.2s;
   }
-  .mid-card {
-    background: var(--bg-card); border-radius: var(--radius);
-    border: 1px solid var(--border); overflow: hidden;
+  .qa-btn:hover { border-color: var(--primary-border); background: var(--primary-bg); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .qa-icon {
+    width: 34px; height: 34px; border-radius: 8px; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
   }
-  .mid-card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 11px 18px; border-bottom: 1px solid var(--border-light);
-  }
-  .mid-card-title {
-    font-size: 13px; font-weight: 600; color: var(--text-1);
-    display: flex; align-items: center; gap: 7px;
-  }
-  .mid-card-title svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
-  .mid-card-body { padding: 14px 18px; }
+  .qa-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .qa-icon.blue { background: var(--primary-bg); color: var(--primary); }
+  .qa-icon.green { background: var(--success-bg); color: var(--success); }
+  .qa-icon.purple { background: var(--purple-bg); color: var(--purple); }
+  .qa-icon.orange { background: var(--warning-bg); color: var(--warning); }
+  .qa-label { font-size: 12px; color: var(--text-2); font-weight: 500; }
 
-  /* Compact Stats - horizontal pills */
-  .qs-strip { display: flex; gap: 10px; }
+  /* ═══ STATS OVERVIEW ═══ */
+  .qs-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
   .qs-pill {
-    flex: 1; display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 10px;
     padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);
-    transition: box-shadow 0.2s;
+    transition: box-shadow 0.2s; background: var(--bg-card);
   }
   .qs-pill:hover { box-shadow: var(--shadow-sm); }
   .qs-icon {
@@ -260,51 +233,48 @@
   .qs-trend.up { color: var(--danger); background: var(--danger-bg); }
   .qs-trend.down { color: var(--success); background: var(--success-bg); }
 
-  /* Quick Actions - horizontal grid */
-  .qa-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .qa-btn {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--bg-card); cursor: pointer; transition: all 0.2s;
+  /* ═══ ITSM TO-DO ═══ */
+  .itsm-card { flex: 1; } /* Allow to stretch */
+  .itsm-tabs { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 10px; }
+  .itsm-tab {
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text-3);
+    transition: all 0.2s; display: flex; align-items: center; gap: 4px;
   }
-  .qa-btn:hover { border-color: var(--primary-border); background: var(--primary-bg); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-  .qa-icon {
-    width: 34px; height: 34px; border-radius: 8px; display: flex;
-    align-items: center; justify-content: center; flex-shrink: 0;
+  .itsm-tab:hover { border-color: var(--primary-border); color: var(--primary); }
+  .itsm-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .itsm-count {
+    background: var(--border-light); padding: 0 5px; border-radius: 8px;
+    font-size: 10px; font-weight: 600; color: inherit;
   }
-  .qa-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
-  .qa-icon.blue { background: var(--primary-bg); color: var(--primary); }
-  .qa-icon.green { background: var(--success-bg); color: var(--success); }
-  .qa-icon.purple { background: var(--purple-bg); color: var(--purple); }
-  .qa-icon.orange { background: var(--warning-bg); color: var(--warning); }
-  .qa-label { font-size: 12px; color: var(--text-2); font-weight: 500; }
+  .itsm-tab.active .itsm-count { background: rgba(255,255,255,0.25); color: #fff;}
+  .itsm-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+  .itsm-mini {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+    transition: all 0.2s; cursor: pointer; gap: 8px;
+  }
+  .itsm-mini:hover { border-color: var(--primary-border); background: var(--primary-bg); }
+  .itsm-mini-left { flex: 1; min-width: 0; }
+  .itsm-mini-title {
+    font-size: 12px; font-weight: 500; color: var(--text-1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .itsm-mini-meta { font-size: 10px; color: var(--text-4); margin-top: 2px; }
+  .itsm-mini-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+  .itsm-mini-badge.problem { background: var(--warning-bg); color: #92400e; }
+  .itsm-mini-badge.incident { background: var(--danger-bg); color: var(--danger); }
+  .itsm-mini-badge.change { background: var(--primary-bg); color: var(--primary); }
+  .itsm-mini-badge.request { background: var(--purple-bg); color: var(--purple); }
 
-  /* ═══ BOTTOM ROW: CHANGES + ALERTS ═══ */
+  /* ═══ BOTTOM ROW (Alerts + Changes) ═══ */
   .bottom-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 14px;
   }
 
-  /* ═══ CARD (shared) ═══ */
-  .card {
-    background: var(--bg-card); border-radius: var(--radius);
-    border: 1px solid var(--border); overflow: hidden;
-  }
-  .card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 18px; border-bottom: 1px solid var(--border-light);
-  }
-  .card-title {
-    font-size: 14px; font-weight: 600; color: var(--text-1);
-    display: flex; align-items: center; gap: 8px;
-  }
-  .card-title svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
-  .card-body { padding: 14px 18px; }
-  .card-link { font-size: 12px; color: var(--primary); cursor: pointer; text-decoration: none; }
-  .card-link:hover { text-decoration: underline; }
-
-  /* ═══ RECENT CHANGES ═══ */
+  /* RECENT CHANGES */
   .change-item {
     display: flex; gap: 12px; padding: 10px 0;
     border-bottom: 1px solid var(--border-light);
@@ -326,7 +296,7 @@
   .change-status.running { background: var(--primary-bg); color: var(--primary); }
   .change-status.failed { background: var(--danger-bg); color: var(--danger); }
 
-  /* ═══ ALERT TABLE ═══ */
+  /* ALERT TABLE */
   .alert-table { width: 100%; border-collapse: collapse; }
   .alert-table th {
     font-size: 11px; font-weight: 600; color: var(--text-3); text-align: left;
@@ -352,22 +322,21 @@
 
   /* ═══ RESPONSIVE ═══ */
   @media (max-width: 1600px) {
-    .qs-strip { flex-wrap: wrap; }
-    .qs-pill { min-width: calc(33% - 8px); }
+    .qs-grid { grid-template-columns: repeat(3, 1fr); }
   }
   @media (max-width: 1400px) {
-    .top-row { grid-template-columns: 1fr; }
-    .mid-row { grid-template-columns: 1fr; }
+    .dashboard-grid { grid-template-columns: 1fr; }
     .bottom-row { grid-template-columns: 1fr; }
-    .qa-grid { grid-template-columns: repeat(4, 1fr); }
   }
   @media (max-width: 1100px) {
     .qa-grid { grid-template-columns: repeat(2, 1fr); }
-    .qs-strip { flex-direction: column; }
-    .qs-pill { min-width: 100%; }
+    .qs-grid { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 768px) {
     .sidebar { display: none; }
+    .oncall-grid { grid-template-columns: 1fr; }
+    .welcome-banner { flex-direction: column; height: auto; align-items: flex-start; gap: 10px;}
+    .welcome-date { text-align: left; }
   }
 </style>
 </head>
@@ -423,236 +392,311 @@
 
   <div class="content">
 
-    <!-- Welcome -->
-    <div class="welcome-banner">
-      <div class="welcome-text">
-        <h2>👋 早上好，weiyangyang</h2>
-        <p>当前有 <strong>23</strong> 条紧急告警待处理，<strong>4</strong> 个 ITSM 工单待响应</p>
+    <!-- ═══ TOP & MIDDLE GRID: Left Main + Right Sidebar ═══ -->
+    <div class="dashboard-grid">
+      
+      <!-- ⬅️ 左侧栏 (欢迎、快捷操作、运行概览) -->
+      <div class="dashboard-col">
+        
+        <!-- Welcome (Shrunk) -->
+        <div class="welcome-banner">
+          <div class="welcome-text">
+            <h2>👋 早上好，weiyangyang</h2>
+            <p>紧急告警 <strong>23</strong> 条，待响应工单 <strong>4</strong> 个</p>
+          </div>
+          <div class="welcome-date">
+            <div class="day">5月11日</div>
+            <div>星期一 · 2026</div>
+          </div>
+        </div>
+
+        <!-- 快捷操作 (原位于中间) -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              快捷操作
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="qa-grid">
+              <div class="qa-btn">
+                <div class="qa-icon blue">
+                  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <span class="qa-label">新建工单</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon green">
+                  <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <span class="qa-label">远程终端</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon purple">
+                  <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <span class="qa-label">监控大盘</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon orange">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                </div>
+                <span class="qa-label">配置中心</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon blue">
+                  <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                </div>
+                <span class="qa-label">批量通知</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon green">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                </div>
+                <span class="qa-label">CMDB 资产</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon purple">
+                  <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </div>
+                <span class="qa-label">知识库</span>
+              </div>
+              <div class="qa-btn">
+                <div class="qa-icon orange">
+                  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+                <span class="qa-label">运维报告</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 运行概览 (放至快捷操作下方) -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              运行概览
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="qs-grid">
+              <div class="qs-pill">
+                <div class="qs-icon danger">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <div>
+                  <div class="qs-label">紧急告警</div>
+                  <div class="qs-value" style="color:var(--danger)">23</div>
+                  <div class="qs-sub">较昨日 <span class="qs-trend up">+5</span></div>
+                </div>
+              </div>
+              <div class="qs-pill">
+                <div class="qs-icon warning">
+                  <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div>
+                  <div class="qs-label">待处理</div>
+                  <div class="qs-value" style="color:var(--warning)">82</div>
+                  <div class="qs-sub">严重 39</div>
+                </div>
+              </div>
+              <div class="qs-pill">
+                <div class="qs-icon success">
+                  <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div>
+                  <div class="qs-label">今日已处理</div>
+                  <div class="qs-value" style="color:var(--success)">96</div>
+                  <div class="qs-sub">均耗时 7h</div>
+                </div>
+              </div>
+              <div class="qs-pill">
+                <div class="qs-icon primary">
+                  <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <div>
+                  <div class="qs-label">在线主机</div>
+                  <div class="qs-value">342</div>
+                  <div class="qs-sub">总计 358</div>
+                </div>
+              </div>
+              <div class="qs-pill">
+                <div class="qs-icon purple">
+                  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div>
+                  <div class="qs-label">今日变更</div>
+                  <div class="qs-value">7</div>
+                  <div class="qs-sub">成功 6</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
-      <div class="welcome-date">
-        <div class="day">5月11日</div>
-        <div>星期一 · 2026</div>
+
+      <!-- ➡️ 右侧栏 (今日值班、ITSM待办) -->
+      <div class="dashboard-col">
+        
+        <!-- 今日值班 (优化为展示4人) -->
+        <div class="card oncall-card">
+          <div class="card-body" style="padding: 10px 18px;">
+            <div class="oncall-grid">
+              <div class="oncall-item">
+                <div class="oncall-avatar primary">张</div>
+                <div class="oncall-info">
+                  <div class="oncall-name">张三丰</div>
+                  <div class="oncall-role">主值班</div>
+                </div>
+              </div>
+              <div class="oncall-item">
+                <div class="oncall-avatar backup">李</div>
+                <div class="oncall-info">
+                  <div class="oncall-name">李四光</div>
+                  <div class="oncall-role">备值班</div>
+                </div>
+              </div>
+              <div class="oncall-item">
+                <div class="oncall-avatar dev">王</div>
+                <div class="oncall-info">
+                  <div class="oncall-name">王五一</div>
+                  <div class="oncall-role">研发支持</div>
+                </div>
+              </div>
+              <div class="oncall-item">
+                <div class="oncall-avatar net">赵</div>
+                <div class="oncall-info">
+                  <div class="oncall-name">赵六六</div>
+                  <div class="oncall-role">网络支持</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ITSM 待办 (放至右侧下方并占满高度) -->
+        <div class="card itsm-card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              ITSM 待办
+            </div>
+            <a class="card-link" href="#">全部 →</a>
+          </div>
+          <div class="card-body" style="display: flex; flex-direction: column;">
+            <div class="itsm-tabs">
+              <div class="itsm-tab active">全部 <span class="itsm-count">12</span></div>
+              <div class="itsm-tab">请求 <span class="itsm-count">2</span></div>
+              <div class="itsm-tab">事件 <span class="itsm-count">4</span></div>
+              <div class="itsm-tab">问题 <span class="itsm-count">2</span></div>
+              <div class="itsm-tab">发布 <span class="itsm-count">4</span></div>
+            </div>
+            <div class="itsm-list">
+              <div class="itsm-mini">
+                <div class="itsm-mini-left">
+                  <div class="itsm-mini-title">Redis 集群频繁主从切换根因分析</div>
+                  <div class="itsm-mini-meta">张三丰 · 10分钟前</div>
+                </div>
+                <span class="itsm-mini-badge problem">问题</span>
+              </div>
+              <div class="itsm-mini">
+                <div class="itsm-mini-left">
+                  <div class="itsm-mini-title">支付网关间歇性超时告警</div>
+                  <div class="itsm-mini-meta">李四光 · 25分钟前</div>
+                </div>
+                <span class="itsm-mini-badge incident">事件</span>
+              </div>
+              <div class="itsm-mini">
+                <div class="itsm-mini-left">
+                  <div class="itsm-mini-title">生产环境数据库版本升级计划</div>
+                  <div class="itsm-mini-meta">王五一 · 1小时前</div>
+                </div>
+                <span class="itsm-mini-badge change">变更</span>
+              </div>
+              <div class="itsm-mini">
+                <div class="itsm-mini-left">
+                  <div class="itsm-mini-title">报表服务 OOM 导致生成失败</div>
+                  <div class="itsm-mini-meta">赵六六 · 2小时前</div>
+                </div>
+                <span class="itsm-mini-badge incident">事件</span>
+              </div>
+              <!-- 填充占位元素以适应高度 -->
+              <div class="itsm-mini">
+                <div class="itsm-mini-left">
+                  <div class="itsm-mini-title">增加核心网络交换机带宽规划</div>
+                  <div class="itsm-mini-meta">刘七 · 3小时前</div>
+                </div>
+                <span class="itsm-mini-badge request">请求</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
-    <!-- ═══ TOP ROW: ITSM (left) + On-Call (right) ═══ -->
-    <div class="top-row">
-
-      <!-- ITSM 待办 -->
-      <div class="top-card">
-        <div class="top-card-header">
-          <div class="top-card-title">
-            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            ITSM 待办
-          </div>
-          <a class="top-card-link" href="#">全部 →</a>
-        </div>
-        <div class="top-card-body">
-          <div class="itsm-tabs">
-            <div class="itsm-tab active">全部 <span class="itsm-count">12</span></div>
-            <div class="itsm-tab">请求 <span class="itsm-count">2</span></div>
-            <div class="itsm-tab">事件 <span class="itsm-count">4</span></div>
-            <div class="itsm-tab">问题 <span class="itsm-count">2</span></div>
-            <div class="itsm-tab">发布 <span class="itsm-count">4</span></div>
-          </div>
-          <div class="itsm-list">
-            <div class="itsm-mini">
-              <div class="itsm-mini-left">
-                <div class="itsm-mini-title">Redis 集群频繁主从切换根因分析</div>
-                <div class="itsm-mini-meta">PRB2026050819 · 张三 · 10分钟前</div>
-              </div>
-              <span class="itsm-mini-badge problem">问题</span>
-            </div>
-            <div class="itsm-mini">
-              <div class="itsm-mini-left">
-                <div class="itsm-mini-title">支付网关间歇性超时告警</div>
-                <div class="itsm-mini-meta">INC2026050818 · 李四 · 25分钟前</div>
-              </div>
-              <span class="itsm-mini-badge incident">事件</span>
-            </div>
-            <div class="itsm-mini">
-              <div class="itsm-mini-left">
-                <div class="itsm-mini-title">生产环境数据库版本升级计划</div>
-                <div class="itsm-mini-meta">CHG2026050817 · 王五 · 1小时前</div>
-              </div>
-              <span class="itsm-mini-badge change">变更</span>
-            </div>
-            <div class="itsm-mini">
-              <div class="itsm-mini-left">
-                <div class="itsm-mini-title">报表服务 OOM 导致生成失败</div>
-                <div class="itsm-mini-meta">INC2026050816 · 赵六 · 2小时前</div>
-              </div>
-              <span class="itsm-mini-badge incident">事件</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 今日值班 -->
-      <div class="top-card">
-        <div class="top-card-header">
-          <div class="top-card-title">
-            <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
-            今日值班
-          </div>
-        </div>
-        <div class="top-card-body">
-          <div class="oncall-card">
-            <div class="oncall-avatar primary">张</div>
-            <div class="oncall-info">
-              <div class="oncall-name">张三</div>
-              <div class="oncall-role">主值班 · 运维工程师</div>
-            </div>
-            <div class="oncall-shift">09:00-21:00</div>
-          </div>
-          <div class="oncall-card">
-            <div class="oncall-avatar backup">李</div>
-            <div class="oncall-info">
-              <div class="oncall-name">李四</div>
-              <div class="oncall-role">备份值班 · 高级运维</div>
-            </div>
-            <div class="oncall-shift">09:00-21:00</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ═══ MIDDLE ROW: Stats + Quick Actions ═══ -->
-    <div class="mid-row">
-
-      <!-- 运行概览 (compact) -->
-      <div class="mid-card">
-        <div class="mid-card-header">
-          <div class="mid-card-title">
-            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            运行概览
-          </div>
-        </div>
-        <div class="mid-card-body">
-          <div class="qs-strip">
-            <div class="qs-pill">
-              <div class="qs-icon danger">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              </div>
-              <div>
-                <div class="qs-label">紧急告警</div>
-                <div class="qs-value" style="color:var(--danger)">23</div>
-                <div class="qs-sub">较昨日 <span class="qs-trend up">+5</span></div>
-              </div>
-            </div>
-            <div class="qs-pill">
-              <div class="qs-icon warning">
-                <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-              <div>
-                <div class="qs-label">待处理</div>
-                <div class="qs-value" style="color:var(--warning)">82</div>
-                <div class="qs-sub">严重 39 · 已分派 35</div>
-              </div>
-            </div>
-            <div class="qs-pill">
-              <div class="qs-icon success">
-                <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              </div>
-              <div>
-                <div class="qs-label">今日已处理</div>
-                <div class="qs-value" style="color:var(--success)">96</div>
-                <div class="qs-sub">平均耗时 7h</div>
-              </div>
-            </div>
-            <div class="qs-pill">
-              <div class="qs-icon primary">
-                <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </div>
-              <div>
-                <div class="qs-label">在线主机</div>
-                <div class="qs-value">342</div>
-                <div class="qs-sub">总计 358 台</div>
-              </div>
-            </div>
-            <div class="qs-pill">
-              <div class="qs-icon purple">
-                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <div>
-                <div class="qs-label">今日变更</div>
-                <div class="qs-value">7</div>
-                <div class="qs-sub">成功 6 · 失败 1</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 快捷操作 -->
-      <div class="mid-card">
-        <div class="mid-card-header">
-          <div class="mid-card-title">
-            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            快捷操作
-          </div>
-        </div>
-        <div class="mid-card-body">
-          <div class="qa-grid">
-            <div class="qa-btn">
-              <div class="qa-icon blue">
-                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <span class="qa-label">新建工单</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon green">
-                <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </div>
-              <span class="qa-label">远程终端</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon purple">
-                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              </div>
-              <span class="qa-label">监控大盘</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon orange">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-              </div>
-              <span class="qa-label">配置中心</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon blue">
-                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-              </div>
-              <span class="qa-label">批量通知</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon green">
-                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-              </div>
-              <span class="qa-label">CMDB 资产</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon purple">
-                <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              </div>
-              <span class="qa-label">知识库</span>
-            </div>
-            <div class="qa-btn">
-              <div class="qa-icon orange">
-                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-              </div>
-              <span class="qa-label">运维报告</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ═══ BOTTOM ROW: Changes + Alerts ═══ -->
+    <!-- ═══ BOTTOM ROW: Alerts(移至左) + Changes(移至右) ═══ -->
     <div class="bottom-row">
 
-      <!-- 最近变更 -->
+      <!-- 最新告警 (左侧) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            最新告警
+          </div>
+          <a class="card-link" href="#">全部 →</a>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table class="alert-table">
+            <thead>
+              <tr>
+                <th>级别</th>
+                <th>描述</th>
+                <th>主机</th>
+                <th>时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="alert-level critical"><span class="alert-level-dot"></span>紧急</span></td>
+                <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Redis 主节点连接超时，集群状态异常</td>
+                <td><span class="alert-host">zcddfsjg01</span></td>
+                <td class="alert-time">09:28</td>
+              </tr>
+              <tr>
+                <td><span class="alert-level critical"><span class="alert-level-dot"></span>紧急</span></td>
+                <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">MySQL 主从复制延迟超过 60s</td>
+                <td><span class="alert-host">zcddfsjg02</span></td>
+                <td class="alert-time">09:25</td>
+              </tr>
+              <tr>
+                <td><span class="alert-level warning"><span class="alert-level-dot"></span>重要</span></td>
+                <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Nginx 上游响应时间 P99 > 2s</td>
+                <td><span class="alert-host">zcddfsjg03</span></td>
+                <td class="alert-time">09:20</td>
+              </tr>
+              <tr>
+                <td><span class="alert-level warning"><span class="alert-level-dot"></span>重要</span></td>
+                <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">核心交换机端口丢包率 > 0.1%</td>
+                <td><span class="alert-host">zcddfsjg04</span></td>
+                <td class="alert-time">09:15</td>
+              </tr>
+              <tr>
+                <td><span class="alert-level critical"><span class="alert-level-dot"></span>紧急</span></td>
+                <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Kafka 消费者组 Lag 持续增长</td>
+                <td><span class="alert-host">zcddfsjg06</span></td>
+                <td class="alert-time">09:05</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 最近变更 (右侧) -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">
@@ -702,67 +746,6 @@
             </div>
             <span class="change-status failed">失败</span>
           </div>
-        </div>
-      </div>
-
-      <!-- 最新告警 -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            最新告警
-          </div>
-          <a class="card-link" href="#">全部 →</a>
-        </div>
-        <div class="card-body" style="padding:0">
-          <table class="alert-table">
-            <thead>
-              <tr>
-                <th>级别</th>
-                <th>描述</th>
-                <th>主机</th>
-                <th>时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><span class="alert-level critical"><span class="alert-level-dot"></span>紧急</span></td>
-                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Redis 主节点连接超时，集群状态异常</td>
-                <td><span class="alert-host">zcddfsjg01</span></td>
-                <td class="alert-time">09:28</td>
-              </tr>
-              <tr>
-                <td><span class="alert-level critical"><span class="alert-level-dot"></span>紧急</span></td>
-                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">MySQL 主从复制延迟超过 60s</td>
-                <td><span class="alert-host">zcddfsjg02</span></td>
-                <td class="alert-time">09:25</td>
-              </tr>
-              <tr>
-                <td><span class="alert-level warning"><span class="alert-level-dot"></span>重要</span></td>
-                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Nginx 上游响应时间 P99 > 2s</td>
-                <td><span class="alert-host">zcddfsjg03</span></td>
-                <td class="alert-time">09:20</td>
-              </tr>
-              <tr>
-                <td><span class="alert-level warning"><span class="alert-level-dot"></span>重要</span></td>
-                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">核心交换机端口丢包率 > 0.1%</td>
-                <td><span class="alert-host">zcddfsjg04</span></td>
-                <td class="alert-time">09:15</td>
-              </tr>
-              <tr>
-                <td><span class="alert-level critical"><span class="alert-level-dot"></span>紧急</span></td>
-                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Kafka 消费者组 Lag 持续增长</td>
-                <td><span class="alert-host">zcddfsjg06</span></td>
-                <td class="alert-time">09:05</td>
-              </tr>
-              <tr>
-                <td><span class="alert-level warning"><span class="alert-level-dot"></span>重要</span></td>
-                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Tomcat 线程池使用率超过 90%</td>
-                <td><span class="alert-host">zcddfsjg09</span></td>
-                <td class="alert-time">08:50</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
 

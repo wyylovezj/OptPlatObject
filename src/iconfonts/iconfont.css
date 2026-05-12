@@ -1,8 +1,8 @@
 @font-face {
   font-family: "iconfont"; /* Project id 5009577 */
-  src: url('iconfont.woff2?t=1777022378784') format('woff2'),
-       url('iconfont.ttf?t=1777022378784') format('truetype'),
-       url('iconfont.svg?t=1777022378784#iconfont') format('svg');
+  src: url('iconfont.woff2?t=1778546222576') format('woff2'),
+       url('iconfont.ttf?t=1778546222576') format('truetype'),
+       url('iconfont.svg?t=1778546222576#iconfont') format('svg');
 }
 
 .iconfont {
@@ -11,6 +11,10 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-mima:before {
+  content: "\e601";
 }
 
 .icon-daiban:before {
@@ -131,10 +135,6 @@
 
 .icon-shijianguanli:before {
   content: "\e627";
-}
-
-.icon-mima:before {
-  content: "\e659";
 }
 
 .icon-yonghuming:before {

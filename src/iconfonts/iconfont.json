@@ -6,6 +6,13 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "3636844",
+      "name": "密码修改",
+      "font_class": "mima",
+      "unicode": "e601",
+      "unicode_decimal": 58881
+    },
+    {
       "icon_id": "15546795",
       "name": "待办",
       "font_class": "daiban",
@@ -214,13 +221,6 @@
       "font_class": "shijianguanli",
       "unicode": "e627",
       "unicode_decimal": 58919
-    },
-    {
-      "icon_id": "12163479",
-      "name": "密码",
-      "font_class": "mima",
-      "unicode": "e659",
-      "unicode_decimal": 58969
     },
     {
       "icon_id": "12163496",
