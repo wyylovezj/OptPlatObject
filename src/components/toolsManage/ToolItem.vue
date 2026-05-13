@@ -24,6 +24,7 @@ import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox } from 'elemen
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
 import { Search, Edit,Key,Timer,Download,Unlock } from '@element-plus/icons-vue'
+import ToolItemModels from './ToolItemModels.vue'
 
 // 邮件别名查询相关 ref
 const emailAliasInputFile = ref(null)
@@ -40,6 +41,7 @@ const cardRenderState = ref({
   scriptDistribution: false,
   tokenUnlock: false,
   emailManage: false,
+  passwordModify: false, // 主机密码修改卡片渲染状态
 })
 
 // 新增：实时统计实际渲染的卡片数量（不依赖任何数据，只统计实际 DOM）
@@ -407,6 +409,11 @@ const initHistoryTaskTable = async () => {
     ElMessage.error('获取历史任务数据失败:',error)
   }
 }
+
+// 打开主机密码修改历史任务模态框
+const openPasswordModifyHistory = () => {
+  dialogVisible.value.passwordModifyHistory = true
+}
 // 表单验证定时器
 let validateTimer = null
 // 定义一个计算属性，判断是否有 el-card 需要显示
@@ -424,6 +431,8 @@ const dialogVisible = ref({
   historyStandardOutputVisible: false, // 历史任务详情模态框可视状态
   validityPeriod: false, // 域账号密码有效期模态框可视状态
   emailManage: false, // 邮件管理控制台模态框可视状态
+  passwordModify: false, // 主机密码修改模态框可视状态
+  passwordModifyHistory: false, // 主机密码修改历史任务模态框可视状态
 })
 const buttonVisible = ref({
   taskDetails: false,  //脚本下发后任务详情按钮显示状态
@@ -436,6 +445,8 @@ const pageChange = (page) => {
 }
 // 导出工单表单实例
 const exporterForm = ref(null)
+// 主机密码修改模态框实例
+const passwordModifyRef = ref(null)
 const responseData = ref({
   unlock: {
     message: '',
@@ -456,6 +467,7 @@ const exportDisabled = ref({
   createTask: false, // 脚本下发按钮禁用状态
   emailManage: false, // 邮件管理按钮禁用状态
   renameSubmit: false, // 邮件管理界面禁用状态
+  passwordModify: false, // 主机密码修改按钮禁用状态
 })
 // 进度条可视状态
 const percentageVisible = ref({
@@ -1606,18 +1618,18 @@ const handleEmailAliasQuerySubmit = async () => {
           ElMessage.warning('请输入或导入邮件别名数据')
           return
         }
-        
+
         exportDisabled.value.renameSubmit = true
-        
+
         // 调用邮件别名查询接口
         const response = await mailUserView(EmailAccountDataModel.value.emailAliasArray)
-        
+
         // 处理文件下载
         const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
         const url = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        
+
         // 生成文件名：邮件别名查询-时间戳.xlsx
         const datetime = new Date()
         const formattedDatetime =
@@ -1628,18 +1640,18 @@ const handleEmailAliasQuerySubmit = async () => {
           datetime.getMinutes().toString().padStart(2, '0') +
           datetime.getSeconds().toString().padStart(2, '0')
         link.setAttribute('download', `邮件别名查询-${formattedDatetime}.xlsx`)
-        
+
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
         window.URL.revokeObjectURL(url)
-        
+
         ElMessage.success({
           message: `文件下载成功！共查询 ${EmailAccountDataModel.value.emailAliasArray.length} 个账号`,
           type: 'success',
           duration: 2000,
         })
-        
+
         // 重置表单
         EmailAccount.value.reset()
         EmailAccountDataModel.value.reset()
@@ -1875,14 +1887,14 @@ const extractEmailAliasesFromText = (content) => {
   const lines = content.split(/\r?\n/)
     .map(line => line.trim())
     .filter(line => line) // 过滤空行
-  
+
   return lines
 }
 
 // 邮件别名查询 - 从文件中读取别名列表
 const readEmailAliasesFromFile = async (file) => {
   const fileName = file.name.toLowerCase()
-  
+
   // 根据文件扩展名选择读取方式
   if (fileName.endsWith('.txt')) {
     return await readEmailAliasesFromTXT(file)
@@ -1898,18 +1910,18 @@ const readEmailAliasesFromTXT = async (file) => {
   try {
     const content = await new Promise((resolve, reject) => {
       const reader = new FileReader()
-      
+
       reader.onload = (event) => {
         resolve(event.target.result)
       }
-      
+
       reader.onerror = () => {
         reject(new Error('文件读取失败'))
       }
-      
+
       reader.readAsText(file.raw || file, 'UTF-8')
     })
-    
+
     return extractEmailAliasesFromText(content)
   } catch (error) {
     console.error('读取 TXT 文件失败:', error)
@@ -1922,7 +1934,7 @@ const readEmailAliasesFromExcel = async (file) => {
   try {
     const data = await new Promise((resolve, reject) => {
       const reader = new FileReader()
-      
+
       reader.onload = (event) => {
         try {
           resolve(event.target.result)
@@ -1930,36 +1942,36 @@ const readEmailAliasesFromExcel = async (file) => {
           reject(error)
         }
       }
-      
+
       reader.onerror = () => {
         reject(new Error('文件读取失败'))
       }
-      
+
       reader.readAsArrayBuffer(file.raw || file)
     })
-    
+
     // 解析 Excel 文件
     const workbook = XLSX.read(data, { type: 'array' })
-    
+
     // 获取所有工作表名称
     const sheetNames = workbook.SheetNames
-    
+
     if (sheetNames.length === 0) {
       throw new Error('Excel 文件中没有工作表')
     }
-    
+
     // 读取第一个工作表
     const worksheet = workbook.Sheets[sheetNames[0]]
-    
+
     // 转换为 JSON 数组（二维数组）
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-    
+
     // 扁平化数组并提取非空值
     const allValues = jsonData.flat()
     const aliasStrings = allValues
       .filter((val) => val !== null && val !== undefined && val !== '')
       .map((val) => String(val).trim())
-    
+
     return aliasStrings
   } catch (error) {
     console.error('读取 Excel 文件失败:', error)
@@ -1973,7 +1985,7 @@ const handleEmailAliasFileChange = async (file, fileList) => {
   if (!file || !file.raw) {
     return
   }
-  
+
   // 检查文件大小（不超过 1MB）
   const maxSize = 1024 * 1024 * 1
   if ((file.raw.size || file.size) > maxSize) {
@@ -1981,11 +1993,11 @@ const handleEmailAliasFileChange = async (file, fileList) => {
     emailAliasInputFile.value?.clearFiles()
     return
   }
-  
+
   // 严格检查文件扩展名
   const fileName = file.name.toLowerCase()
   const fileExtension = '.' + fileName.split('.').pop()
-  
+
   if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
     ElMessage.error({
       message: `不支持 ${fileExtension.toUpperCase()} 格式，仅支持 TXT、XLS、XLSX 格式`,
@@ -1995,35 +2007,35 @@ const handleEmailAliasFileChange = async (file, fileList) => {
     emailAliasInputFile.value?.clearFiles()
     return
   }
-  
+
   try {
     // 读取文件内容
     const aliasList = await readEmailAliasesFromFile(file)
-    
+
     if (aliasList.length === 0) {
       ElMessage.warning('文件中未找到有效的数据')
       emailAliasInputFile.value?.clearFiles()
       return
     }
-    
+
     // 将别名列表转换为以分号分隔的字符串
     EmailAccountDataModel.value.emailAliasText = aliasList.join('; ')
-    
+
     // 将数据存储到数组中
     EmailAccountDataModel.value.emailAliasArray = aliasList
-    
+
     console.log('EmailAccountDataModel.value.emailAliasText:', EmailAccountDataModel.value.emailAliasText)
     console.log('EmailAccountDataModel.value.emailAliasArray:', EmailAccountDataModel.value.emailAliasArray)
-    
+
     // 显示成功提示
     ElMessage.success({
       message: `已导入 ${aliasList.length} 条数据`,
       type: 'success',
       duration: 2000,
     })
-    
+
     console.log(`从文件 "${file.name}" 中导入的数据:`, aliasList)
-    
+
     // 清空文件列表（因为只需要触发读取，不需要保留文件）
     emailAliasInputFile.value?.clearFiles()
   } catch (error) {
@@ -2050,21 +2062,21 @@ const handleEmailAliasExceed = async (files, fileList) => {
 // 邮件别名查询 - 文本域输入变化监听
 const handleEmailAliasInput = () => {
   const text = EmailAccountDataModel.value.emailAliasText
-  
+
   if (!text || !text.trim()) {
     // 如果文本为空，清空数组
     EmailAccountDataModel.value.emailAliasArray = []
     return
   }
-  
+
   // 按分号或换行符分隔，并去除空白
   const aliases = text.split(/[;\r\n]+/)
     .map(alias => alias.trim())
     .filter(alias => alias) // 过滤空字符串
-  
+
   // 更新数组
   EmailAccountDataModel.value.emailAliasArray = aliases
-  
+
   console.log('EmailAccountDataModel.value.emailAliasArray:', EmailAccountDataModel.value.emailAliasArray)
 }
 
@@ -3079,6 +3091,40 @@ onBeforeUnmount(() => {
             <div class="bottom-section">
               <div style="flex: 1; display: flex; justify-content: flex-end">
                 <el-button type="primary" :disabled="exportDisabled.emailManage" @click="() => {dialogVisible.emailManage = true;exportDisabled.emailManage = true}"> 控制台 </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
+        <!-- 主机密码修改卡片 -->
+        <el-card
+          v-if="containsLabel('主机密码修改') && permissionStore.hasPermission('tool:passwordModify')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.passwordModify = !!el; }"
+        >
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-mima"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>主机密码修改</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="danger" @click="openPasswordModifyHistory">历史任务</el-button>
+                <el-button type="primary" :disabled="exportDisabled.passwordModify" @click="() => {dialogVisible.passwordModify = true}"> 控制台 </el-button>
               </div>
             </div>
           </div>
@@ -4210,6 +4256,18 @@ onBeforeUnmount(() => {
         >
       </div>
     </el-dialog>
+    <!-- 主机密码修改模态框 -->
+    <ToolItemModels
+      ref="passwordModifyRef"
+      v-model="dialogVisible.passwordModify"
+      @close="() => { dialogVisible.passwordModify = false; exportDisabled.passwordModify = false }"
+    />
+    <!-- 主机密码修改历史任务模态框 -->
+    <ToolItemModels
+      v-model="dialogVisible.passwordModifyHistory"
+      :default-history-mode="true"
+      @close="() => { dialogVisible.passwordModifyHistory = false }"
+    />
   </div>
 </template>
 

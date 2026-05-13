@@ -6,7 +6,7 @@ const userGroup = ['weiyangyang']
 
 
 // 卡片数组，新增的卡片放在这里
-export const cards = ["工单导出", "域账号管理", "脚本下发","堡垒机账号解锁","邮箱账号管理"]
+export const cards = ["工单导出", "域账号管理", "脚本下发","堡垒机账号解锁","邮箱账号管理","主机密码修改"]
 // 目录树模式，新增的目录放在这里
 export const toolSTree = [
   {
@@ -32,6 +32,10 @@ export const toolSTree = [
           {
             id: 24,
             label: '邮箱账号管理'
+          },
+          {
+            id: 25,
+            label: '主机密码修改'
           }
         ]
       },
@@ -91,7 +95,7 @@ export const fileUploadDataModel = ref(
     }
   }
 )
-
+// 脚本下发历史任务数据模型
 export const historyFileUploadDataModel = ref(
   {
     execUser: '',  // 执行人
@@ -102,6 +106,19 @@ export const historyFileUploadDataModel = ref(
     }
   }
 )
+// 密码修改历史任务数据模型
+export const historyPasswdModifyDataModel = ref({
+  execUser: '', // 执行人
+  execTime: [], // 执行时间
+  category: '', // 改密类型
+  type: '', // 账号类型
+  reset: function () {
+    this.execUser = ''
+    this.execTime = []
+    this.category = ''
+    this.type = ''
+  },
+})
 // 邮箱账号管理输入数据模型
 export  const EmailAccount = ref(  {
   newEmail: '', // 新邮箱
