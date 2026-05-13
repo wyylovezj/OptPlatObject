@@ -63,6 +63,8 @@ const viewCurrentRole = ref(null)
 const viewMenuTree = ref([])
 // 查看模式下已选中的菜单 ID（只读）
 const viewCheckedMenus = ref([])
+// 用于强制刷新 el-tree 组件的 key
+const viewTreeKey = ref(0)
 // 加载菜单树
 const menuLoading = ref(false)
 // 搜索条件
@@ -349,6 +351,9 @@ const getRolesMenus = async (roleCode) => {
     // 提取该角色已拥有的菜单 ID
     const checkedMenuIds = extractMenuIds(roleMenus)
     viewCheckedMenus.value = checkedMenuIds
+    
+    // 强制刷新 el-tree 组件
+    viewTreeKey.value++
 
     console.log('角色菜单权限:', allMenus)
     console.log('已选菜单 ID:', checkedMenuIds)
@@ -607,6 +612,7 @@ onMounted(() => {
         </div>
         <el-scrollbar height="500px">
           <el-tree
+            :key="viewTreeKey"
             :data="viewMenuTree"
             show-checkbox
             node-key="id"
