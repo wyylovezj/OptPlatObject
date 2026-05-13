@@ -428,3 +428,34 @@ export const mailUserView = async (userList) => {
     throw new Error(error.response?.data?.message || '服务器连接失败')
   }
 }
+
+// Linux主机密码修改接口
+export const linuxPasswordChange = async (formData) => {
+  try {
+    // 发送POST请求，设置响应类型为blob以接收excel文件
+    const response = await axios.post(`${serverIp.value}/linux_password_change`, formData, {
+      responseType: 'blob',
+    })
+    console.log('formData', formData)
+    return response
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败')
+  }
+}
+
+// 主机密码修改历史任务查询接口
+export const historyPasswordChangeTask = async (execUser, execTime, category, type) => {
+  try {
+    // 发送POST请求
+    const response = await axios.post(`${serverIp.value}/history_password_change_task`, {
+      username: execUser,
+      execute_time: execTime,
+      category: category,
+      type: type,
+    })
+    console.log(response.data)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败')
+  }
+}
