@@ -12,7 +12,7 @@ import { ElMessage, ElButton, ElAutoResizer, ElTableV2 } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { linuxPasswordChange, historyPasswordChangeTask } from '@/api/interface.js'
 import { useAuthStore } from '@/stores/authInfoStore.js'
-import { historyFileUploadDataModel, historyPasswdModifyDataModel } from '@/utils/publicDataTools.js'
+import { historyPasswdModifyDataModel } from '@/utils/publicDataTools.js'
 
 // 定义 props 和 emits（props在模板中使用）
 const props = defineProps({
@@ -45,11 +45,11 @@ watch(
 
 // 监听历史任务搜索条件中改密类型的变化
 watch(
-  () => historyFileUploadDataModel.value.category,
+  () => historyPasswdModifyDataModel.value.category,
   (newValue) => {
     if (newValue === '1') {
       // 当选择单用户改密时，清空账号类型
-      historyFileUploadDataModel.value.type = ''
+      historyPasswdModifyDataModel.value.type = ''
     }
   },
 )
@@ -439,7 +439,7 @@ const handleClose = () => {
   emit('close')
   resetForm()
   // 清空历史任务搜索条件
-  historyFileUploadDataModel.value.reset()
+  historyPasswdModifyDataModel.value.reset()
   historyData.value = []
 }
 
@@ -740,7 +740,7 @@ const switchToFormMode = () => {
 // 关闭历史任务模式
 const closeHistoryMode = () => {
   displayMode.value = 'form'
-  historyFileUploadDataModel.value.reset()
+  historyPasswdModifyDataModel.value.reset()
   historyData.value = []
 }
 
@@ -866,7 +866,7 @@ defineExpose({
     <div v-else>
       <div style="height: 100px">
         <el-form
-          :model="historyFileUploadDataModel"
+          :model="historyPasswdModifyDataModel"
           :inline="true"
           label-position="right"
           label-width="auto"
@@ -874,7 +874,7 @@ defineExpose({
         >
           <el-form-item label="执行用户" prop="execUser" style="margin-bottom: 0">
             <el-input
-              v-model="historyFileUploadDataModel.execUser"
+              v-model="historyPasswdModifyDataModel.execUser"
               style="width: 160px"
               placeholder="请输入执行用户"
               maxlength="15"
@@ -884,17 +884,17 @@ defineExpose({
             />
           </el-form-item>
           <el-form-item label="改密类型" prop="category" style="margin-bottom: 0">
-            <el-select v-model="historyFileUploadDataModel.category" placeholder="请选择" clearable style="width: 130px">
+            <el-select v-model="historyPasswdModifyDataModel.category" placeholder="请选择" clearable style="width: 130px">
               <el-option label="单用户改密" value="1" />
               <el-option label="多用户改密" value="2" />
             </el-select>
           </el-form-item>
           <el-form-item label="账号类型" prop="type" style="margin-bottom: 0">
             <el-select
-              v-model="historyFileUploadDataModel.type"
+              v-model="historyPasswdModifyDataModel.type"
               placeholder="请选择"
               clearable
-              :disabled="historyFileUploadDataModel.category === '1'"
+              :disabled="historyPasswdModifyDataModel.category === '1'"
               style="width: 150px"
             >
               <el-option label="应用用户账号" value="应用用户账号" />
@@ -904,7 +904,7 @@ defineExpose({
           </el-form-item>
           <el-form-item label="创建时间" prop="execTime" style="margin-bottom: 0">
             <el-date-picker
-              v-model="historyFileUploadDataModel.execTime"
+              v-model="historyPasswdModifyDataModel.execTime"
               type="daterange"
               start-placeholder="开始日期"
               end-placeholder="结束日期"
