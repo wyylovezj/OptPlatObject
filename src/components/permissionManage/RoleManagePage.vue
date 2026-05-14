@@ -351,7 +351,7 @@ const getRolesMenus = async (roleCode) => {
     // 提取该角色已拥有的菜单 ID
     const checkedMenuIds = extractMenuIds(roleMenus)
     viewCheckedMenus.value = checkedMenuIds
-    
+
     // 强制刷新 el-tree 组件
     viewTreeKey.value++
 
@@ -464,7 +464,7 @@ onMounted(() => {
             </el-table-column>
             <el-table-column label="操作" width="300" fixed="right" :resizable="false" min-width="35%">
               <template #default="{ row }">
-                <el-button v-if="permissionStore.hasPermission('system:assignMenus') && row.code !== 'admin' && row.code !== 'normal'" type="primary" size="small" @click="openAssignDialog(row)">
+                <el-button v-if="permissionStore.hasPermission('system:assignMenus')  && row.code !== 'normal'" type="primary" size="small" @click="openAssignDialog(row)">
                   分配菜单
                 </el-button>
                 <el-button v-if="permissionStore.hasPermission('system:editRoles')" type="warning" size="small" @click="openEditDialog(row)">
