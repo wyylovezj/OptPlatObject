@@ -8,7 +8,7 @@
  * @lastModifiedTime: 2026-05-12
  */
 import { ref, computed, h, watch, defineProps, defineEmits } from 'vue'
-import { ElMessage, ElButton, ElAutoResizer, ElTableV2 } from 'element-plus'
+import { ElMessage, ElButton, ElAutoResizer, ElTableV2, ElLoading } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { linuxPasswordChange, historyPasswordChangeTask } from '@/api/interface.js'
 import { useAuthStore } from '@/stores/authInfoStore.js'
@@ -125,6 +125,9 @@ const formRules = ref({
 
 // 按钮禁用状态
 const submitDisabled = ref(false)
+
+// 加载实例（用于全局遮罩层）
+let loadingInstance = null
 
 // 改密类型选项（在模板中使用）
 const categoryOptions = [
@@ -378,6 +381,13 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       submitDisabled.value = true
+      // 显示全局遮罩层，使用进度条样式
+      loadingInstance = ElLoading.service({
+        lock: true,
+        text: '温馨提示：修改密码约需 1 分钟⏳，请耐心等待，不要离开页面！',
+        background: 'rgba(0, 0, 0, 0.7)',
+        customClass: 'custom-loading-progress',
+      })
 
       try {
         // 生成任务ID（UUID）
@@ -423,6 +433,11 @@ const handleSubmit = async () => {
         })
       } finally {
         submitDisabled.value = false
+        // 关闭全局遮罩层
+        if (loadingInstance) {
+          loadingInstance.close()
+          loadingInstance = null
+        }
       }
     }
   })
@@ -758,7 +773,7 @@ defineExpose({
     :width="displayMode === 'form' ? dialogWidth : '1350px'"
     center
     destroy-on-close
-    :show-close="true"
+    :show-close="false"
     append-to-body
     style="user-select: none"
     @close="handleClose"
@@ -1006,5 +1021,60 @@ defineExpose({
 
 :deep(.detail-content) {
   word-break: break-all;
+}
+</style>
+
+<style>
+/* 全局样式：自定义加载进度条 */
+.custom-loading-progress .el-loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-loading-progress .el-loading-spinner .circular {
+  display: none;
+}
+
+.custom-loading-progress .el-loading-spinner::before {
+  content: '';
+  width: 60px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.custom-loading-progress .el-loading-spinner::after {
+  content: '';
+  position: absolute;
+  width: 40%;
+  height: 3px;
+  background: linear-gradient(90deg, #f093fb, #f5576c, #ffd89b);
+  border-radius: 2px;
+  animation: progress-animation 2s ease-in-out infinite;
+  margin-top: -16px;
+  box-shadow: 0 0 8px rgba(245, 87, 108, 0.6);
+}
+
+@keyframes progress-animation {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.custom-loading-progress .el-loading-text {
+  color: #fff;
+  font-size: 18px;
+  margin-top: 8px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 </style>
