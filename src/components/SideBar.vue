@@ -92,6 +92,7 @@ const isActiveMenu = (menu) => {
         :unique-opened="true"
         :collapse="isCollapse"
         :collapse-transition="false"
+        :collapse-tooltip="true"
       >
         <!-- 动态渲染菜单 -->
         <template v-for="menu in dynamicMenus" :key="menu.id">
@@ -144,9 +145,7 @@ const isActiveMenu = (menu) => {
 
 :deep(.el-sub-menu__title) {
   transition: all 0.2s ease;
-  margin: 2px 4px;
   border-radius: 4px;
-  padding: 0 8px !important;
 }
 
 :deep(.el-sub-menu__title .el-icon) {
@@ -165,11 +164,9 @@ const isActiveMenu = (menu) => {
 :deep(.el-menu-item) {
   color: rgba(255, 255, 255, 0.65) !important;
   transition: all 0.2s ease;
-  margin: 2px 4px;
   border-radius: 4px;
   height: 44px;
   line-height: 44px;
-  padding: 0 8px !important;
 }
 
 :deep(.el-menu-item:hover) {
@@ -222,17 +219,7 @@ const isActiveMenu = (menu) => {
   color: #409eff;
 }
 
-:deep(.el-menu--collapse) {
-  width: 64px;
-}
-
-:deep(.el-menu--collapse .el-menu-item),
-:deep(.el-menu--collapse .el-sub-menu__title) {
-  margin: 2px 4px;
-  justify-content: center;
-  padding: 0 !important;
-}
-
+/* 折叠时隐藏菜单文本 */
 :deep(.el-menu--collapse .menu) {
   display: none;
 }
