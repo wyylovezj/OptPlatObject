@@ -7,7 +7,7 @@
  * @lastModifiedBy: 魏阳阳
  * @lastModifiedTime: 2026-05-12
  */
-import { ref, computed, h, watch } from 'vue'
+import { ref, computed, h, watch, defineProps, defineEmits } from 'vue'
 import { ElMessage, ElButton, ElAutoResizer, ElTableV2 } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { linuxPasswordChange, historyPasswordChangeTask } from '@/api/interface.js'
