@@ -6,6 +6,13 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "42896117",
+      "name": "二级菜单-值班管理-排班管理",
+      "font_class": "zhibanguanli",
+      "unicode": "e773",
+      "unicode_decimal": 59251
+    },
+    {
       "icon_id": "3636844",
       "name": "密码修改",
       "font_class": "mima",

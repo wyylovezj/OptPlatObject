@@ -191,7 +191,7 @@ onMounted(() => {
           <span>菜单树</span>
           <div>
             <el-button type="primary" @click="loadMenuTree">刷新</el-button>
-            <el-button v-if="permissionStore.hasPermission('alarm:createRoot')" type="primary" @click="openCreateDialog(null)">新增根菜单</el-button>
+            <el-button v-if="permissionStore.hasPermission('system:createRoot')" type="primary" @click="openCreateDialog(null)">新增根菜单</el-button>
           </div>
         </div>
       </template>
