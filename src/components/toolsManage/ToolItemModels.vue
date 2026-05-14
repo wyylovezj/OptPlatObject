@@ -47,9 +47,20 @@ watch(
 watch(
   () => historyPasswdModifyDataModel.value.category,
   (newValue) => {
-    if (newValue === '1') {
-      // 当选择单用户改密时，清空账号类型
+    if (newValue === '1' || newValue === '' || newValue === null || newValue === undefined) {
+      // 当选择单用户改密或改密类型被清空时，清空账号类型
       historyPasswdModifyDataModel.value.type = ''
+    }
+  },
+)
+
+// 监听历史任务搜索条件中账号类型的变化
+watch(
+  () => historyPasswdModifyDataModel.value.type,
+  (newValue) => {
+    if (newValue && newValue !== '') {
+      // 当选择任意账号类型时，自动将改密类型设置为多用户改密
+      historyPasswdModifyDataModel.value.category = '2'
     }
   },
 )
@@ -660,6 +671,10 @@ const initHistoryTaskTable = async () => {
     const execTime = historyPasswdModifyDataModel.value.execTime
     const category = historyPasswdModifyDataModel.value.category
     const type = historyPasswdModifyDataModel.value.type
+    console.log("execUser:",execUser)
+    console.log("execTime:",execTime)
+    console.log("category:",category)
+    console.log("type:",type)
     const responseData = await historyPasswordChangeTask(execUser, execTime, category, type)
     if (responseData.status === 'success') {
       historyData.value = responseData?.data || []
@@ -773,7 +788,7 @@ defineExpose({
     :width="displayMode === 'form' ? dialogWidth : '1350px'"
     center
     destroy-on-close
-    :show-close="false"
+    :show-close="displayMode === 'form' ? false : true"
     append-to-body
     style="user-select: none"
     @close="handleClose"
@@ -896,10 +911,11 @@ defineExpose({
               type="text"
               clearable
               spellcheck="false"
+              @clear="historyPasswdModifyDataModel.execUser = ''"
             />
           </el-form-item>
           <el-form-item label="改密类型" prop="category" style="margin-bottom: 0">
-            <el-select v-model="historyPasswdModifyDataModel.category" placeholder="请选择" clearable style="width: 130px">
+            <el-select v-model="historyPasswdModifyDataModel.category" placeholder="请选择" clearable style="width: 130px" @clear="historyPasswdModifyDataModel.category = ''">
               <el-option label="单用户改密" value="1" />
               <el-option label="多用户改密" value="2" />
             </el-select>
@@ -911,6 +927,7 @@ defineExpose({
               clearable
               :disabled="historyPasswdModifyDataModel.category === '1'"
               style="width: 150px"
+              @clear="historyPasswdModifyDataModel.type = ''"
             >
               <el-option label="应用用户账号" value="应用用户账号" />
               <el-option label="系统用户账号" value="系统用户账号" />
@@ -927,6 +944,7 @@ defineExpose({
               unlink-panels
               :default-time="defaultTime"
               style="width: 300px"
+              @clear="historyPasswdModifyDataModel.execTime = []"
             />
           </el-form-item>
           <el-form-item style="flex: none; margin-left: 4px; margin-right: 5px; margin-bottom: 0">
