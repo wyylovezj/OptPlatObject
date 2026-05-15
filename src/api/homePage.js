@@ -70,7 +70,7 @@ export const getAlertStatusData = async (date) => {
 export const getAlertStatisticData = async () => {
   try {
     const response = await axios.get(`${serverIp.value}/getAlertStatisticData`)
-    console.log(response.data)
+    console.log('getAlertStatisticData', response.data)
     return response.data
   } catch (error) {
     console.error('获取告警状态数据失败:', error)
