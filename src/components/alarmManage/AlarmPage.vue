@@ -22,11 +22,10 @@ import AlarmSearchPage from '@/components/alarmManage/AlarmSearchPage.vue'
 .alarm-page {
   display: flex;
   flex-direction: column;
-  border: #DCDFE6 solid 1px;
-  padding: 15px 30px;
+  padding: 5px;
   height: 100%;
   box-sizing: border-box;
-  background-color: #FFFFFF;
+  background-color: transparent;
   border-radius: 10px;
 }
 

@@ -26,6 +26,7 @@ export const alarmMonitoringData = ref({
   serious: {
     // 未处理严重告警
     count: 0, // 条数
+    totalCritical: 0, // 新增严重告警总数
     recently: '', // 最近发生时间
     furthest: '', // 最远发生时间
   },
@@ -76,7 +77,7 @@ export const alarmMonitoringData = ref({
     fastest: 0, // 最快时长
     slowest: 0, // 最慢时长
     overtime: 0, // 超时未处理
-  }
+  },
 })
 
 // ITSM 待办数据区

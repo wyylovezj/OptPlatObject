@@ -158,14 +158,14 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
     const rootNode = {
       event_id: `聚合-${normalizedHostName || 'empty'}`,
       severity: getHighestSeverity(sortedChildren),
-      state: "/",
-      system_name: originalName || "/",
-      category: "/",
-      object: "/",
-      ip: "/",
+      state: "-",
+      system_name: originalName || "-",
+      category: "-",
+      object: "-",
+      ip: "-",
       alarm_details: `(总计: ${stats.total}, 严重: ${stats.critical},重要: ${stats.important},一般: ${stats.normal},普通: ${stats.ordinary})`,
       occurrenceTime: getLatestTime(sortedChildren),
-      processingTime: "/",
+      processingTime: "-",
       hasChildren: sortedChildren.length > 0,
       // children: sortedChildren,
       isHostNode: true,
@@ -201,9 +201,9 @@ export function convertAlarmDataToTreeOptimized(alarmData) {
     }
 
     // 如果级别和时间都相同，空主机名放在最后
-    if (a.system_name === "/" && b.system_name !== "/") return 1
-    if (a.system_name !== "/" && b.system_name === "/") return -1
-    if (a.system_name === "/" && b.system_name === "/") return 0
+    if (a.system_name === "-" && b.system_name !== "-") return 1
+    if (a.system_name !== "-" && b.system_name === "-") return -1
+    if (a.system_name === "-" && b.system_name === "-") return 0
 
     // 最后按主机名字母顺序排序
     return a.system_name.localeCompare(b.system_name)

@@ -38,12 +38,135 @@ import {
   lastScrollTop,
   startIndex,
 } from '@/utils/publicData.js'
+import * as XLSX from 'xlsx'
 
 // 权限状态管理
 const permissionStore = usePermissionStore()
 // 每页条数：默认为10
 const pageSize = ref(10)
-let currentPageSize = 10
+
+// 批量关闭功能
+const batchClose = async () => {
+  console.log('start', new Date().getTime())
+  // 如果已有提示框在显示，先关闭它
+  if (messageInstance.value) {
+    // 关闭所有消息
+    ElMessage.closeAll()
+    // 使用setTimeout给DOM更新留出时间
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  // 检查选中的节点中是否有状态为"已关闭"的告警
+  const closedRows = selectedRows.value.filter((row) => row.state === '已关闭')
+  if (closedRows.length > 0) {
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `选中的 ${closedRows.length} 条告警状态为"已关闭"，不允许再次关闭`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+    return
+  }
+  if (selectedRows.value.length === 0) {
+    messageInstance.value = ElMessage.warning({
+      message: '请先选择要关闭的数据',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+    return
+  }
+  console.log('endtime', new Date().getTime())
+  DialogVisibleClose.value = true
+  // 等待模态框关闭动画完成
+  await nextTick()
+}
+
+// 导出功能
+const exportAlarmData = async () => {
+  try {
+    let exportData = []
+
+    if (selectedRows.value.length > 0) {
+      exportData = selectedRows.value
+    } else {
+      exportData = tableData.value
+    }
+
+    if (exportData.length === 0) {
+      if (messageInstance.value) {
+        ElMessage.closeAll()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      messageInstance.value = ElMessage.warning({
+        message: '没有可导出的数据',
+        duration: 1000,
+        offset: window.innerHeight / 2 - 20,
+        onClose: () => {
+          messageInstance.value = null
+        },
+      })
+      return
+    }
+
+    const excelData = exportData.map((row) => ({
+      事件ID: row.event_id || '',
+      告警级别: row.severity || '',
+      告警状态: row.state || '',
+      业务系统: row.system_name || '',
+      告警分类: row.category || '',
+      主机名: row.object || '',
+      IP地址: row.ip || '',
+      告警描述: row.alarm_details || '',
+      发生时间: row.occurrenceTime || '',
+      处理时间: row.processingTime || '',
+      告警来源: row.source || '',
+      处理意见: row.alart_remarks || '',
+      处理人: row.Alarm_Handler || '',
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '告警数据')
+
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
+    const fileName = `告警数据_${dateStr}.xlsx`
+
+    XLSX.writeFile(workbook, fileName)
+
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    messageInstance.value = ElMessage.success({
+      message: `成功导出 ${exportData.length} 条告警数据`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  } catch (error) {
+    console.error('导出失败:', error)
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    messageInstance.value = ElMessage.error({
+      message: '导出失败，请稍后重试',
+      duration: 1000,
+      offset: window.innerHeight / 2 - 20,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+}
 // 计算当前页显示的数据的索引范围
 const currentPageData = computed(() => {
   // 计算当前页的起始数据的索引：索引从0开始计算
@@ -55,83 +178,96 @@ const currentPageData = computed(() => {
   return tableData.value.slice(start, end)
 })
 // 虚拟滚动相关变量
-const rowHeight = 50 // 每行高度（包括边框），根据实际测量调整
-const visibleRowCount = 20 // 可见区域显示的行数（固定高度 600 / 行高）
-const scrollThreshold = 5 // 每滚动 5 行触发一次更新
+const rowHeight = 45 // 每行高度（包括边框），根据实际测量调整
+const visibleRowCount = 12 // 可见区域显示的行数（固定渲染12条）
 
-// 计算需要渲染的数据片段
+// 计算需要渲染的数据片段（仅用于非聚合模式）
 const virtualData = computed(() => {
   // 计算当前页的起始数据的索引：索引从0开始计算
   const start = (currentPage.value - 1) * pageSize.value
   // 计算当前页的结束数据的索引
   const end = start + pageSize.value
-  // 返回当前页的数据的切片
-  console.log('end', new Date().getTime()) // 当 pageSize <= 20 时，渲染所有数据
-  if (pageSize.value <= 20) {
+
+  // 当 pageSize <= 10 时，渲染所有数据（不启用虚拟滚动）
+  if (pageSize.value <= 10) {
     return tableData.value.slice(start, end)
   }
-  if (startIndex.value > 0 && start + startIndex.value + visibleRowCount <= end) {
-    console.log('index', tableData.value.slice(start + startIndex.value, startIndex.value + visibleRowCount))
 
-    // // 更新上次滚动位置
-    // lastScrollTop.value = scrollTop
-    return tableData.value.slice(start + startIndex.value, start + startIndex.value + visibleRowCount)
+  // 当 pageSize > 10 时，启用虚拟滚动，只渲染12条数据
+  // startIndex.value 表示当前可视区域的起始索引（相对于当前页）
+  const renderStart = start + startIndex.value
+  const renderEnd = Math.min(renderStart + visibleRowCount, end)
+
+  return tableData.value.slice(renderStart, renderEnd)
+})
+
+// 计算带空白行的虚拟数据（用于保持滚动条高度）
+const virtualDataWithSpacers = computed(() => {
+  if (!isAggregate.value && pageSize.value > 10) {
+    const result = []
+
+    // 添加前置空白行
+    if (startIndex.value > 0) {
+      result.push({ __spacer__: true, __height__: startIndex.value * rowHeight })
+    }
+
+    // 添加实际数据
+    result.push(...virtualData.value)
+
+    // 添加后置空白行
+    const start = (currentPage.value - 1) * pageSize.value
+    const totalRows = Math.min(pageSize.value, tableData.value.length - start)
+    const renderedRows = virtualData.value.length
+    const remainingRows = totalRows - startIndex.value - renderedRows
+
+    if (remainingRows > 0) {
+      result.push({ __spacer__: true, __height__: remainingRows * rowHeight })
+    }
+
+    return result
   }
-  return tableData.value.slice(start, start + 20)
+  return virtualData.value
 })
 
 // 处理表格滚动事件
 const handleTableScroll = (event) => {
-  if (!isAggregate.value && pageSize.value > 20) {
-    // 计算当前应该显示的起始索引（基于滚动距离）
-    const scrollTop = event.scrollTop || event.target?.scrollTop || 0
+  if (!isAggregate.value && pageSize.value > 10) {
+    // 从事件对象中获取scrollTop
+    const scrollTop = event.target?.scrollTop || event.scrollTop || 0
 
-    // 判断滚动方向
-    const scrollDelta = scrollTop - lastScrollTop.value
-    const isScrollingDown = scrollDelta > 0 // 向下滚动
-    const isScrollingUp = scrollDelta < 0 // 向上滚动
+    // 计算新的起始索引（相对于当前页的偏移量）
+    const newIndex = Math.floor(scrollTop / rowHeight)
 
-    // lastScrollTop.value = scrollTop
-    if (isScrollingDown) {
-      const newIndex = Math.floor(scrollTop / rowHeight)
-      console.log('向下滚动')
-      console.log('scrollTop', scrollTop)
-      // 只有当滚动距离超过阈值时才更新
-      if (newIndex >= scrollThreshold) {
-        // 计算新的起始索引
-        startIndex.value = Math.min(newIndex + startIndex.value, Math.min(pageSize.value, tableData.value.length) - visibleRowCount)
-      }
-      if (startIndex.value < Math.min(pageSize.value, tableData.value.length) - visibleRowCount) {
-        // 更新上次滚动位置
-        lastScrollTop.value = 300
-        tableRef.value.setScrollTop(300)
-      }
+    // 计算最大允许的起始索引（确保不会超出范围）
+    const maxStartIndex = Math.min(pageSize.value, tableData.value.length - (currentPage.value - 1) * pageSize.value) - visibleRowCount
+
+    // 限制起始索引在合理范围内
+    const clampedIndex = Math.max(0, Math.min(newIndex, maxStartIndex))
+
+    // 只有当索引发生变化时才更新
+    if (clampedIndex !== startIndex.value) {
+      startIndex.value = clampedIndex
+
+      // 关键修改：在数据更新前关闭闪烁，更新后再开启，确保同步
+      blinkTrigger.value = false
+      nextTick(() => {
+        blinkTrigger.value = true
+      })
     }
-    if (isScrollingUp) {
-      console.log('向上滚动')
-      console.log('scrollTop', scrollTop)
-      const newIndex = Math.ceil((lastScrollTop.value - scrollTop) / rowHeight)
-      console.log('newIndex', newIndex)
-      // 只有当滚动距离超过阈值时才更新
-      if (newIndex >= 1) {
-        // 计算新的起始索引
-        startIndex.value = Math.max(startIndex.value - newIndex, 0)
-        console.log('startIndex', startIndex.value)
-      }
-      if (startIndex.value === pageSize.value - visibleRowCount) {
-        // 获取当前滚动位置
-        lastScrollTop.value = scrollTop
-      }
-      if (startIndex.value > 0) {
-        tableRef.value.setScrollTop(300)
-      }
-    }
-    // 关键修改：在数据更新前关闭闪烁，更新后再开启，确保同步
-    blinkTrigger.value = false
-    nextTick(() => {
-      blinkTrigger.value = true
-    })
   }
+}
+
+// 获取真实行索引（用于序号显示）
+const getRealRowIndex = (row) => {
+  if (!row || row.__spacer__) return ''
+
+  // 在tableData中查找该行的实际索引
+  const realIndex = tableData.value.findIndex(item => item.event_id === row.event_id)
+
+  if (realIndex === -1) return ''
+
+  // 返回从1开始的序号
+  return realIndex + 1
 }
 
 /**
@@ -214,34 +350,6 @@ watch(isAggregate, async (newVal, oldVal) => {
 // 创建全局加载状态
 const globalLoading = ref(false)
 
-// 聚合开关的处理函数
-const handleAggregateChange = async () => {
-  // 立即显示全局加载状态
-  globalLoading.value = true
-  // 立即显示加载状态
-  loading.value = true
-  try {
-    // 清空当前选择行
-    selectedRows.value = []
-    tableRef.value?.clearSelection()
-    // 清除展开状态
-    clearExpandStates()
-
-    await initTableData()
-    currentPage.value = 1
-    // 等待DOM更新完成后重新同步状态
-    await nextTick()
-    syncExpandStates()
-    // 确保有足够的加载时间让用户感知
-    await new Promise((resolve) => setTimeout(resolve, 500))
-  } catch (error) {
-    console.error('切换聚合模式失败:', error)
-  } finally {
-    // 同时关闭两种加载状态
-    globalLoading.value = false
-    loading.value = false
-  }
-}
 // 清除所有展开状态
 const clearExpandStates = () => {
   expandedRows.value.clear()
@@ -527,16 +635,14 @@ const handleSizeChange = (size) => {
   console.log('start', new Date().getTime())
   // 将响应式变量blinkTrigger的值设置为false，用于关闭闪烁效果
   blinkTrigger.value = false
-  if (currentPageSize > pageSize.value) {
-    startIndex.value = 0
-    tableRef.value.setScrollTop(0)
-  }
-  if (currentPageSize < pageSize.value) {
-    lastScrollTop.value = 0
+
+  // 重置虚拟滚动状态
+  startIndex.value = 0
+  lastScrollTop.value = 0
+  if (tableRef.value && tableRef.value.setScrollTop) {
     tableRef.value.setScrollTop(0)
   }
 
-  currentPageSize = pageSize.value
   // 将响应式变量pageSize的值更新为新的每页显示数量
   pageSize.value = size
   // 将响应式变量currentPage的值重置为第一页，currentPage绑定到分页组件的当前页码属性
@@ -556,6 +662,11 @@ const handleCurrentChange = (page) => {
   // page是分页组件current-change事件传递的参数，表示当前页码
   // 将响应式变量currentPage的值更新为新的页码，currentPage绑定到分页组件的当前页码属性
   currentPage.value = page
+  // 重置虚拟滚动状态
+  startIndex.value = 0
+  if (tableRef.value && tableRef.value.setScrollTop) {
+    tableRef.value.setScrollTop(0)
+  }
 }
 
 /**
@@ -658,13 +769,33 @@ const handleRowSelect = (selection, row) => {
 const handleSelectAllHeader = async (selection) => {
   console.log('表头全选框被点击')
 
-  // 非聚合模式：直接执行默认全选逻辑
-  // 非聚合模式：不干预，让 Element Plus 自动处理
-  // Element Plus 的 @select-all 事件会自动完成全选/取消全选
+  // 非聚合模式：选中/取消选中当前页的全部数据
   if (!isAggregate.value) {
-    console.log('非聚合模式，由 Element Plus 自动处理全选')
-    // 只需要更新 selectedRows 即可
-    selectedRows.value = selection
+    console.log('非聚合模式，切换当前页全部数据的选中状态')
+
+    // 判断是全选还是取消全选：如果selection为空数组，说明是取消全选
+    const isSelectAll = selection.length > 0
+
+    if (isSelectAll) {
+      // 全选：选中当前页全部数据
+      selectedRows.value = currentPageData.value
+
+      // 同时更新表格的选中状态，确保UI同步
+      nextTick(() => {
+        tableRef.value?.clearSelection()
+        currentPageData.value.forEach((row) => {
+          tableRef.value?.toggleRowSelection(row, true)
+        })
+      })
+    } else {
+      // 取消全选：清空选中状态
+      selectedRows.value = []
+
+      // 同时更新表格的选中状态
+      nextTick(() => {
+        tableRef.value?.clearSelection()
+      })
+    }
     return
   }
 
@@ -766,15 +897,60 @@ const dialogVisibleOrder = ref(false)
  *
  */
 const getSeverityColor = (severity) => {
-  // 定义严重程度与颜色的映射关系
+  // 定义严重程度与颜色的映射关系（与HTML样例保持一致）
   const colorMap = {
-    严重: '#FF0000', // 红色，表示最高优先级
-    重要: '#fa8c16', // 橙色，表示中等优先级
-    一般: '#ffd100', // 黄色，表示较低优先级
-    普通: '#6cbc45', // 黄色，表示较低优先级
+    严重: '#dc2626', // 红色，表示最高优先级
+    重要: '#ea580c', // 橙色，表示中等优先级
+    一般: '#f59e0b', // 黄色，表示较低优先级
+    普通: '#6cbc45', // 绿色，表示普通级别（与搜索框一致）
   }
   // 返回匹配的颜色代码，如果没有匹配则返回默认灰色
-  return colorMap[severity] || '#d9d9d9'
+  return colorMap[severity] || '#6b7280'
+}
+
+/**
+ * 获取告警级别的背景色
+ * @param severity - 告警级别
+ * @returns {string} - 背景色
+ */
+const getSeverityBgColor = (severity) => {
+  const bgColorMap = {
+    严重: '#fef2f2',
+    重要: '#fff7ed',
+    一般: '#fffbeb',
+    普通: '#f0fdf4',
+  }
+  return bgColorMap[severity] || '#f9fafb'
+}
+
+/**
+ * 获取告警级别的边框色
+ * @param severity - 告警级别
+ * @returns {string} - 边框色
+ */
+const getSeverityBorderColor = (severity) => {
+  const borderColorMap = {
+    严重: '#fecaca',
+    重要: '#fed7aa',
+    一般: '#fde68a',
+    普通: '#bbf7d0',
+  }
+  return borderColorMap[severity] || '#e5e7eb'
+}
+
+/**
+ * 获取告警级别的文字颜色
+ * @param severity - 告警级别
+ * @returns {string} - 文字颜色
+ */
+const getSeverityTextColor = (severity) => {
+  const textColorMap = {
+    严重: '#dc2626',
+    重要: '#9a3412',
+    一般: '#b45309',
+    普通: '#16a34a',
+  }
+  return textColorMap[severity] || '#6b7280'
 }
 
 /**
@@ -790,6 +966,40 @@ const getStateClass = (state) => {
     已关闭: 'status-closed',
   }
   return classMap[state] || 'status-default'
+}
+
+/**
+ * 表格《告警状态》列el-tag类型映射
+ * @param {string} state - 状态值
+ * @returns {string} - 对应的el-tag type
+ */
+const getStateType = (state) => {
+  const typeMap = {
+    未处理: '',
+    已分派: 'warning',
+    已挂起: 'danger',
+    已关闭: 'success',
+  }
+  return typeMap[state] || ''
+}
+
+/**
+ * 获取表格行的类名，根据告警级别添加不同的样式类
+ * @param {Object} row - 行数据对象
+ * @returns {string} - CSS类名
+ */
+const getRowClassName = ({ row }) => {
+  if (!row || !row.severity) return ''
+
+  // 根据告警级别返回对应的类名（与HTML样例保持一致）
+  const levelClassMap = {
+    严重: 'row-critical',
+    重要: 'row-major',
+    一般: 'row-warning',
+    普通: 'row-info',
+  }
+
+  return levelClassMap[row.severity] || ''
 }
 
 /**
@@ -1650,13 +1860,17 @@ onUnmounted(() => {
 
 <template>
   <div class="item-page-container">
-    <!--  全选/反选按钮-->
-    <div style="display: flex; justify-content: space-between; align-items: center">
-      <!--  全选/反选按钮-->
-      <div style="display: flex; align-items: center">
-        <el-button type="primary" @click="handleSelectAll">全选</el-button>
-        <el-button type="primary" @click="handleReverseSelection">反选</el-button>
+    <!-- 工具栏 -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px">
+      <!-- 左侧：全选/反选按钮 -->
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span style="font-size: 14px; font-weight: 600; color: #303133; user-select: none">告警列表</span>
+        <span style="width: 1px; height: 24px; background: #e2e8f0; margin: 0 12px"></span>
+        <el-button type="info" plain @click="handleSelectAll">全选</el-button>
+        <el-button type="info" plain @click="handleReverseSelection">反选</el-button>
       </div>
+
+      <!-- 中间：聚合开关 -->
       <el-switch
         v-model="isAggregate"
         v-if="permissionStore.hasPermission('alarm:aggregation')"
@@ -1665,8 +1879,22 @@ onUnmounted(() => {
         width="60"
         active-text="聚合"
         inactive-text="不聚合"
-        @change="handleAggregateChange"
       />
+
+      <!-- 右侧：操作按钮 -->
+      <div style="display: flex; align-items: center; gap: 10px">
+        <el-button v-if="permissionStore.hasPermission('alarm:refresh')" type="info" plain @click="refresh" class="refresh-btn">
+          <svg class="icon-svg" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </el-button>
+        <el-button v-if="permissionStore.hasPermission('alarm:export')" type="info" plain @click="exportAlarmData" class="export-btn">
+          <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          &nbsp;导出
+        </el-button>
+        <el-button v-if="permissionStore.hasPermission('alarm:batchClose')" type="danger" @click="batchClose" class="batch-close-btn">
+          <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          &nbsp;批量关闭
+        </el-button>
+      </div>
     </div>
     <!-- 表格 -->
     <div class="table-container">
@@ -1676,17 +1904,20 @@ onUnmounted(() => {
           <div class="loading-text">正在切换表格模式...</div>
         </div>
       </div>
+
+      <!-- 统一的表格（支持虚拟滚动） -->
       <el-table
-        v-if="!globalLoading"
         ref="tableRef"
-        :data="isAggregate ? currentPageData : virtualData"
-        :size="'default'"
-        border
-        stripe
-        :row-style="{ height: '50px' }"
+        :data="isAggregate ? currentPageData : (pageSize > 10 ? virtualDataWithSpacers : virtualData)"
+        :size="'small'"
+        :row-style="({ row }) => row.__spacer__ ? { height: row.__height__ + 'px', padding: 0 } : { height: '45px' }"
+        :row-class-name="({ row }) => row.__spacer__ ? 'spacer-row' : getRowClassName({ row })"
         style="width: 100%; font-size: 13px; color: #303133"
-        :cell-style="{ textAlign: 'center' }"
-        :header-cell-style="{ textAlign: 'center', background: '#f5f7fa', color: '#303133', fontWeight: '600', fontSize: '14px', padding: '12px 0' }"
+        :cell-style="({ column, row }) => {
+          if (row.__spacer__) return { padding: 0, border: 'none' }
+          return column.prop === 'alarm_details' ? { textAlign: 'left', padding: '6px 14px' } : { textAlign: 'center', padding: '6px 0' }
+        }"
+        :header-cell-style="{ textAlign: 'center', background: '#f1f5f9', color: '#64748b', fontWeight: '600', fontSize: '12px', padding: '10px 0' }"
         row-key="event_id"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
         @selection-change="handleSelectionChange"
@@ -1720,7 +1951,10 @@ onUnmounted(() => {
         <!--        <el-table-column label="序号" type="index" :index="(index) => (currentPage - 1) * pageSize + index + 1" min-width="4%" :resizable="false" />-->
         <el-table-column label="序号" min-width="5%" :resizable="false">
           <template #default="{ row, $index }">
+            <!-- 空白行不显示序号 -->
+            <span v-if="row.__spacer__"></span>
             <span
+              v-else
               :class="{ 'root-node-index': isAggregate && row.hasChildren }"
               :style="{
                 backgroundColor: isAggregate && row.hasChildren ? '#409eff' : 'transparent',
@@ -1740,68 +1974,120 @@ onUnmounted(() => {
               </span>
               <span v-else>
                 <!-- 非聚合模式：正常序号 -->
-                <!--                {{ (currentPage - 1) * pageSize + $index + 1 }}-->
-                {{ (currentPage - 1) * pageSize + startIndex + $index + 1 }}
+                <!-- 通过event_id在tableData中查找真实索引 -->
+                {{ getRealRowIndex(row) }}
               </span>
             </span>
           </template>
         </el-table-column>
 
         <el-table-column prop="event_id" label="事件ID" v-if="false" />
-        <el-table-column prop="severity" label="级别" :sortable="isAggregate ? false : 'custom'" min-width="5%" :resizable="false">
+        <el-table-column prop="alarm_details" label="告警内容" :min-width="isAggregate ? '28%' : '24%'" :resizable="false">
+          <template #default="{ row }">
+            <!-- 空白行不显示内容 -->
+            <div v-if="row.__spacer__"></div>
+            <div
+              v-else
+              class="alarm-content-cell"
+              :title="row.alarm_details"
+              :style="{
+                color: row.severity === '严重' ? '#dc2626' : row.severity === '重要' ? '#ea580c' : 'inherit',
+                fontWeight: row.severity === '严重' || row.severity === '重要' ? '600' : '400'
+              }"
+            >
+              {{ row.alarm_details || '-' }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="severity" label="级别" :sortable="false" min-width="8%" :resizable="false">
           <template #default="scope">
-            <span
-              class="severity-indicator"
-              :class="{ 'severity-blink': blinkTrigger && scope.row.severity === '严重' && scope.row.state !== '已关闭' }"
-              :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
-            ></span>
+            <!-- 空白行不显示内容 -->
+            <div v-if="scope.row.__spacer__"></div>
+            <el-tag
+              v-else
+              size="small"
+              effect="light"
+              round
+              class="severity-tag"
+              :style="{
+                backgroundColor: getSeverityBgColor(scope.row.severity),
+                borderColor: getSeverityBorderColor(scope.row.severity),
+                color: getSeverityTextColor(scope.row.severity)
+              }"
+            >
+              <span
+                class="severity-indicator-small"
+                :class="{ 'severity-blink': blinkTrigger && scope.row.severity === '严重' && scope.row.state !== '已关闭' }"
+                :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
+              ></span>
+              {{ scope.row.severity }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
           <template #default="{ row }">
-            <span :class="getStateClass(row.state)">{{ row.state }}</span>
-          </template> </el-table-column
-        >>
+            <!-- 空白行不显示内容 -->
+            <div v-if="row.__spacer__"></div>
+            <el-tag
+              v-else
+              :type="getStateType(row.state)"
+              size="small"
+              effect="light"
+              round
+            >
+              {{ row.state }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="system_name" label="业务系统" show-overflow-tooltip min-width="10%" :resizable="false">
           <template #default="{ row }">
-            {{ row.system_name || '/' }}
+            <!-- 空白行不显示内容 -->
+            <span v-if="row.__spacer__"></span>
+            <span v-else>{{ row.system_name || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="category" label="分类" show-overflow-tooltip min-width="5%" :resizable="false">
           <template #default="{ row }">
-            {{ row.category || '/' }}
+            <!-- 空白行不显示内容 -->
+            <span v-if="row.__spacer__"></span>
+            <span v-else>{{ row.category || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="object" label="主机名" min-width="16%" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="object" label="主机名" min-width="8%" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
-            <el-button type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden">
-              {{ row.object || '/' }}
+            <!-- 空白行不显示内容 -->
+            <div v-if="row.__spacer__"></div>
+            <el-button v-else type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden; padding: 4px 8px; font-size: 12px; min-height: 28px; height: 28px">
+              {{ row.object || '-' }}
             </el-button>
           </template>
         </el-table-column>
         <el-table-column prop="ip" label="IP地址" show-overflow-tooltip min-width="8%" :resizable="false">
           <template #default="{ row }">
-            {{ row.ip || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="alarm_details" label="告警描述" show-overflow-tooltip :min-width="isAggregate ? '20%' : '24%'" :resizable="false">
-          <template #default="{ row }">
-            {{ row.alarm_details || '/' }}
+            <!-- 空白行不显示内容 -->
+            <span v-if="row.__spacer__"></span>
+            <span v-else>{{ row.ip || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
           <template #default="{ row }">
-            {{ row.occurrenceTime || '/' }}
+            <!-- 空白行不显示内容 -->
+            <span v-if="row.__spacer__"></span>
+            <span v-else>{{ row.occurrenceTime || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
           <template #default="{ row }">
-            {{ row.processingTime || '/' }}
+            <!-- 空白行不显示内容 -->
+            <span v-if="row.__spacer__"></span>
+            <span v-else>{{ row.processingTime || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
           <template #default="scope">
-            <div class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none">
+            <!-- 空白行不显示操作按钮 -->
+            <div v-if="scope.row.__spacer__"></div>
+            <div v-else class="operation-buttons" style="display: flex; justify-content: space-around; align-items: center; user-select: none">
               <el-dropdown trigger="click">
                 <el-button type="primary" :icon="Edit" :disabled="isAggregate && scope.row.hasChildren"> </el-button>
                 <template #dropdown>
@@ -1896,53 +2182,73 @@ onUnmounted(() => {
             :row-style="{ height: '60px' }"
           >
             <el-table-column prop="event_id" label="事件ID" min-width="10%" />
-            <el-table-column prop="severity" label="级别" min-width="5%" :resizable="false">
-              <template #default="scope">
-                <span
-                  class="severity-indicator"
-                  :class="{ 'severity-blink': scope.row.severity === '严重' }"
-                  :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
-                ></span>
+            <el-table-column prop="alarm_details" label="告警内容" min-width="20%" :resizable="false">
+              <template #default="{ row }">
+                {{ row.alarm_details || '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="state" label="状态" min-width="5%" :resizable="false">
+            <el-table-column prop="severity" label="级别" min-width="8%" :resizable="false">
+              <template #default="scope">
+                <el-tag
+                  size="small"
+                  effect="light"
+                  round
+                  class="severity-tag"
+                  :style="{
+                    backgroundColor: getSeverityBgColor(scope.row.severity),
+                    borderColor: getSeverityBorderColor(scope.row.severity),
+                    color: getSeverityTextColor(scope.row.severity)
+                  }"
+                >
+                  <span
+                    class="severity-indicator-small"
+                    :class="{ 'severity-blink': scope.row.severity === '严重' && scope.row.state !== '已关闭' }"
+                    :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
+                  ></span>
+                  {{ scope.row.severity }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="state" label="状态" min-width="8%" :resizable="false">
               <template #default="{ row }">
-                <span :class="getStateClass(row.state)">{{ row.state }}</span>
+                <el-tag
+                  :type="getStateType(row.state)"
+                  size="small"
+                  effect="light"
+                  round
+                >
+                  {{ row.state }}
+                </el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="system_name" label="业务系统" min-width="10%" :resizable="false">
               <template #default="{ row }">
-                {{ row.system_name || '/' }}
+                {{ row.system_name || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="category" label="分类" min-width="5%" :resizable="false">
               <template #default="{ row }">
-                {{ row.category || '/' }}
+                {{ row.category || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="object" label="主机名" min-width="10%" :resizable="false">
               <template #default="{ row }">
-                {{ row.object || '/' }}
+                {{ row.object || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="ip" label="IP地址" min-width="10%" :resizable="false">
               <template #default="{ row }">
-                {{ row.ip || '/' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="alarm_details" label="告警描述" min-width="20%" :resizable="false">
-              <template #default="{ row }">
-                {{ row.alarm_details || '/' }}
+                {{ row.ip || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
               <template #default="{ row }">
-                {{ row.occurrenceTime || '/' }}
+                {{ row.occurrenceTime || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
               <template #default="{ row }">
-                {{ row.processingTime || '/' }}
+                {{ row.processingTime || '-' }}
               </template>
             </el-table-column>
           </el-table>
@@ -1966,17 +2272,17 @@ onUnmounted(() => {
             <el-table-column prop="event_id" label="事件ID" min-width="10%" />
             <el-table-column prop="Alarm_Handler" label="处理人" min-width="15%" :resizable="false">
               <template #default="{ row }">
-                {{ row.Alarm_Handler || '/' }}
+                {{ row.Alarm_Handler || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="processingTime" label="处理时间" min-width="25%" :resizable="false">
               <template #default="{ row }">
-                {{ row.processingTime || '/' }}
+                {{ row.processingTime || '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="alert_remarks" label="处理意见" min-width="50%" :resizable="false">
               <template #default="{ row }">
-                {{ row.alert_remarks || '/' }}
+                {{ row.alert_remarks || '-' }}
               </template>
             </el-table-column>
           </el-table>
@@ -2150,23 +2456,52 @@ onUnmounted(() => {
 /* 表格容器父容器样式 */
 .item-page-container {
   display: flex;
-  height: 85%;
+  height: calc(100vh - 40px - 32px - 220px); /* 减去header高度(40px)、main padding(32px)和搜索栏高度(约220px) */
   flex-direction: column;
   box-sizing: border-box;
   position: relative; /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
+  overflow: hidden; /* 防止溢出 */
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 14px 18px;
+  margin-top: 12px;
 }
 
 /* 表格容器样式：防止表格行多时溢出 */
 .table-container {
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  padding: 20px 0;
+  padding: 10px 0;
   position: relative; /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
 }
 
-/* 告警图形样式和闪烁动画 */
+/* 空白行样式 */
+:deep(.el-table__body tr.spacer-row) {
+  pointer-events: none;
+}
+
+:deep(.el-table__body tr.spacer-row td) {
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+/* 关键修复：强制统一聚合模式子节点的内容高度，与非聚合模式保持一致 */
+:deep(.el-table__body tr[class*="el-table__row--level"] .cell) {
+  height: 32px !important;
+  line-height: 32px !important;
+  overflow: hidden;
+}
+
+/* 确保子节点行内的所有元素高度一致 */
+:deep(.el-table__body tr[class*="el-table__row--level"] td) {
+  height: 33px !important;
+}
+
+/* 告警图形样式和闪烁动画 - 与HTML样例保持一致 */
 .severity-indicator {
   display: inline-block;
   width: 20px;
@@ -2176,19 +2511,29 @@ onUnmounted(() => {
   transition: all 0.5s ease;
   margin: 5px 0;
 }
-.severity-blink {
-  animation: blink 0.5s infinite;
+
+/* 小号告警指示器 - 用于el-tag内 */
+.severity-indicator-small {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 5px;
+  transition: all 0.5s ease;
 }
-@keyframes blink {
-  0%,
-  100% {
+
+/* 严重告警点的闪烁动画 - 透明度变化 */
+.severity-blink {
+  animation: dotBlink 1s ease-in-out infinite;
+}
+
+@keyframes dotBlink {
+  0%, 100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.3;
-    transform: scale(1.4);
-    filter: brightness(1);
+    opacity: 0.2;
   }
 }
 /* 告警状态颜色 */
@@ -2212,12 +2557,39 @@ onUnmounted(() => {
   color: #909399; /* 默认状态 - 灰色 */
   background-color: transparent !important;
 }
-/* 表格行样式 */
+/* 表格行样式 - 添加严重告警行的特殊样式 */
 :deep(.el-table__body tr) {
   transition: background-color 0.3s ease;
+  position: relative;
 }
-/* 表格行hover样式 */
-:deep(.el-table__body tr:hover > td) {
+
+/* 严重告警行样式 - 左侧红色边框 */
+:deep(.el-table__body tr.row-critical) {
+  border-left: 3px solid #dc2626;
+}
+
+/* 重要告警行样式 - 左侧橙色边框 */
+:deep(.el-table__body tr.row-major) {
+  border-left: 3px solid #ea580c;
+}
+
+/* 一般告警行样式 - 左侧黄色边框 */
+:deep(.el-table__body tr.row-warning) {
+  border-left: 3px solid #f59e0b;
+}
+
+/* 普通告警行样式 - 左侧蓝色边框 */
+:deep(.el-table__body tr.row-info) {
+  border-left: 3px solid #0ea5e9;
+}
+
+/* 严重告警行hover时显示红色背景 */
+:deep(.el-table__body tr.row-critical:hover > td) {
+  background-color: #fef2f2 !important;
+}
+
+/* 表格行hover样式 - 非严重告警保持原样 */
+:deep(.el-table__body tr:not(.row-critical):hover > td) {
   background-color: inherit !important;
 }
 
@@ -2232,6 +2604,13 @@ onUnmounted(() => {
 .operation-buttons :deep(.el-button) {
   padding: 5px 8px;
   margin: 0;
+}
+
+/* 级别标签样式 - 使用flex布局实现完美垂直居中 */
+.severity-tag :deep(.el-tag__content) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
 }
 
 /* 模态框title标题颜色 */
@@ -2261,7 +2640,6 @@ onUnmounted(() => {
 /* 设置表头字体颜色为黑色 */
 :deep(.el-table__header-wrapper th .cell) {
   font-size: 13px;
-  color: black !important;
 }
 
 /* 设置每页条数选项文本居中 */
@@ -2349,12 +2727,11 @@ onUnmounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.98);
   z-index: 1000;
   display: flex;
   justify-content: center;
   align-items: center;
-  backdrop-filter: blur(2px);
 }
 
 .loading-content {
@@ -2374,5 +2751,57 @@ onUnmounted(() => {
 :deep(.el-dropdown-menu__item.isActive) {
   color: #409eff !important;
   font-weight: bold !important;
+}
+
+/* SVG图标样式 - 与样例HTML保持一致 */
+.icon-svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-svg.sm {
+  width: 14px;
+  height: 14px;
+}
+
+.icon-svg.lg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 刷新按钮样式优化 */
+.refresh-btn {
+  padding: 0 10px;
+  min-width: auto;
+}
+
+.refresh-btn :deep(.el-icon) {
+  margin-right: 0;
+}
+
+/* 导出按钮样式优化 */
+.export-btn {
+  padding: 0 10px;
+  min-width: auto;
+}
+
+/* 批量关闭按钮样式优化 */
+.batch-close-btn {
+  padding: 0 10px;
+  min-width: auto;
+}
+
+/* 告警内容单元格样式 - 左对齐并支持溢出省略 */
+.alarm-content-cell {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
 </style>

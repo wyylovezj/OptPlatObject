@@ -158,14 +158,14 @@ onMounted(() => {
     .replace(/(\d{4}年\d{1,2}月\d{1,2}日)(.+)/, '$1   $2')
   // 启动定时刷新任务，每60秒（1分钟）执行一次
   refreshTimer = setInterval(refreshAllData, 30000)
-  
+
   // HomePage 挂载完成后，延迟触发待办检查（确保页面完全加载）
   setTimeout(() => {
     // 触发待办检查（通过自定义事件通知 App.vue）
     window.dispatchEvent(new CustomEvent('check-todos'))
     console.log('首页加载完成，触发待办检查')
   }, 500)
-  
+
   // 检测是否是登录成功后跳转，立刻显示成功提示
   if (route.query.loginSuccess === 'true') {
     ElMessage.success({
@@ -177,7 +177,7 @@ onMounted(() => {
       router.replace({ query: { ...route.query, loginSuccess: undefined } })
     })
   }
-  
+
   console.log('首页数据加载完成')
 })
 
@@ -722,6 +722,7 @@ const getStatisticData = async () => {
     alarmMonitoringData.value.added.week = response.added.week
     alarmMonitoringData.value.added.month = response.added.month
     alarmMonitoringData.value.serious.count = response.serious.count
+    alarmMonitoringData.value.serious.totalCritical = response.serious.totalCritical
     alarmMonitoringData.value.serious.recently = response.serious.recently
     alarmMonitoringData.value.serious.furthest = response.serious.furthest
     alarmMonitoringData.value.completed.count = response.completed.count
@@ -909,6 +910,23 @@ const getHandTimeData = async () => {
 // }
 // ECharts图表实例
 let categoryChart = null
+
+// 组件卸载时清理ECharts实例和定时器
+onUnmounted(() => {
+  // 销毁ECharts实例
+  if (categoryChart) {
+    categoryChart.dispose()
+    categoryChart = null
+  }
+
+  // 清除定时刷新定时器
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+
+  console.log('HomePage组件已卸载，资源已清理')
+})
 
 // 格式化数字
 const formatNumber = (num) => {

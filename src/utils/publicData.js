@@ -262,9 +262,9 @@ export const sortRootNodes = (rootNodes) => {
     }
 
     // 如果级别和时间都相同，空主机名放在最后
-    if (a.system_name === "/" && b.system_name !== "/") return 1
-    if (a.system_name !== "/" && b.system_name === "/") return -1
-    if (a.system_name === "/" && b.system_name === "/") return 0
+    if (a.system_name === "-" && b.system_name !== "-") return 1
+    if (a.system_name !== "-" && b.system_name === "-") return -1
+    if (a.system_name === "-" && b.system_name === "-") return 0
 
     // 最后按主机名字母顺序排序
     return a.system_name.localeCompare(b.system_name)
@@ -282,6 +282,17 @@ export const refresh = throttle(async () => {
   const currentAggregateState = isAggregate.value
   // 关闭告警图形动画
   blinkTrigger.value = false
+
+  // 【关键优化】在获取新数据前，先清理旧数据的引用，帮助垃圾回收
+  if (isAggregate.value && tableData.value.length > 0) {
+    // 清理旧数据的_cachedChildren缓存
+    tableData.value.forEach(node => {
+      if (node._cachedChildren) {
+        node._cachedChildren = null  // 显式置空，断开引用
+      }
+    })
+    console.log('[内存优化] 已清理旧告警数据的_cachedChildren缓存')
+  }
 
   // 为防止刷新数据过程太快导致加载动画不显示，设置一个最小延迟promise，确保异步过程至少是300 ms
   const minDelay = new Promise(resolve => setTimeout(resolve, 300))
@@ -362,6 +373,17 @@ const updateLazyNodeMapAfterRefresh = async () => {
   const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
 
   console.log('1111',lazyTreeNodeMap)
+  
+  // 【内存优化】清理懒加载映射表中不再存在的根节点
+  const currentRootIds = new Set(tableData.value.map(node => node.event_id))
+  Object.keys(lazyTreeNodeMap).forEach(eventId => {
+    if (!currentRootIds.has(eventId)) {
+      // 删除已不存在的根节点的子节点缓存
+      delete lazyTreeNodeMap[eventId]
+      console.log(`[内存优化] 清理懒加载映射表中的旧节点: ${eventId}`)
+    }
+  })
+  
   // 遍历所有根节点，更新其子节点数据
   tableData.value.forEach(rootNode => {
     if (rootNode.hasChildren && rootNode._cachedChildren) {
