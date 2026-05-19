@@ -60,7 +60,7 @@ watch(
 // 计算统计数据
 const statistics = computed(() => {
   const criticalCount = alarmMonitoringData.value.serious.count // 使用首页严重告警数据
-  const totalCritical = alarmMonitoringData.value.serious.totalCritical  // 今日新增严重告警
+  const totalCritical = alarmMonitoringData.value.serious.totalCritical // 今日新增严重告警
   const majorCount = tableData.value.filter((row) => row.severity === '重要' && row.state !== '已关闭').length
   const pendingCount = alarmMonitoringData.value.unprocessed.totalCount // 使用首页待处理告警数据
   const todayAdded = alarmMonitoringData.value.added.today // 使用首页今日新增告警数据
@@ -581,9 +581,9 @@ onMounted(() => {
           <div class="stat-label">严重告警</div>
           <div class="stat-value critical">{{ statistics.critical }}</div>
         </div>
-        <el-tag class="stat-today-added" type="warning" effect="light" round>
-          今日新增: {{ statistics.totalCritical }}
-        </el-tag>
+        <div>
+          <div class="stat-today-added" type="warning" effect="light" round> 今日新增: {{ statistics.totalCritical }} </div>
+        </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon pending">
@@ -904,9 +904,10 @@ onMounted(() => {
 .stat-today-added {
   position: absolute;
   top: 20px;
-  right: 2ch;
+  right: 2rem;
   font-size: 14px;
   font-weight: 600;
+  color: #f3a446;
 }
 
 /* 覆盖全局el-tag样式，确保今日新增标签正常显示 */
