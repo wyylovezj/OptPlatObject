@@ -1044,7 +1044,6 @@ onMounted(() => {
   box-shadow: 0 0 0 1px #e2e8f0 inset !important;
   border-radius: 6px;
   font-size: 13px;
-  padding: 1px 8px;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
