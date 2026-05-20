@@ -82,6 +82,11 @@ const currentUser = ref(null)
 // 用户已选角色
 const selectedRoles = ref([])
 
+// 计算属性：过滤出启用的角色列表（用于分配角色对话框）
+const enabledRoleList = computed(() => {
+  return roleList.value.filter(role => role.status === 1)
+})
+
 // 加载用户列表
 const loadUsers = async () => {
   loading.value = true
@@ -177,7 +182,7 @@ onMounted(() => {
               }"
           >
             <el-option
-              v-for="role in roleList"
+              v-for="role in enabledRoleList"
               :key="role.code"
               :label="role.name"
               :value="role.code"
@@ -309,7 +314,7 @@ onMounted(() => {
         <el-form-item label="选择角色：">
           <el-checkbox-group v-model="selectedRoles">
             <el-checkbox
-              v-for="role in roleList"
+              v-for="role in enabledRoleList"
               :key="role.code"
               :label="role.code"
             >
