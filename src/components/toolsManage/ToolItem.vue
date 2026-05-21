@@ -2820,7 +2820,8 @@ const customUpload = async (options) => {
   form.append('netWorkDeviceUser', fileUploadDataModel.value.netWorkDeviceUser)
   form.append('netWorkDevicePasswd', fileUploadDataModel.value.netWorkDevicePasswd)
   form.append('createTaskTime', fileUploadDataModel.value.createTaskTime)
-  console.log('form',form.get('netWorkDeviceIP'))
+  form.append('username', sessionStorage.getItem('user'))
+  console.log('username',sessionStorage.getItem('user'))
   try {
     const response = await axios.post(uploadUrl, form, {
       headers: {
