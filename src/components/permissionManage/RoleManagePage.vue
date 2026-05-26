@@ -131,14 +131,14 @@ const loadRoles = async () => {
 }
 
 // 格式化菜单树为 Tree 组件所需格式
-const formatMenuTree = (menus,disableCheckbox = false) => {
+const formatMenuTree = (menus, disableCheckbox = false, disabledIds = []) => {
   return menus.map(menu => ({
     id: menu.id,
     label: menu.name,
-    children: menu.children ? formatMenuTree(menu.children,disableCheckbox) : [],
+    children: menu.children ? formatMenuTree(menu.children, disableCheckbox, disabledIds) : [],
     path: menu.path,
     permissionCode: menu.permissionCode,
-    disabled: disableCheckbox,
+    disabled: disableCheckbox || disabledIds.includes(menu.id),
   }))
 }
 
@@ -154,12 +154,17 @@ const openAssignDialog = async (role) => {
       getRoleMenus(role.code)
     ])
 
-    // 格式化所有菜单树
-    menuTree.value = formatMenuTree(allMenus, false)
-
     // 提取该角色已拥有的叶子节点菜单 ID
     const ownedMenuIds = extractMenuIds(roleMenus)
     selectedMenus.value = ownedMenuIds
+
+    // 如果是 admin 角色：已勾选的菜单禁止取消勾选
+    if (currentRole.value.code === 'admin') {
+      const allOwnedIds = extractAllMenuIds(roleMenus)
+      menuTree.value = formatMenuTree(allMenus, false, allOwnedIds)
+    } else {
+      menuTree.value = formatMenuTree(allMenus, false)
+    }
 
     console.log('所有菜单:', allMenus)
     console.log('角色拥有的菜单:', roleMenus)
@@ -366,7 +371,7 @@ const getRolesMenus = async (roleCode) => {
   }
 }
 
-// 递归提取所有菜单 ID
+// 递归提取所有菜单 ID（仅叶子节点）
 const extractMenuIds = (menus) => {
   const ids = []
   const traverse = (menuList) => {
@@ -381,6 +386,22 @@ const extractMenuIds = (menus) => {
         // 有子节点就递归处理
         traverse(menu.children)
       }
+    }
+  }
+  traverse(menus)
+  return ids
+}
+
+// 递归提取所有菜单 ID（包含父节点和叶子节点）
+const extractAllMenuIds = (menus) => {
+  const ids = []
+  const traverse = (menuList) => {
+    if (!menuList || menuList.length === 0) return
+    for (const menu of menuList) {
+      if (menu.id) {
+        ids.push(menu.id)
+      }
+      traverse(menu.children)
     }
   }
   traverse(menus)
@@ -464,7 +485,7 @@ onMounted(() => {
             </el-table-column>
             <el-table-column label="操作" width="300" fixed="right" :resizable="false" min-width="35%">
               <template #default="{ row }">
-                <el-button v-if="permissionStore.hasPermission('system:assignMenus')  && row.code !== 'normal'" type="primary" size="small" @click="openAssignDialog(row)">
+                <el-button v-if="permissionStore.hasPermission('system:assignMenus') " type="primary" size="small" @click="openAssignDialog(row)">
                   分配菜单
                 </el-button>
                 <el-button v-if="permissionStore.hasPermission('system:editRoles')" type="warning" size="small" @click="openEditDialog(row)">
