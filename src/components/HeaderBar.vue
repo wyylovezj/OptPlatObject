@@ -13,6 +13,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/authInfoStore.js'
+import { usePermissionStore } from '@/stores/permissionStore.js'
 import {
   messageInstance,
   stopSpeak,
@@ -24,6 +25,7 @@ import {
 
 // 获取store实例
 const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
 
 // 控制喇叭提示框的隐藏与显示
 const visible = ref(false)
@@ -164,7 +166,7 @@ const logout = async () =>{
     <el-dropdown  @visible-change="changeDirection" trigger="click">
       <span class="el-dropdown-link">
         <span class="user-name" style="font-size: 1em">
-          {{user}}
+          {{ permissionStore.userInfo?.nickname || user }}
         </span>
         <el-icon  style="font-size: 0.9em; color: rgba(255, 255, 255, 1);">
           <svg class="icon" aria-hidden="true">
