@@ -373,7 +373,7 @@ const updateLazyNodeMapAfterRefresh = async () => {
   const lazyTreeNodeMap = tableRef.value.store.states.lazyTreeNodeMap.value
 
   console.log('1111',lazyTreeNodeMap)
-  
+
   // 【内存优化】清理懒加载映射表中不再存在的根节点
   const currentRootIds = new Set(tableData.value.map(node => node.event_id))
   Object.keys(lazyTreeNodeMap).forEach(eventId => {
@@ -383,7 +383,7 @@ const updateLazyNodeMapAfterRefresh = async () => {
       console.log(`[内存优化] 清理懒加载映射表中的旧节点: ${eventId}`)
     }
   })
-  
+
   // 遍历所有根节点，更新其子节点数据
   tableData.value.forEach(rootNode => {
     if (rootNode.hasChildren && rootNode._cachedChildren) {
