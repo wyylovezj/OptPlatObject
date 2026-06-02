@@ -16,6 +16,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import ToolsPage from '@/components/toolsManage/ToolsPage.vue'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import HomePage from '@/components/homePage/HomePage.vue'
+import DutyManagementPage from '@/components/dutyManagement/dutyManagementPage.vue'
+import DutyHandoverPage from '@/components/dutyManagement/dutyHandoverPage.vue'
+import DutyLogPage from '@/components/dutyManagement/dutyLogPage.vue'
 
 
 // 创建路由实例
@@ -179,7 +182,7 @@ const router = createRouter({
         title: '权限管理',
         breadcrumb: '权限管理',
         permission: 'system:permission',
-        roles: ['admin']
+        roles: ['admin'],
       },
       children: [
         {
@@ -190,8 +193,8 @@ const router = createRouter({
             requiresAuth: true,
             title: '用户管理',
             breadcrumb: '用户管理',
-            permission: 'system:user'
-          }
+            permission: 'system:user',
+          },
         },
         {
           path: 'roleManage',
@@ -201,8 +204,8 @@ const router = createRouter({
             requiresAuth: true,
             title: '角色管理',
             breadcrumb: '角色管理',
-            permission: 'system:role'
-          }
+            permission: 'system:role',
+          },
         },
         {
           path: 'menuManage',
@@ -212,10 +215,66 @@ const router = createRouter({
             requiresAuth: true,
             title: '菜单管理',
             breadcrumb: '菜单管理',
-            permission: 'system:menu'
-          }
-        }
-      ]
+            permission: 'system:menu',
+          },
+        },
+      ],
+    },
+    /**
+     * 值班管理模块路由
+     * @path /dutyManagement
+     * @name DutyManagement
+     * @requiresAuth true - 需要认证
+     * @title 值班管理
+     * @breadcrumb 值班管理
+     */
+    {
+      path: '/dutyManagement',
+      name: 'DutyManagement',
+      redirect: (to) => {
+        return to.path + '/dutyCalendar'
+      },
+      meta: {
+        requiresAuth: true,
+        title: '值班管理',
+        breadcrumb: '值班管理',
+        permission: 'duty:manage',
+      },
+      children: [
+        {
+          path: 'dutyCalendar',
+          name: 'DutyCalendar',
+          component: DutyManagementPage,
+          meta: {
+            requiresAuth: true,
+            title: '值班管理',
+            breadcrumb: '值班管理',
+            permission: 'duty:calendar',
+          },
+        },
+        {
+          path: 'dutyHandover',
+          name: 'DutyHandover',
+          component: DutyHandoverPage,
+          meta: {
+            requiresAuth: true,
+            title: '交接班记录',
+            breadcrumb: '交接班记录',
+            permission: 'duty:handover',
+          },
+        },
+        {
+          path: 'dutyLog',
+          name: 'DutyLog',
+          component: DutyLogPage,
+          meta: {
+            requiresAuth: true,
+            title: '值班日志',
+            breadcrumb: '值班日志',
+            permission: 'duty:log',
+          },
+        },
+      ],
     },
     /**
      * 404页面路由
