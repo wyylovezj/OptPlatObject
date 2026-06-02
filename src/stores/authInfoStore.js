@@ -158,6 +158,8 @@ export const useAuthStore = defineStore('auth', () => {
       }
       // 清除权限信息
       permissionStore.clearPermissions()
+      // 清除 lunar-javascript 更新提示标记，以便重新登录后再次提示
+      sessionStorage.removeItem('lunar_update_prompted')
   }
   // 检查是否已登录
   const checkIsAuth = () => {
@@ -175,5 +177,6 @@ export const useAuthStore = defineStore('auth', () => {
     logoutInfoClear,   // 函数，用于清除用户的登出信息
     checkIsAuth,        // 函数，用于检查用户的认证状态
     loadUserPermissions, // 函数，用于加载用户权限信息
+    permissionsLoaded,   // 权限是否已加载完成
   }
 })
