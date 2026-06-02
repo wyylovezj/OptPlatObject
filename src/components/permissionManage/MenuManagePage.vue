@@ -83,15 +83,35 @@ const formatMenuTree = (menus,level = 1) => {
 const openCreateDialog = (parent) => {
   console.log('parent',parent)
   currentMenu.value = null
+
+  // 根据父级层级确定新菜单的层级和默认类型
+  let defaultType = 1  // 第一层默认目录
+  let defaultPath = ''
+  let defaultOrder = 0
+
+  if (parent) {
+    // 新增子项，路由路径默认填充父菜单的路由路径
+    defaultPath = parent.path || ''
+    // 排序根据已有的同级子菜单数量递增
+    defaultOrder = parent.children ? parent.children.length : 0
+    // 根据层级确定类型：第二层默认菜单，第三层默认按钮
+    const childLevel = (parent.level || 1) + 1
+    if (childLevel === 2) {
+      defaultType = 2  // 菜单
+    } else if (childLevel >= 3) {
+      defaultType = 3  // 按钮
+    }
+  }
+
   formData.value = {
     parentId: parent ? parent.id : null,
     parentName: parent ? parent.label : null,
     name: '',
-    path: '',
+    path: defaultPath,
     icon: '',
     permissionCode: '',
-    order: 0,
-    type: 'menu'
+    order: defaultOrder,
+    type: defaultType
   }
   dialogVisible.value = true
 }
