@@ -275,6 +275,61 @@ const handleCheckTodos = () => {
   console.log('收到待办检查事件，执行检查')
   checkAndNotifyTodos()
 }
+
+// lunar-javascript 库更新提示（每年12月提醒管理员）
+const codeStyle = {
+  background: '#e3e8ef',
+  padding: '1px 6px',
+  borderRadius: '4px',
+  fontFamily: 'monospace',
+  fontSize: '13px',
+  color: '#476582',
+}
+const checkLunarUpdatePrompt = () => {
+  const now = new Date()
+  // 12月（getMonth() 返回 11）
+  if (now.getMonth() !== 11) return
+  // 只提示一次
+  if (sessionStorage.getItem('lunar_update_prompted')) return
+
+  const userType = sessionStorage.getItem('userType')
+  if (userType !== 'admin') return
+
+  const nextYear = now.getFullYear() + 1
+  sessionStorage.setItem('lunar_update_prompted', 'true')
+
+  ElMessageBox.alert(
+    h('div', { style: 'line-height:1.8;color:#606266;font-size:14px' }, [
+      h('p', { style: 'margin:0 0 12px 0' }, [
+        '请尽快更新 ', h('code', { style: codeStyle }, 'lunar-javascript'),
+        ' 库，获取',h('strong', { style: 'color:#e6a23c' }, `${nextYear}年`),'法定节假日数据。'
+      ]),
+      h('p', { style: 'margin:0 0 8px 0;color:#909399;font-size:13px' },
+        '否则会影响值班管理中自动识别法定节假日！'
+      ),
+      h('div', { style: 'margin-top:14px;padding:12px 16px;background:#f8f9fa;border-radius:8px;border:1px solid #ebeef5' }, [
+        h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#909399;font-size:12px' }, [
+          h('span', null, '🔧'),
+          h('span', null, '更新命令'),
+        ]),
+        h('div', { style: 'display:flex;align-items:center;gap:10px' }, [
+          h('code', { style: 'flex:1;padding:8px 12px;background:#1e2a3a;color:#a8c8e8;border-radius:6px;font-family:Consolas,monospace;font-size:13px;user-select:all;cursor:text;letter-spacing:0.3px;white-space:nowrap' },
+            'npm install lunar-javascript@latest'
+          ),
+        ]),
+      ]),
+    ]),
+    '节假日库更新提醒',
+    {
+      confirmButtonText: '知道了',
+      type: 'warning',
+      customClass: 'custom-message-box',
+      showClose: true,
+      closeOnClickModal: true,
+    }
+  )
+}
+
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
 onMounted(() => {
   // 初始化用户信息
@@ -367,6 +422,9 @@ onMounted(() => {
   alarmStore.initAlreadySpeakQueue()
   // 添加页面卸载事件监听
   window.addEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
+
+  // 首页加载完成后触发 lunar-javascript 更新提示
+  window.addEventListener('check-lunar-update', checkLunarUpdatePrompt)
 })
 
 onBeforeUnmount(() => {
@@ -374,6 +432,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
   // 移除待办检查事件监听
   window.removeEventListener('check-todos', handleCheckTodos)
+  // 移除 lunar 更新提示事件监听
+  window.removeEventListener('check-lunar-update', checkLunarUpdatePrompt)
   // 关闭页面时清除标记
   if (isSsoLogin.value) {
     authStore.logoutInfoClear()
@@ -422,7 +482,46 @@ body {
   font-size: 16px !important;
 }
 .custom-message-box {
-  margin-top: -15% !important;
+  margin-top: -10% !important;
+  border-radius: 12px !important;
+  width: 520px !important;
+  overflow: hidden;
+}
+.custom-message-box .el-message-box__header {
+  padding: 18px 24px 8px !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+}
+.custom-message-box .el-message-box__title {
+  display: flex !important;
+  align-items: center !important;
+}
+.custom-message-box .el-message-box__content {
+  padding: 20px 24px !important;
+}
+.custom-message-box .el-message-box__btns {
+  padding: 12px 24px 18px !important;
+  border-top: 1px solid #f0f0f0 !important;
+  display: flex;
+  justify-content: flex-end;
+}
+.custom-message-box .el-message-box__btns .el-button--primary {
+  border-radius: 8px !important;
+  padding: 8px 28px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  transition: all 0.25s !important;
+}
+.custom-message-box .el-message-box__btns .el-button--primary:hover {
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4) !important;
+  transform: translateY(-1px);
+}
+.custom-message-box .el-icon.el-message-box__status.el-icon--warning {
+  display: none !important;
+}
+.custom-message-box .el-message-box__status {
+  display: none !important;
 }
 
 /* 自定义待办通知样式 */
