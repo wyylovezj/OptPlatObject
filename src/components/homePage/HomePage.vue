@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-04-27
  */
-import { alarmMonitoringData, itsmTodoData } from '@/utils/homePageData.js'
+import { alarmMonitoringData, itsmTodoData, eccDutyData } from '@/utils/homePageData.js'
 import { ref, computed, onMounted, watch, nextTick, h ,onUnmounted } from 'vue'
 import { Bell, Warning, CircleCheck, Clock, TrendCharts, Timer } from '@element-plus/icons-vue'
 import { ElScrollbar, ElNotification, ElMessage } from 'element-plus'
@@ -20,8 +20,8 @@ import {
   getAlertStatisticData,
   getAlertTrendData,
   getHandleTimeData,
-  getOrderData,
 } from '@/api/homePage.js'
+import { getDuty,getEcc, getSys, getNet, getPM } from '@/api/dutyPageInterface.js'
 
 // 计算环比变化
 const totalChange = computed(() => {
@@ -147,6 +147,7 @@ onMounted(() => {
   getLevelData()
   getStatisticData()
   getTrendData()
+  loadEccDuty()
 
   // 设置默认tab为第一个有数据的tab
   activeTab.value = getFirstTabWithData()
@@ -165,6 +166,11 @@ onMounted(() => {
     window.dispatchEvent(new CustomEvent('check-todos'))
     console.log('首页加载完成，触发待办检查')
   }, 500)
+
+  // 延迟触发 lunar-javascript 更新提示
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('check-lunar-update'))
+  }, 100)
 
   // 检测是否是登录成功后跳转，立刻显示成功提示
   if (route.query.loginSuccess === 'true') {
@@ -1103,6 +1109,44 @@ onUnmounted(() => {
     console.log('定时刷新任务已清除')
   }
 })
+
+// 加载当日值班信息
+const allDutyPersonnel = ref([])
+const loadEccDuty = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const [result, ecc, sys, net, pm] = await Promise.all([
+      getDuty([today, today]),
+      getEcc(), getSys(), getNet(), getPM(),
+    ])
+    allDutyPersonnel.value = [
+      ...(ecc || []).map(p => ({ ...p, category: 'ecc' })),
+      ...(sys || []).map(p => ({ ...p, category: 'sys' })),
+      ...(net || []).map(p => ({ ...p, category: 'net' })),
+      ...(pm || []).map(p => ({ ...p, category: 'pm' })),
+    ]
+    if (result && Array.isArray(result) && result.length > 0) {
+      const record = result[0]
+      eccDutyData.value = {
+        eccDay: record.eccDayPersonnelName || '',
+        eccNight: record.eccNightPersonnelName || '',
+        sysOps: record.sysOpsPersonnelName || '',
+        netOps: record.netOpsPersonnelName || '',
+        pm: record.pmPersonnelName || '',
+      }
+    }
+  } catch (e) {
+    console.error('加载值班信息失败:', e)
+    eccDutyData.value = null
+  }
+}
+
+const getDutyPhone = (name) => {
+  if (!name || !allDutyPersonnel.value.length) return ''
+  const p = allDutyPersonnel.value.find(item => item.name === name)
+  return p ? (p.phone || p.mobile || '') : ''
+}
+
 </script>
 
 <template>
@@ -1481,6 +1525,85 @@ onUnmounted(() => {
 
       <!-- 右侧面板 -->
       <div class="right-panel">
+        <!-- 值班卡片 -->
+        <div class="oa-section ecc-duty-section">
+          <div class="section-header">
+            <div class="section-title">
+              <svg class="icon" aria-hidden="true" style="width:18px;height:18px;color:#667eea">
+                <use xlink:href="#icon-zhibanguanli"></use>
+              </svg>
+              <h2>今日值班</h2>
+            </div>
+          </div>
+          <div class="ecc-duty-body">
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-day">白班</span>
+              <span class="ecc-shift-label">ECC</span>
+              <span class="ecc-shift-time">08:00 - 22:00</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.eccDay }">{{ eccDutyData?.eccDay ? eccDutyData.eccDay.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.eccDay }">{{ eccDutyData?.eccDay || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.eccDay) || '-' }}
+              </span>
+            </div>
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-night">夜班</span>
+              <span class="ecc-shift-label">ECC</span>
+              <span class="ecc-shift-time">22:00 - 08:00</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.eccNight }">{{ eccDutyData?.eccNight ? eccDutyData.eccNight.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.eccNight }">{{ eccDutyData?.eccNight || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.eccNight) || '-' }}
+              </span>
+            </div>
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-sys">白</span>
+              <span class="ecc-shift-label">系统运维</span>
+              <span class="ecc-shift-time">08:30 - 18:00</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.sysOps }">{{ eccDutyData?.sysOps ? eccDutyData.sysOps.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.sysOps }">{{ eccDutyData?.sysOps || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.sysOps) || '-' }}
+              </span>
+            </div>
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-net">白</span>
+              <span class="ecc-shift-label">网络运维</span>
+              <span class="ecc-shift-time">08:30 - 18:00</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.netOps }">{{ eccDutyData?.netOps ? eccDutyData.netOps.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.netOps }">{{ eccDutyData?.netOps || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.netOps) || '-' }}
+              </span>
+            </div>
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-pm">全</span>
+              <span class="ecc-shift-label">甲方PM</span>
+              <span class="ecc-shift-time">08:30 - 18:00</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.pm }">{{ eccDutyData?.pm ? eccDutyData.pm.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.pm }">{{ eccDutyData?.pm || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.pm) || '-' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <!-- 上半部分：实时待办工单（占2份） -->
         <div class="oa-section oa-todo-list">
           <div class="section-header">
@@ -2614,6 +2737,131 @@ onUnmounted(() => {
 
 .oa-week-stats {
   flex: 1;
+}
+
+/* ECC 值班卡片 */
+.ecc-duty-section {
+  flex-shrink: 0;
+}
+
+.ecc-duty-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.ecc-duty-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.ecc-shift-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ecc-shift-day {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.ecc-shift-night {
+  background: linear-gradient(135deg, #2d3436, #636e72);
+}
+
+.ecc-shift-sys {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.ecc-shift-net {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.ecc-shift-pm {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.ecc-shift-time {
+  font-size: 12px;
+  color: #909399;
+  flex-shrink: 0;
+  width: 72px;
+}
+
+.ecc-shift-label {
+  font-size: 12px;
+  color: #606266;
+  flex-shrink: 0;
+  width: 52px;
+}
+
+.ecc-person-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ecc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.ecc-avatar-empty {
+  background: #94a3b8;
+  font-size: 12px;
+}
+
+.ecc-person-name {
+  color: #2d3436;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ecc-person-name-empty {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.ecc-phone-icon {
+  flex-shrink: 0;
+  color: #e67e22;
+}
+
+.ecc-person-phone {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 110px;
+  font-size: 12px;
+  color: #909399;
+  font-family: 'Consolas', 'Courier New', monospace;
+  flex-shrink: 0;
 }
 
 .section-header {
