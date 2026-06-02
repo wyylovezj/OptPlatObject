@@ -113,4 +113,6 @@ export const itsmTodoData = ref({
   },
 })
 
-
+// 当日值班数据
+// 结构：{ eccDay, eccNight, sysOps, netOps, pm } 分别存储各类值班人员姓名
+export const eccDutyData = ref(null)
