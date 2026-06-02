@@ -1,12 +1,11 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List, UploadFilled } from '@element-plus/icons-vue'
+import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List, UploadFilled, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { HolidayUtil } from 'lunar-javascript'
-import { fetchDutyUsers, getEcc, getSys, getNet, getPM, saveDuty } from '@/api/dutyPageInterface.js'
+import * as XLSX from 'xlsx'
+import { getEcc, getSys, getNet, getPM, saveDuty, getDuty, updateDuty } from '@/api/dutyPageInterface.js'
 import {
-  dutyUsers,
-  dutyScheduleData,
   eccDayPersonnel,
   eccNightPersonnel,
   sysOpsPersonnel,
@@ -14,6 +13,7 @@ import {
   pmPersonnel,
   resetDutyScheduleData,
 } from '@/utils/dutyPageData.js'
+import { usePermissionStore } from '@/stores/permissionStore.js'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 
 // ============ 周期切换 ============
@@ -43,10 +43,10 @@ const getWeekRange = () => {
       (monday.getDate() +
         (new Date(monday.getFullYear(), monday.getMonth(), 1).getDay() === 0 ? 7 : new Date(monday.getFullYear(), monday.getMonth(), 1).getDay()) -
         1) /
-      7,
+        7,
     ) || 1
   return {
-    label: formatDt(monday) + ' — ' + formatDt(sunday) + ' · 第' + weekNum + '周',
+    label: formatDt(monday) + ' ~ ' + formatDt(sunday) + '  第' + weekNum + '周',
     startShort: fmtShort(monday),
     endShort: fmtShort(sunday),
     startFull: monday.toISOString().split('T')[0],
@@ -68,13 +68,18 @@ const switchPeriod = (mode) => {
   periodMode.value = mode
   if (mode === 'week') {
     updateWeekLabel()
-    // 重新生成本周数据
-    const range = getWeekRange()
-    scheduleTableData.value = generateScheduleData(range.startFull, range.endFull)
+    // 从后端获取本周排班数据，同时更新表格和今日值班
+    fetchScheduleData()
   }
 }
 
 const shiftCustomWeek = (dir) => {
+  // 日期被清空时，回退到本周的起止日期
+  if (!customStart.value || !customEnd.value) {
+    const weekRange = getWeekRange()
+    customStart.value = weekRange.startFull
+    customEnd.value = weekRange.endFull
+  }
   const start = new Date(customStart.value)
   const end = new Date(customEnd.value)
   start.setDate(start.getDate() + dir * 7)
@@ -88,8 +93,9 @@ const formatDateStr = (d) => {
 }
 
 const applyCustomRange = () => {
+  ElMessage.closeAll()
   tableTitle.value = '排班明细 (' + customStart.value + ' 至 ' + customEnd.value + ')'
-  scheduleTableData.value = generateScheduleData(customStart.value, customEnd.value)
+  fetchScheduleData(customStart.value, customEnd.value)
   ElMessage.success('已切换至自定义日期范围')
 }
 
@@ -100,20 +106,274 @@ const todayStr = computed(() => {
   return d.getMonth() + 1 + '月' + d.getDate() + '日 星期' + weekNames[d.getDay()]
 })
 
-// 示例今日值班数据（实际应从 API 获取）
-const todayEccPersons = ref([
-  { name: '李四光', surname: '李', avatarColor: 'var(--primary)', shiftClass: 'shift-day', shiftLabel: '白', time: '09:00 - 18:00' },
-  { name: '张三丰', surname: '张', avatarColor: 'var(--text-3)', shiftClass: 'shift-night', shiftLabel: '夜', time: '18:00 - 09:00' },
-])
-const todaySysPersons = ref([
-  { name: '赵六六', surname: '赵', avatarColor: 'var(--purple)', shiftClass: 'shift-day', shiftLabel: '白', time: '09:00 - 18:00' },
-])
-const todayNetPersons = ref([
-  { name: '孙八一', surname: '孙', avatarColor: 'var(--cyan)', shiftClass: 'shift-day', shiftLabel: '白', time: '09:00 - 18:00' },
-])
-const todayPmPersons = ref([
-  { name: '吴经理', surname: '吴', avatarColor: 'var(--warning)', shiftClass: 'shift-day', shiftLabel: '全', time: '09:00 - 18:00 在线' },
-])
+const todayDateStr = computed(() => new Date().toISOString().split('T')[0])
+
+const todayDayType = computed(() => getDayType(todayDateStr.value))
+
+const todayIsRestDay = computed(() => todayDayType.value === 'rest' || todayDayType.value === 'holiday')
+
+// 今日值班数据（从 API 动态获取）
+const todayEccPersons = ref([])
+const todaySysPersons = ref([])
+const todayNetPersons = ref([])
+const todayPmPersons = ref([])
+
+// 从后端获取指定范围排班数据，同时更新排班表格和今日值班展示
+const fetchScheduleData = async (startDate, endDate) => {
+  try {
+    // 支持传入自定义日期范围，未传入则使用本周范围（并更新今日值班）
+    const isWeekMode = !startDate && !endDate
+    const range = isWeekMode
+      ? getWeekRange()
+      : { startFull: startDate, endFull: endDate }
+    const result = await getDuty([range.startFull, range.endFull])
+
+    if (result && Array.isArray(result)) {
+      const todayStr = new Date().toISOString().split('T')[0]
+
+      // 仅本周模式清空并更新今日值班
+      if (isWeekMode) {
+        todayEccPersons.value = []
+        todaySysPersons.value = []
+        todayNetPersons.value = []
+        todayPmPersons.value = []
+      }
+
+      const tableRows = []
+
+      result.forEach((record) => {
+        const dateStr = record.scheduleDate || record.schedule_date
+        if (!dateStr) return
+
+        const d = new Date(dateStr)
+        const dow = d.getDay()
+        const dayOfWeek = dow === 0 ? 6 : dow - 1
+        const dateDisplay = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} (周${weekDaysNames[dayOfWeek]})`
+        const isToday = dateStr === todayStr
+        const dayType = getDayType(dateStr)
+        const holidayName = getDayHolidayNameByDateStr(dateStr)
+
+        const dayBadgeClass =
+          dayType === 'rest' ? 'badge-rest' : dayType === 'holiday' ? 'badge-holiday' : 'badge-workday'
+        const dayBadgeText =
+          dayType === 'rest' ? '休息日' : dayType === 'holiday' ? holidayName || '法定假日' : '工作日'
+
+        const eccDayName = record.eccDayPersonnelName || ''
+        const eccDayId = record.eccDayPersonnelId || record.ecc_day_personnel_id || ''
+        const eccNightName = record.eccNightPersonnelName || ''
+        const eccNightId = record.eccNightPersonnelId || record.ecc_night_personnel_id || ''
+        const sysName = record.sysOpsPersonnelName || ''
+        const sysId = record.sysOpsPersonnelId || record.sys_ops_personnel_id || ''
+        const netName = record.netOpsPersonnelName || ''
+        const netId = record.netOpsPersonnelId || record.net_ops_personnel_id || ''
+        const pmName = record.pmPersonnelName || ''
+        const pmId = record.pmPersonnelId || record.pm_personnel_id || ''
+
+        // 白班行
+        tableRows.push({
+          id: dateStr + '-D',
+          date: dateStr,
+          dateDisplay: dateDisplay,
+          isToday: isToday,
+          dayType: dayType,
+          shift: 'day',
+          shiftText: '白班 08:00-22:00',
+          shiftClass: 'shift-day',
+          dayBadgeClass: dayBadgeClass,
+          dayBadgeText: dayBadgeText,
+          ecc: eccDayName,
+          eccSurname: eccDayName ? getSurname(eccDayName) : '',
+          eccColor: eccDayName ? 'var(--primary)' : '',
+          eccId: eccDayId,
+          sysOps: sysName,
+          sysSurname: sysName ? getSurname(sysName) : '',
+          sysColor: sysName ? 'var(--purple)' : '',
+          sysId: sysId,
+          isSysOpsMaster: !!sysName,
+          netOps: netName,
+          netSurname: netName ? getSurname(netName) : '',
+          netColor: netName ? 'var(--cyan)' : '',
+          netId: netId,
+          isNetOpsMaster: !!netName,
+          pm: pmName,
+          pmSurname: pmName ? getSurname(pmName) : '',
+          pmColor: pmName ? 'var(--warning)' : '',
+          pmId: pmId,
+          isPmMaster: !!pmName,
+        })
+
+        // 夜班行
+        tableRows.push({
+          id: dateStr + '-N',
+          date: dateStr,
+          dateDisplay: '',
+          isToday: isToday,
+          dayType: dayType,
+          shift: 'night',
+          shiftText: '夜班 22:00-08:00',
+          shiftClass: 'shift-night',
+          dayBadgeClass: dayBadgeClass,
+          dayBadgeText: dayBadgeText,
+          ecc: eccNightName,
+          eccSurname: eccNightName ? getSurname(eccNightName) : '',
+          eccColor: eccNightName ? 'var(--text-3)' : '',
+          eccId: eccNightId,
+          sysOps: sysName,
+          sysSurname: sysName ? getSurname(sysName) : '',
+          sysColor: sysName ? 'var(--purple)' : '',
+          isSysOpsMaster: false,
+          netOps: netName,
+          netSurname: netName ? getSurname(netName) : '',
+          netColor: netName ? 'var(--cyan)' : '',
+          isNetOpsMaster: false,
+          pm: pmName,
+          pmSurname: pmName ? getSurname(pmName) : '',
+          pmColor: pmName ? 'var(--warning)' : '',
+          isPmMaster: false,
+        })
+
+        // 仅本周模式更新今日值班
+        if (isWeekMode && isToday) {
+          if (eccDayName) {
+            todayEccPersons.value.push({
+              name: eccDayName,
+              surname: getSurname(eccDayName),
+              avatarColor: 'var(--primary)',
+              shiftClass: 'shift-day',
+              shiftLabel: '白',
+              time: '08:00 - 22:00',
+            })
+          }
+          if (eccNightName) {
+            todayEccPersons.value.push({
+              name: eccNightName,
+              surname: getSurname(eccNightName),
+              avatarColor: 'var(--text-3)',
+              shiftClass: 'shift-night',
+              shiftLabel: '夜',
+              time: '22:00 - 08:00',
+            })
+          }
+          todaySysPersons.value = sysName
+            ? [
+                {
+                  name: sysName,
+                  surname: getSurname(sysName),
+                  avatarColor: 'var(--purple)',
+                  shiftClass: 'shift-day',
+                  shiftLabel: '白',
+                  time: '08:30 - 18:00',
+                },
+              ]
+            : []
+          todayNetPersons.value = netName
+            ? [
+                {
+                  name: netName,
+                  surname: getSurname(netName),
+                  avatarColor: 'var(--cyan)',
+                  shiftClass: 'shift-day',
+                  shiftLabel: '白',
+                  time: '08:30 - 18:00',
+                },
+              ]
+            : []
+          todayPmPersons.value = pmName
+            ? [
+                {
+                  name: pmName,
+                  surname: getSurname(pmName),
+                  avatarColor: 'var(--warning)',
+                  shiftClass: 'shift-day',
+                  shiftLabel: '全',
+                  time: '08:30 - 18:00',
+                },
+              ]
+            : []
+        }
+      })
+
+      // 填充查询范围内缺失的日期（无排班数据的天数也显示在表格中）
+      const existingDates = new Set(tableRows.map(r => r.date))
+      const startDate = new Date(range.startFull)
+      const endDate = new Date(range.endFull)
+      const cursor = new Date(startDate)
+      while (cursor <= endDate) {
+        const dateStr = formatDateStr(cursor)
+        if (!existingDates.has(dateStr)) {
+          const d = new Date(dateStr)
+          const dow = d.getDay()
+          const dayOfWeek = dow === 0 ? 6 : dow - 1
+          const dateDisplay = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} (周${weekDaysNames[dayOfWeek]})`
+          const isToday = dateStr === todayStr
+          const dayType = getDayType(dateStr)
+          const holidayName = getDayHolidayNameByDateStr(dateStr)
+          const dayBadgeClass = dayType === 'rest' ? 'badge-rest' : dayType === 'holiday' ? 'badge-holiday' : 'badge-workday'
+          const dayBadgeText = dayType === 'rest' ? '休息日' : dayType === 'holiday' ? holidayName || '法定假日' : '工作日'
+
+          const emptyRow = {
+            eccSurname: '',
+            eccColor: '',
+            eccId: '',
+            sysSurname: '',
+            sysColor: '',
+            sysId: '',
+            isSysOpsMaster: false,
+            netOps: '',
+            netSurname: '',
+            netColor: '',
+            netId: '',
+            isNetOpsMaster: false,
+            pm: '',
+            pmSurname: '',
+            pmColor: '',
+            pmId: '',
+            isPmMaster: false,
+          }
+
+          // 白班行
+          tableRows.push({
+            ...emptyRow,
+            id: dateStr + '-D',
+            date: dateStr,
+            dateDisplay: dateDisplay,
+            isToday: isToday,
+            dayType: dayType,
+            shift: 'day',
+            shiftText: '白班 08:00-22:00',
+            shiftClass: 'shift-day',
+            dayBadgeClass: dayBadgeClass,
+            dayBadgeText: dayBadgeText,
+            ecc: '',
+          })
+
+          // 夜班行
+          tableRows.push({
+            ...emptyRow,
+            id: dateStr + '-N',
+            date: dateStr,
+            dateDisplay: '',
+            isToday: isToday,
+            dayType: dayType,
+            shift: 'night',
+            shiftText: '夜班 22:00-08:00',
+            shiftClass: 'shift-night',
+            dayBadgeClass: dayBadgeClass,
+            dayBadgeText: dayBadgeText,
+            ecc: '',
+          })
+        }
+        cursor.setDate(cursor.getDate() + 1)
+      }
+
+      // 按日期排序
+      tableRows.sort((a, b) => a.date.localeCompare(b.date) || (a.shift === 'day' ? -1 : 1))
+      scheduleTableData.value = tableRows
+    }
+  } catch (error) {
+    console.error('获取排班数据失败:', error.message)
+  }
+}
 
 // ============ 排班表格 ============
 // 使用 lunar-javascript 库自动识别日期类型（统一供表格和日历使用）
@@ -139,33 +399,11 @@ const getDayType = (dateStr) => {
   return dow === 0 || dow === 6 ? 'rest' : 'workday'
 }
 
-const isRestDay = (dateStr) => {
-  const type = getDayType(dateStr)
-  return type === 'rest' || type === 'holiday'
-}
+
 
 // 示例排班表格数据（实际应从 API 获取）
 const weekDaysNames = ['一', '二', '三', '四', '五', '六', '日']
 
-// 人员池数据
-const personPool = {
-  ecc: ['张三丰', '李四光'],
-  sys: ['王五一', '赵六六'],
-  net: ['钱七七', '孙八一'],
-  pm: ['周总', '吴经理'],
-}
-
-// 人员颜色映射
-const personColors = {
-  张三丰: 'var(--primary)',
-  李四光: 'var(--text-3)',
-  王五一: 'var(--purple)',
-  赵六六: 'var(--purple)',
-  钱七七: 'var(--cyan)',
-  孙八一: 'var(--cyan)',
-  周总: 'var(--warning)',
-  吴经理: 'var(--warning)',
-}
 
 // 获取姓氏
 const getSurname = (name) => name.charAt(0)
@@ -189,108 +427,9 @@ const getDayHolidayNameByDateStr = (dateStr) => {
   return ''
 }
 
-// 生成指定日期范围的排班数据
-const generateScheduleData = (startDate, endDate) => {
-  const data = []
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
 
-  let currentDate = new Date(start)
-  let dayIndex = 0
 
-  while (currentDate <= end) {
-    const dateStr = currentDate.toISOString().split('T')[0]
-    const dow = currentDate.getDay()
-    const dayOfWeek = dow === 0 ? 6 : dow - 1 // 转换为周一=0
-    const dateDisplay =
-      String(currentDate.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(currentDate.getDate()).padStart(2, '0') +
-      ' (周' +
-      weekDaysNames[dayOfWeek] +
-      ')'
-    const isToday = dateStr === todayStr
-    const dayType = getDayType(dateStr)
-    const isRest = dayType === 'rest' || dayType === 'holiday'
-
-    // 根据日期选择人员（简单的轮转逻辑）
-    const eccPerson = personPool.ecc[dayIndex % personPool.ecc.length]
-    const sysPerson = isRest ? '' : personPool.sys[dayIndex % personPool.sys.length]
-    const netPerson = isRest ? '' : personPool.net[dayIndex % personPool.net.length]
-    const pmPerson = isRest ? '' : personPool.pm[dayIndex % personPool.pm.length]
-
-    // 获取节假日名称（如果有）
-    const holidayName = getDayHolidayNameByDateStr(dateStr)
-
-    // 白班行
-    data.push({
-      id: dateStr + '-D',
-      date: dateStr,
-      dateDisplay: dateDisplay,
-      isToday: isToday,
-      dayType: dayType,
-      shift: 'day',
-      shiftText: '白班 09:00-18:00',
-      shiftClass: 'shift-day',
-      ecc: eccPerson,
-      eccSurname: getSurname(eccPerson),
-      eccColor: personColors[eccPerson] || 'var(--primary)',
-      sysOps: sysPerson,
-      sysSurname: sysPerson ? getSurname(sysPerson) : '',
-      sysColor: sysPerson ? personColors[sysPerson] || 'var(--purple)' : '',
-      isSysOpsMaster: !isRest,
-      netOps: netPerson,
-      netSurname: netPerson ? getSurname(netPerson) : '',
-      netColor: netPerson ? personColors[netPerson] || 'var(--cyan)' : '',
-      isNetOpsMaster: !isRest,
-      pm: pmPerson,
-      pmSurname: pmPerson ? getSurname(pmPerson) : '',
-      pmColor: pmPerson ? personColors[pmPerson] || 'var(--warning)' : '',
-      isPmMaster: !isRest,
-    })
-
-    // 夜班行
-    const eccNightPerson = personPool.ecc[(dayIndex + 1) % personPool.ecc.length]
-    data.push({
-      id: dateStr + '-N',
-      date: dateStr,
-      dateDisplay: '',
-      isToday: isToday,
-      dayType: dayType,
-      shift: 'night',
-      shiftText: '夜班 18:00-09:00',
-      shiftClass: 'shift-night',
-      ecc: eccNightPerson,
-      eccSurname: getSurname(eccNightPerson),
-      eccColor: personColors[eccNightPerson] || 'var(--text-3)',
-      sysOps: sysPerson,
-      sysSurname: sysPerson ? getSurname(sysPerson) : '',
-      sysColor: sysPerson ? personColors[sysPerson] || 'var(--purple)' : '',
-      isSysOpsMaster: false,
-      netOps: netPerson,
-      netSurname: netPerson ? getSurname(netPerson) : '',
-      netColor: netPerson ? personColors[netPerson] || 'var(--cyan)' : '',
-      isNetOpsMaster: false,
-      pm: pmPerson,
-      pmSurname: pmPerson ? getSurname(pmPerson) : '',
-      pmColor: pmPerson ? personColors[pmPerson] || 'var(--warning)' : '',
-      isPmMaster: false,
-    })
-
-    currentDate.setDate(currentDate.getDate() + 1)
-    dayIndex++
-  }
-
-  return data.map((row) => ({
-    ...row,
-    dayBadgeClass: row.dayType === 'rest' ? 'badge-rest' : row.dayType === 'holiday' ? 'badge-holiday' : 'badge-workday',
-    dayBadgeText: row.dayType === 'rest' ? '休息日' : row.dayType === 'holiday' ? row.holidayName || '法定假日' : '工作日',
-  }))
-}
-
-const scheduleTableData = ref(generateScheduleData(getWeekRange().startFull, getWeekRange().endFull))
+const scheduleTableData = ref([])
 
 const scheduleSpanMethod = ({ row, columnIndex }) => {
   // 列顺序：日期(0), 班次(1), ECC(2), 系统运维(3), 网络运维(4), PM(5), 操作(6)
@@ -337,6 +476,9 @@ const workdayMonth = ref(4) // 0-indexed, 4 = May
 const workdayMonthSelect = ref(5) // 1-indexed for select, 5 = May
 const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
+// 月度排班数据(用于日历标记)
+const monthDutyData = ref([])
+
 // 年份选项（当前年份前后各2年）
 const yearOptions = computed(() => {
   const currentYear = new Date().getFullYear()
@@ -376,6 +518,46 @@ const workdayDaysInMonth = computed(() => {
 // 年月选择变化时的处理
 const onYearMonthChange = () => {
   workdayMonth.value = workdayMonthSelect.value - 1
+  // 调用接口获取月度排班数据
+  fetchMonthDutyData()
+}
+
+// 获取指定月份的排班数据
+const fetchMonthDutyData = async () => {
+  try {
+    const year = workdayYear.value
+    const month = workdayMonth.value + 1 // 转换为1-12
+
+    // 计算月份第一天和最后一天
+    const firstDay = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDate = new Date(year, month, 0).getDate() // 获取该月最后一天
+    const lastDay = `${year}-${String(month).padStart(2, '0')}-${String(lastDate).padStart(2, '0')}`
+
+    const dateRange = [firstDay, lastDay]
+    const result = await getDuty(dateRange)
+    console.log('月度排班数据:', result,Array.isArray(result))
+
+    // 存储排班数据
+    if (result && Array.isArray(result)) {
+      monthDutyData.value = result
+      console.log("monthDutyData",monthDutyData)
+    } else {
+      console.log("monthDutyData",monthDutyData)
+      monthDutyData.value = []
+    }
+  } catch (error) {
+    console.error('获取月度排班数据失败:', error.message)
+    monthDutyData.value = []
+  }
+}
+
+// 判断某天是否有排班数据
+const hasDutyOnDay = (day) => {
+  const year = workdayYear.value
+  const month = workdayMonth.value + 1
+  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+  return monthDutyData.value.some(item => item.scheduleDate === dateStr)
 }
 
 // 使用 lunar-javascript 库自动识别日期类型
@@ -426,6 +608,8 @@ const getCalDayStyle = (day) => {
 
 const openWorkdayModal = () => {
   workdayModalVisible.value = true
+  // 打开模态框时获取当前月份的排班数据
+  fetchMonthDutyData()
 }
 const workdayMonthNav = (dir) => {
   workdayMonth.value += dir
@@ -439,12 +623,12 @@ const workdayMonthNav = (dir) => {
   }
   // 同步更新下拉框的值
   workdayMonthSelect.value = workdayMonth.value + 1
+  // 月份切换后获取新月份的排班数据
+  fetchMonthDutyData()
 }
-const saveWorkdays = () => {
-  // TODO: POST workdayOverrides to backend
-  ElMessage.success('工作日配置已保存')
-  workdayModalVisible.value = false
-}
+
+// 权限状态管理
+const permissionStore = usePermissionStore()
 
 // 获取authStore实例
 const authStore = useAuthStore()
@@ -475,13 +659,13 @@ const manualFormRules = computed(() => {
     date: [{ required: true, message: '请选择排班日期', trigger: 'change' }],
     eccDay: [{ required: true, message: '请选择ECC白班人员', trigger: 'change' }],
     eccNight: [{ required: true, message: '请选择ECC夜班人员', trigger: 'change' }],
-    pm: [{ required: true, message: '请选择甲方PM人员', trigger: 'change' }],
   }
 
-  // 工作日时，系统运维和网络运维为必填
+  // 工作日时,系统运维和网络运维为必填
   if (!isNonWorkDay.value) {
     rules.sysOps = [{ required: true, message: '请选择系统运维人员', trigger: 'change' }]
     rules.netOps = [{ required: true, message: '请选择网络运维人员', trigger: 'change' }]
+    rules.pm = [{ required: true, message: '请选择甲方PM人员', trigger: 'change' }]
   }
 
   return rules
@@ -562,17 +746,19 @@ const saveManualDuty = async () => {
   // 获取当前登录用户名
   const currentUser = authStore.user || ''
 
-  // 将表单数据转换为数组格式，每条对象是一天的排班数据
-  const dutyScheduleArray = [{
-    schedule_date: manualForm.date || '',
-    ecc_day_personnel_id: manualForm.eccDay?.id || '',
-    ecc_night_personnel_id: manualForm.eccNight?.id || '',
-    sys_ops_personnel_id: manualForm.sysOps?.id || '',
-    net_ops_personnel_id: manualForm.netOps?.id || '',
-    pm_personnel_id: manualForm.pm?.id || '',
-    created_by: currentUser,
-    updated_by: currentUser,
-  }]
+  // 将表单数据转换为数组格式,每条对象是一天的排班数据
+  const dutyScheduleArray = [
+    {
+      schedule_date: manualForm.date || '',
+      ecc_day_personnel_id: manualForm.eccDay || '',
+      ecc_night_personnel_id: manualForm.eccNight || '',
+      sys_ops_personnel_id: manualForm.sysOps || '',
+      net_ops_personnel_id: manualForm.netOps || '',
+      pm_personnel_id: manualForm.pm || '',
+      created_by: currentUser,
+      updated_by: currentUser,
+    },
+  ]
 
   try {
     await saveDuty(dutyScheduleArray)
@@ -580,6 +766,8 @@ const saveManualDuty = async () => {
     addDutyModalVisible.value = false
     // 重置数据模型
     resetDutyScheduleData()
+    // 立即刷新排班表格和今日值班
+    fetchScheduleData()
   } catch (error) {
     ElMessage.error('保存排班失败: ' + error.message)
   }
@@ -601,16 +789,337 @@ const closeAddDutyModal = () => {
   }
   // 重置所有数据模型为初始值
   resetDutyScheduleData()
+  // 清空Excel导入的数据
+  excelImportData.value = []
+}
+
+// ============ 编辑模式（表格内联编辑与调班保存）============
+const editingDate = ref(null)
+const editForm = reactive({
+  schedule_date: '',
+  ecc_day_personnel_id: '',
+  ecc_night_personnel_id: '',
+  sys_ops_personnel_id: '',
+  net_ops_personnel_id: '',
+  pm_personnel_id: '',
+})
+
+// 根据选中选项文本动态计算下拉框宽度
+const getEditSelectWidth = (value, options, placeholder) => {
+  const option = options.find(o => o.userCode === value)
+  const text = option ? option.name : placeholder
+  // 12px 字体下：中文字符约12px宽，ASCII约7.2px宽
+  let textWidth = 0
+  for (const ch of text) {
+    textWidth += ch.charCodeAt(0) > 127 ? 12 : 7.2
+  }
+  // padding(16px) + caret(~14px) + border(2px) + buffer(4px) = 36px
+  const total = Math.ceil(textWidth + 36)
+  return { width: total + 'px', minWidth: total + 'px' }
+}
+
+// 判断该日期是否有排班数据（用于控制调班按钮是否可点击）
+const hasDutyData = (row) => {
+  if (!row) return false
+  const nightRow = scheduleTableData.value.find(r => r.date === row.date && r.shift === 'night')
+  return !!(row.ecc || row.sysOps || row.netOps || row.pm || nightRow?.ecc)
+}
+
+// 开始编辑指定日期的排班
+const startEdit = async (row) => {
+  // 预加载所有人员选项数据，确保 el-select 渲染时 options 已就绪
+  await Promise.all([
+    loadEccPersonnel(),
+    loadSysPersonnel(),
+    loadNetPersonnel(),
+    loadPmPersonnel(),
+  ])
+
+  const dayRow = scheduleTableData.value.find(r => r.date === row.date && r.shift === 'day')
+  const nightRow = scheduleTableData.value.find(r => r.date === row.date && r.shift === 'night')
+  if (!dayRow) return
+
+  editingDate.value = row.date
+  editForm.schedule_date = row.date
+  editForm.ecc_day_personnel_id = dayRow.eccId || dayRow.ecc || ''
+  editForm.ecc_night_personnel_id = nightRow?.eccId || nightRow?.ecc || ''
+  editForm.sys_ops_personnel_id = dayRow.sysId || dayRow.sysOps || ''
+  editForm.net_ops_personnel_id = dayRow.netId || dayRow.netOps || ''
+  editForm.pm_personnel_id = dayRow.pmId || dayRow.pm || ''
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  editingDate.value = null
+}
+
+// 保存调班
+const saveEdit = async () => {
+  try {
+    const currentUser = authStore.user || ''
+    const updateData = {
+      schedule_date: editForm.schedule_date,
+      ecc_day_personnel_id: editForm.ecc_day_personnel_id,
+      ecc_night_personnel_id: editForm.ecc_night_personnel_id,
+      sys_ops_personnel_id: editForm.sys_ops_personnel_id,
+      net_ops_personnel_id: editForm.net_ops_personnel_id,
+      pm_personnel_id: editForm.pm_personnel_id,
+      updated_by: currentUser,
+    }
+
+    await updateDuty(updateData)
+    ElMessage.success('调班保存成功')
+    editingDate.value = null
+    // 刷新排班数据
+    fetchScheduleData()
+  } catch (error) {
+    ElMessage.error('调班保存失败: ' + error.message)
+  }
+}
+
+// ============ Excel 批量导入 ============
+const excelImportData = ref([])
+const excelFileInput = ref(null)
+
+// 导出排班明细到Excel
+const exportDutyTable = () => {
+  // 按日期分组，合并白班和夜班
+  const dateMap = {}
+  scheduleTableData.value.forEach(row => {
+    if (!dateMap[row.date]) {
+      dateMap[row.date] = { day: null, night: null }
+    }
+    if (row.shift === 'day') {
+      dateMap[row.date].day = row
+    } else {
+      dateMap[row.date].night = row
+    }
+  })
+
+  // 构建导出数据，格式与导入模板一致
+  const exportData = Object.keys(dateMap).sort().map(date => {
+    const { day, night } = dateMap[date]
+    return {
+      '日期': day?.date || date,
+      'ecc白班人员': day?.eccId || day?.ecc || '',
+      'ecc夜班人员': night?.eccId || night?.ecc || '',
+      '系统运维人员': day?.sysId || day?.sysOps || '',
+      '网络运维人员': day?.netId || day?.netOps || '',
+      '甲方PM': day?.pmId || day?.pm || '',
+    }
+  })
+
+  // 创建工作簿
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.json_to_sheet(exportData)
+
+  // 设置列宽
+  ws['!cols'] = [
+    { wch: 16 }, // 日期
+    { wch: 20 }, // ecc白班人员
+    { wch: 20 }, // ecc夜班人员
+    { wch: 20 }, // 系统运维人员
+    { wch: 20 }, // 网络运维人员
+    { wch: 20 }, // 甲方PM
+  ]
+
+  XLSX.utils.book_append_sheet(wb, ws, '排班明细')
+  XLSX.writeFile(wb, '排班明细.xlsx')
+  ElMessage.success('排班导出成功')
+}
+
+// 下载Excel模板
+const downloadExcelTemplate = () => {
+  // 创建工作簿
+  const wb = XLSX.utils.book_new()
+
+  // 创建模板数据(示例行)
+  const templateData = [
+    {
+      日期: '格式:yyyy-mm-dd,例如:2026-01-01',
+      ecc白班人员: '域账号,如:wuyanzu',
+      ecc夜班人员: '域账号,如:wuyanzu',
+      系统运维人员: '域账号,如:wuyanzu',
+      网络运维人员: '域账号,如:wuyanzu',
+      甲方PM: '域账号,如:wuyanzu',
+    },
+  ]
+
+  // 创建工作表
+  const ws = XLSX.utils.json_to_sheet(templateData)
+
+  // 设置列宽
+  ws['!cols'] = [
+    { wch: 35 }, // 日期
+    { wch: 25 }, // ecc白班人员
+    { wch: 25 }, // ecc夜班人员
+    { wch: 25 }, // 系统运维人员
+    { wch: 25 }, // 网络运维人员
+    { wch: 25 }, // 甲方PM
+  ]
+
+  // 设置标题行(第一行)的背景色为灰色,标识为说明行
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (ws[cellAddress]) {
+      ws[cellAddress].s = {
+        fill: { fgColor: { rgb: 'E8E8E8' } },
+        font: { color: { rgb: '666666' }, bold: false },
+      }
+    }
+  }
+
+  // 将工作表添加到工作簿
+  XLSX.utils.book_append_sheet(wb, ws, '排班模板')
+
+  // 下载文件
+  XLSX.writeFile(wb, '排班导入模板.xlsx')
+  ElMessage.success('模板下载成功')
+}
+
+// 触发文件选择
+const triggerFileSelect = () => {
+  if (excelFileInput.value) {
+    excelFileInput.value.click()
+  }
+}
+
+// 处理Excel文件导入
+const handleExcelFile = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // 验证文件类型
+  const validExtensions = ['.xlsx', '.xls']
+  const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+
+  if (!validExtensions.includes(fileExtension)) {
+    ElMessage.error('请上传 .xlsx 或 .xls 格式的Excel文件')
+    return
+  }
+
+  // 验证文件大小(5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('文件大小不能超过5MB')
+    return
+  }
+
+  try {
+    const data = await file.arrayBuffer()
+    const workbook = XLSX.read(data, { type: 'array', cellDates: false })
+
+    // 获取第一个工作表
+    const firstSheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[firstSheetName]
+
+    // 转换为JSON数据,使用原始值
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true })
+
+    if (jsonData.length === 0) {
+      ElMessage.warning('Excel文件中没有数据')
+      return
+    }
+
+    // 验证必需的列
+    const requiredColumns = [
+      '日期',
+      'ecc白班人员',
+      'ecc夜班人员',
+      '系统运维人员',
+      '网络运维人员',
+      '甲方PM',
+    ]
+
+    const firstRow = jsonData[0]
+    const missingColumns = requiredColumns.filter((col) => !(col in firstRow))
+
+    if (missingColumns.length > 0) {
+      ElMessage.error(`Excel文件缺少必需的列: ${missingColumns.join(', ')}`)
+      return
+    }
+
+    // 获取当前登录用户名
+    const currentUser = authStore.user || ''
+
+    // 转换数据格式,添加created_by和updated_by
+    excelImportData.value = jsonData.map((row) => {
+      // 处理日期格式
+      let scheduleDate = row.日期 || ''
+      if (typeof scheduleDate === 'number') {
+        // Excel日期序列号转换为日期字符串(按天计算,忽略时间)
+        // 使用标准公式: Unix时间戳 = (Excel序列号 - 25569) * 86400000
+        // 25569 是 1970-01-01 对应的Excel序列号(已修正1900年闰年bug)
+        const days = Math.floor(scheduleDate)
+        const jsDate = new Date((days - 25569) * 86400000)
+        // 使用UTC方法获取日期,避免时区问题
+        scheduleDate = `${jsDate.getUTCFullYear()}-${String(jsDate.getUTCMonth() + 1).padStart(2, '0')}-${String(jsDate.getUTCDate()).padStart(2, '0')}`
+      } else if (scheduleDate instanceof Date) {
+        // 如果是Date对象,使用UTC转换为字符串
+        scheduleDate = `${scheduleDate.getUTCFullYear()}-${String(scheduleDate.getUTCMonth() + 1).padStart(2, '0')}-${String(scheduleDate.getUTCDate()).padStart(2, '0')}`
+      } else if (typeof scheduleDate === 'string') {
+        // 如果是字符串,提取日期部分
+        const dateMatch = scheduleDate.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+        if (dateMatch) {
+          scheduleDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
+        }
+      }
+
+      return {
+        schedule_date: scheduleDate,
+        ecc_day_personnel_id: row.ecc白班人员 || '',
+        ecc_night_personnel_id: row.ecc夜班人员 || '',
+        sys_ops_personnel_id: row.系统运维人员 || '',
+        net_ops_personnel_id: row.网络运维人员 || '',
+        pm_personnel_id: row.甲方PM || '',
+        created_by: currentUser,
+        updated_by: currentUser,
+      }
+    })
+
+    ElMessage.success(`成功导入 ${excelImportData.value.length} 条排班数据`)
+  } catch (error) {
+    ElMessage.error('读取Excel文件失败: ' + error.message)
+  }
+
+  // 清空文件输入,允许重复选择同一文件
+  event.target.value = ''
+}
+
+// 保存Excel导入的数据
+const saveExcelImport = async () => {
+  if (excelImportData.value.length === 0) {
+    ElMessage.warning('请先导入Excel文件')
+    return
+  }
+
+  try {
+    await saveDuty(excelImportData.value)
+    ElMessage.success(`成功保存 ${excelImportData.value.length} 条排班数据`)
+    addDutyModalVisible.value = false
+    // 重置数据模型
+    resetDutyScheduleData()
+    excelImportData.value = []
+    // 立即刷新排班表格和今日值班
+    fetchScheduleData()
+  } catch (error) {
+    ElMessage.error('保存排班失败: ' + error.message)
+  }
+}
+
+// 统一保存入口,根据当前tab执行不同逻辑
+const handleSave = () => {
+  if (addDutyTab.value === 'manual') {
+    saveManualDuty()
+  } else {
+    saveExcelImport()
+  }
 }
 
 // ============ 初始化 ============
 onMounted(async () => {
-  try {
-    const users = await fetchDutyUsers()
-    if (users && users.length) dutyUsers.value = users
-  } catch (e) {
-    /* ignore */
-  }
+  // 页面加载时从后端获取本周排班数据
+  fetchScheduleData()
 })
 </script>
 
@@ -620,10 +1129,10 @@ onMounted(async () => {
     <div class="page-toolbar">
       <h2 class="page-title">排班与值班管理</h2>
       <div class="toolbar-actions">
-        <el-button class="btn-outline">导出表格</el-button>
-        <el-button type="primary" class="btn-primary-custom" @click="openAddDutyModal">
+        <el-button v-if="permissionStore.hasPermission('duty:export')" class="btn-outline" @click="exportDutyTable">导出排班</el-button>
+        <el-button v-if="permissionStore.hasPermission('duty:create')" type="primary" class="btn-primary-custom" @click="openAddDutyModal">
           <el-icon><Plus /></el-icon>
-          新增排班
+          &nbsp;新增排班
         </el-button>
       </div>
     </div>
@@ -641,9 +1150,9 @@ onMounted(async () => {
         <button class="nav-week-btn" @click="shiftCustomWeek(-1)">
           <el-icon><ArrowLeft /></el-icon>
         </button>
-        <el-date-picker v-model="customStart" type="date" placeholder="开始" value-format="YYYY-MM-DD" class="filter-date-picker" size="small" />
+        <el-date-picker v-model="customStart" type="date" placeholder="开始" value-format="YYYY-MM-DD" class="filter-date-picker" size="small" style="width: 100px" />
         <span class="range-sep">至</span>
-        <el-date-picker v-model="customEnd" type="date" placeholder="结束" value-format="YYYY-MM-DD" class="filter-date-picker" size="small" />
+        <el-date-picker v-model="customEnd" type="date" placeholder="结束" value-format="YYYY-MM-DD" class="filter-date-picker" size="small" style="width: 100px" />
         <button class="nav-week-btn" @click="shiftCustomWeek(1)">
           <el-icon><ArrowRight /></el-icon>
         </button>
@@ -671,15 +1180,39 @@ onMounted(async () => {
               ><el-icon><Monitor /></el-icon> ECC 指挥中心</span
             >
           </div>
-          <div class="person-item" v-for="p in todayEccPersons" :key="p.name">
-            <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
-            <div class="p-info">
-              <div class="p-name">
-                {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+          <template v-if="todayEccPersons.length > 0">
+            <div class="person-item" v-for="p in todayEccPersons" :key="p.name">
+              <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
+              <div class="p-info">
+                <div class="p-name">
+                  {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+                </div>
+                <div class="p-time">{{ p.time }}</div>
               </div>
-              <div class="p-time">{{ p.time }}</div>
             </div>
-          </div>
+          </template>
+          <template v-else>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">白</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">08:00 - 22:00</div>
+              </div>
+            </div>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-night">夜</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">22:00 - 08:00</div>
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="duty-role-card">
@@ -688,15 +1221,29 @@ onMounted(async () => {
               ><el-icon><Monitor /></el-icon> 系统运维</span
             >
           </div>
-          <div class="person-item" v-for="p in todaySysPersons" :key="p.name">
-            <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
-            <div class="p-info">
-              <div class="p-name">
-                {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+          <template v-if="todaySysPersons.length > 0">
+            <div class="person-item" v-for="p in todaySysPersons" :key="p.name">
+              <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
+              <div class="p-info">
+                <div class="p-name">
+                  {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+                </div>
+                <div class="p-time">{{ p.time }}</div>
               </div>
-              <div class="p-time">{{ p.time }}</div>
             </div>
-          </div>
+          </template>
+          <template v-else>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">白</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">08:30 - 18:00</div>
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="duty-role-card">
@@ -705,15 +1252,29 @@ onMounted(async () => {
               ><el-icon><Connection /></el-icon> 网络运维</span
             >
           </div>
-          <div class="person-item" v-for="p in todayNetPersons" :key="p.name">
-            <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
-            <div class="p-info">
-              <div class="p-name">
-                {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+          <template v-if="todayNetPersons.length > 0">
+            <div class="person-item" v-for="p in todayNetPersons" :key="p.name">
+              <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
+              <div class="p-info">
+                <div class="p-name">
+                  {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+                </div>
+                <div class="p-time">{{ p.time }}</div>
               </div>
-              <div class="p-time">{{ p.time }}</div>
             </div>
-          </div>
+          </template>
+          <template v-else>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">白</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">08:30 - 18:00</div>
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="duty-role-card">
@@ -722,15 +1283,29 @@ onMounted(async () => {
               ><el-icon><User /></el-icon> 甲方项目经理</span
             >
           </div>
-          <div class="person-item" v-for="p in todayPmPersons" :key="p.name">
-            <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
-            <div class="p-info">
-              <div class="p-name">
-                {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+          <template v-if="todayPmPersons.length > 0">
+            <div class="person-item" v-for="p in todayPmPersons" :key="p.name">
+              <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
+              <div class="p-info">
+                <div class="p-name">
+                  {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+                </div>
+                <div class="p-time">{{ p.time }}</div>
               </div>
-              <div class="p-time">{{ p.time }}</div>
             </div>
-          </div>
+          </template>
+          <template v-else>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">全</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">08:30 - 18:00</div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -768,41 +1343,91 @@ onMounted(async () => {
           </el-table-column>
           <el-table-column label="ECC 指挥中心" :resizable="false" align="center" min-width="15%">
             <template #default="{ row }">
-              <div class="user-tag" v-if="row.ecc">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.ecc_day_personnel_id" :style="getEditSelectWidth(editForm.ecc_day_personnel_id, eccUserOptions, '选择白班')" placeholder="选择白班" size="small" @visible-change="loadEccPersonnel">
+                  <el-option v-for="u in eccUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <template v-else-if="editingDate === row.date && row.shift === 'night'">
+                <el-select class="edit-mode-select" v-model="editForm.ecc_night_personnel_id" :style="getEditSelectWidth(editForm.ecc_night_personnel_id, eccUserOptions, '选择夜班')" placeholder="选择夜班" size="small" @visible-change="loadEccPersonnel">
+                  <el-option v-for="u in eccUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.ecc">
                 <div class="user-tag-avatar" :style="{ background: row.eccColor }">{{ row.eccSurname }}</div>
                 {{ row.ecc }}
+              </div>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">未排班</span>
               </div>
             </template>
           </el-table-column>
           <el-table-column label="系统运维 (白班)" :resizable="false" align="center" min-width="15%">
             <template #default="{ row }">
-              <div class="user-tag" v-if="row.sysOps && row.isSysOpsMaster">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.sys_ops_personnel_id" :style="getEditSelectWidth(editForm.sys_ops_personnel_id, sysUserOptions, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadSysPersonnel">
+                  <el-option v-for="u in sysUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.sysOps && row.isSysOpsMaster">
                 <div class="user-tag-avatar" :style="{ background: row.sysColor }">{{ row.sysSurname }}</div>
                 {{ row.sysOps }}
               </div>
-              <span v-else-if="!row.isSysOpsMaster" class="rest-text">休息 (按需支持)</span>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">{{ row.shift === 'night' || row.dayType === 'rest' || row.dayType === 'holiday' ? '休息 (按需支持)' : '未排班' }}</span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="网络运维 (白班)" :resizable="false" align="center" min-width="15%">
             <template #default="{ row }">
-              <div class="user-tag" v-if="row.netOps && row.isNetOpsMaster">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.net_ops_personnel_id" :style="getEditSelectWidth(editForm.net_ops_personnel_id, netUserOptions, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadNetPersonnel">
+                  <el-option v-for="u in netUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.netOps && row.isNetOpsMaster">
                 <div class="user-tag-avatar" :style="{ background: row.netColor }">{{ row.netSurname }}</div>
                 {{ row.netOps }}
               </div>
-              <span v-else-if="!row.isNetOpsMaster" class="rest-text">休息 (按需支持)</span>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">{{ row.shift === 'night' || row.dayType === 'rest' || row.dayType === 'holiday' ? '休息 (按需支持)' : '未排班' }}</span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="甲方 PM" :resizable="false" align="center" min-width="15%">
             <template #default="{ row }">
-              <div class="user-tag" v-if="row.pm && row.isPmMaster">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.pm_personnel_id" :style="getEditSelectWidth(editForm.pm_personnel_id, pmUserOptions, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadPmPersonnel">
+                  <el-option v-for="u in pmUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.pm && row.isPmMaster">
                 <div class="user-tag-avatar" :style="{ background: row.pmColor }">{{ row.pmSurname }}</div>
                 {{ row.pm }}
               </div>
-              <span v-else-if="!row.isPmMaster">-</span>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">{{ row.shift === 'night' || row.dayType === 'rest' || row.dayType === 'holiday' ? '休息 (按需支持)' : '未排班' }}</span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="操作" :resizable="false" align="center" min-width="13%">
-            <template #default> <a class="action-link">编辑</a><a class="action-link">调班</a> </template>
+            <template #default="{ row }">
+              <template v-if="editingDate === row.date">
+                <el-button type="info" size="small" round plain @click="cancelEdit">取消</el-button>
+                <el-button type="success" size="small" round plain @click="saveEdit">保存调班</el-button>
+              </template>
+              <template v-else>
+                <el-tooltip content="账号无调班权限" :disabled="permissionStore.hasPermission('duty:edit')" placement="top">
+                  <el-button type="warning" size="small" round plain :disabled="!permissionStore.hasPermission('duty:edit') || !hasDutyData(row)" @click="startEdit(row)">
+                    调班
+                  </el-button>
+                </el-tooltip>
+              </template>
+            </template>
           </el-table-column>
         </el-table>
       </div>
@@ -811,7 +1436,7 @@ onMounted(async () => {
     <!-- 日历弹窗 -->
     <el-dialog v-model="workdayModalVisible" title="日历" width="500px" center :close-on-click-modal="false">
       <p class="workday-tip">
-        系统自动识别工作日、休息日和法定节假日（含调休），截止到2026年12月，颜色标记说明：
+        系统自动识别工作日、休息日和法定节假日（含调休）。节假日数据基于 lunar-javascript 库内置的国务院放假安排，当前版本数据截止至2026年12月，2027年及之后年份需等国务院公布安排后更新库版本方可支持。颜色标记说明：
         <span class="workday-badge badge-workday">工作日</span>
         <span class="workday-badge badge-rest">休息日</span>
         <span class="workday-badge badge-holiday">法定假日</span>
@@ -839,6 +1464,7 @@ onMounted(async () => {
         <div v-for="i in workdayStartDow" :key="'empty-' + i" class="cal-empty-cell"></div>
         <div v-for="d in workdayDaysInMonth" :key="'day-' + d" class="cal-day-cell" :style="getCalDayStyle(d)">
           {{ d }}
+          <span v-if="hasDutyOnDay(d)" class="duty-badge">排</span>
           <span v-if="getDayHolidayName(d)" class="holiday-name">{{ getDayHolidayName(d) }}</span>
         </div>
       </div>
@@ -855,11 +1481,19 @@ onMounted(async () => {
         <div :class="['modal-tab', { active: addDutyTab === 'excel' }]" @click="addDutyTab = 'excel'">Excel 批量导入</div>
         <div :class="['modal-tab', { active: addDutyTab === 'manual' }]" @click="addDutyTab = 'manual'">手动配置排班</div>
       </div>
-      <div v-show="addDutyTab === 'excel'" class="upload-area-box">
+      <div v-show="addDutyTab === 'excel'" class="upload-area-box" @click="triggerFileSelect">
+        <input ref="excelFileInput" type="file" accept=".xlsx,.xls" style="display: none" @change="handleExcelFile" />
         <el-icon class="upload-icon" :size="48"><UploadFilled /></el-icon>
         <div class="upload-title-text">点击或将 Excel 文件拖拽到此处</div>
-        <div class="upload-desc-text">支持 .xlsx, .xls 格式，最大 5MB</div>
-        <a href="#" class="download-tmpl-link">↓ 下载排班标准导入模板.xlsx</a>
+        <div class="upload-desc-text">支持 .xlsx, .xls 格式,最大 5MB</div>
+        <a href="#" class="download-tmpl-link" @click.stop="downloadExcelTemplate">
+          <el-icon><Download /></el-icon>
+          下载排班标准导入模板.xlsx
+        </a>
+        <div v-if="excelImportData.length > 0" class="import-info" @click.stop>
+          <el-icon><List /></el-icon>
+          已导入 {{ excelImportData.length }} 条数据
+        </div>
       </div>
       <div v-show="addDutyTab === 'manual'" class="manual-form">
         <el-form ref="manualFormRef" :model="manualForm" :rules="manualFormRules" label-width="140px" size="small">
@@ -870,33 +1504,33 @@ onMounted(async () => {
             <el-col :span="12">
               <el-form-item label="ECC (白班)" prop="eccDay"
                 ><el-select v-model="manualForm.eccDay" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadEccPersonnel"
-                  ><el-option v-for="u in eccUserOptions" :key="u.id" :label="u.name" :value="u" /></el-select
+                  ><el-option v-for="u in eccUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
               ></el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="ECC (夜班)" prop="eccNight"
                 ><el-select v-model="manualForm.eccNight" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadEccPersonnel"
-                  ><el-option v-for="u in eccUserOptions" :key="u.id" :label="u.name" :value="u" /></el-select
+                  ><el-option v-for="u in eccUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
               ></el-form-item>
             </el-col>
           </el-row>
           <el-form-item label="系统运维 (白班)" prop="sysOps"
             ><el-select v-model="manualForm.sysOps" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadSysPersonnel"
-              ><el-option v-for="u in sysUserOptions" :key="u.id" :label="u.name" :value="u" /></el-select
+              ><el-option v-for="u in sysUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
           ></el-form-item>
           <el-form-item label="网络运维 (白班)" prop="netOps"
             ><el-select v-model="manualForm.netOps" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadNetPersonnel"
-              ><el-option v-for="u in netUserOptions" :key="u.id" :label="u.name" :value="u" /></el-select
+              ><el-option v-for="u in netUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
           ></el-form-item>
           <el-form-item label="甲方 PM" prop="pm"
             ><el-select v-model="manualForm.pm" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadPmPersonnel"
-              ><el-option v-for="u in pmUserOptions" :key="u.id" :label="u.name" :value="u" /></el-select
+              ><el-option v-for="u in pmUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
           ></el-form-item>
         </el-form>
       </div>
       <template #footer>
         <el-button @click="closeAddDutyModal">取消</el-button>
-        <el-button type="primary" @click="saveManualDuty">确认保存</el-button>
+        <el-button type="primary" @click="handleSave">确认保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -1064,7 +1698,16 @@ onMounted(async () => {
   color: var(--primary);
 }
 .filter-date-picker {
-  width: 130px;
+  width: 100px !important;
+  max-width: 100px !important;
+}
+.filter-date-picker :deep(.el-input__wrapper) {
+  min-width: 100px !important;
+  max-width: 100px !important;
+  padding: 0 8px !important;
+}
+.filter-date-picker :deep(.el-input__inner) {
+  font-size: 12px !important;
 }
 .range-sep {
   color: var(--text-4);
@@ -1157,6 +1800,7 @@ onMounted(async () => {
   justify-content: center;
   font-weight: 600;
   font-size: 12px;
+  line-height: 1;
   flex-shrink: 0;
   color: #fff;
 }
@@ -1250,6 +1894,9 @@ onMounted(async () => {
   white-space: nowrap;
   padding: 10px 16px;
 }
+.duty-table :deep(.el-table__row) {
+  height: 48px;
+}
 .duty-table :deep(.el-table__body td) {
   font-size: 13px;
   padding: 10px 16px;
@@ -1298,6 +1945,41 @@ onMounted(async () => {
   font-weight: bold;
   color: #fff;
 }
+
+/* 编辑模式下拉框样式 - 与非编辑模式 user-tag 视觉一致 */
+.edit-mode-select {
+  width: fit-content;
+}
+.edit-mode-select :deep(.el-input) {
+  width: 100%;
+}
+.edit-mode-select :deep(.el-input__wrapper) {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  box-shadow: none !important;
+}
+.edit-mode-select :deep(.el-input__wrapper.is-focus),
+.edit-mode-select :deep(.el-input__wrapper:hover) {
+  box-shadow: none !important;
+}
+.edit-mode-select :deep(.el-input__inner) {
+  font-size: 12px;
+  line-height: 1;
+  height: auto;
+  min-height: auto;
+  color: var(--text-1);
+  padding: 0;
+}
+.edit-mode-select :deep(.el-select__caret) {
+  font-size: 12px;
+  color: var(--text-4);
+}
+.edit-mode-select :deep(.el-input__suffix-inner) {
+  align-items: center;
+}
+
 .rest-text {
   color: var(--text-4);
   font-size: 12px;
@@ -1402,6 +2084,18 @@ onMounted(async () => {
   text-overflow: ellipsis;
   max-width: 100%;
 }
+.duty-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
 
 /* 新增排班弹窗 */
 .modal-tabs {
@@ -1450,7 +2144,9 @@ onMounted(async () => {
   color: var(--text-4);
 }
 .download-tmpl-link {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 16px;
   font-size: 12px;
   color: var(--primary);
@@ -1458,6 +2154,19 @@ onMounted(async () => {
 }
 .download-tmpl-link:hover {
   text-decoration: underline;
+}
+.import-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--primary-bg);
+  border: 1px solid var(--primary-border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 500;
 }
 .manual-form {
   padding: 10px 0;
