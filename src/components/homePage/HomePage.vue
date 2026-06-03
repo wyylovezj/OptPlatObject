@@ -1539,7 +1539,7 @@ const getDutyPhone = (name) => {
             <div class="ecc-duty-row">
               <span class="ecc-shift-badge ecc-shift-day">白班</span>
               <span class="ecc-shift-label">ECC</span>
-              <span class="ecc-shift-time">08:00 - 22:00</span>
+              <span class="ecc-shift-time">08:00 - 20:00</span>
               <span class="ecc-person-info">
                 <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.eccDay }">{{ eccDutyData?.eccDay ? eccDutyData.eccDay.charAt(0) : '—' }}</span>
                 <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.eccDay }">{{ eccDutyData?.eccDay || '未排班' }}</span>
@@ -1552,7 +1552,7 @@ const getDutyPhone = (name) => {
             <div class="ecc-duty-row">
               <span class="ecc-shift-badge ecc-shift-night">夜班</span>
               <span class="ecc-shift-label">ECC</span>
-              <span class="ecc-shift-time">22:00 - 08:00</span>
+              <span class="ecc-shift-time">20:00 - 08:00</span>
               <span class="ecc-person-info">
                 <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.eccNight }">{{ eccDutyData?.eccNight ? eccDutyData.eccNight.charAt(0) : '—' }}</span>
                 <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.eccNight }">{{ eccDutyData?.eccNight || '未排班' }}</span>
