@@ -27,6 +27,9 @@ const loginForm = ref({
 const passwordVisible = ref(false)
 // 记住我状态
 const rememberMe = ref(false)
+// 输入框 ref
+const usernameRef = ref(null)
+const passwordRef = ref(null)
 
 // 页面加载时检查是否有保存的登录信息
 onMounted(() => {
@@ -263,12 +266,13 @@ const handleSSO = (provider) => {
               </svg>
               <el-input
                 v-model="loginForm.username"
+                ref="usernameRef"
                 placeholder="请输入用户名"
                 autocomplete="off"
                 spellcheck="false"
                 required
-                @invalid="($event) => { $event.target.setCustomValidity('请填写用户名') }"
-                @input="($event) => { $event.target.setCustomValidity('') }"
+                @invalid="() => { usernameRef.value?.input?.setCustomValidity('请填写用户名') }"
+                @input="() => { usernameRef.value?.input?.setCustomValidity('') }"
               />
               <button v-if="loginForm.username" type="button" class="clear-btn" tabindex="-1" @click="clearUsername" aria-label="清除">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -296,13 +300,14 @@ const handleSSO = (provider) => {
               </svg>
               <el-input
                 v-model="loginForm.password"
+                ref="passwordRef"
                 :type="passwordVisible ? 'text' : 'password'"
                 placeholder="请输入密码"
                 autocomplete="off"
                 spellcheck="false"
                 required
-                @invalid="($event) => { $event.target.setCustomValidity('请填写密码') }"
-                @input="($event) => { $event.target.setCustomValidity('') }"
+                @invalid="() => { passwordRef.value?.input?.setCustomValidity('请填写密码') }"
+                @input="() => { passwordRef.value?.input?.setCustomValidity('') }"
               />
               <button v-if="loginForm.password" type="button" class="clear-btn" tabindex="-1" @click="clearPassword" aria-label="清除">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

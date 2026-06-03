@@ -901,7 +901,7 @@ const exportToPdf = async () => {
               </span>
             </el-tooltip>
             <template v-if="dutyNoteEditing">
-              <el-tooltip v-if="permissionStore.hasPermission('duty:noteSave')" content="新增一行" placement="top">
+              <el-tooltip v-if="permissionStore.hasPermission('duty:noteAdd')" content="新增一行" placement="top">
                 <span class="header-icon-btn add" @click="addDutyNoteItem(dutyNoteItems.length - 1)">
                   <el-icon><Plus /></el-icon>
                 </span>

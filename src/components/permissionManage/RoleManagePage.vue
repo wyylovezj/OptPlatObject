@@ -158,9 +158,12 @@ const openAssignDialog = async (role) => {
     const ownedMenuIds = extractMenuIds(roleMenus)
     selectedMenus.value = ownedMenuIds
 
-    // 如果是 admin 角色：已勾选的菜单禁止取消勾选
+    // 如果是 admin 角色：已勾选的菜单禁止取消勾选，且自动勾选所有菜单
     if (currentRole.value.code === 'admin') {
       const allOwnedIds = extractAllMenuIds(roleMenus)
+      // 自动勾选全部菜单（包含当前没有权限的菜单）
+      const allMenuIds = extractMenuIds(allMenus)
+      selectedMenus.value = allMenuIds
       menuTree.value = formatMenuTree(allMenus, false, allOwnedIds)
     } else {
       menuTree.value = formatMenuTree(allMenus, false)
