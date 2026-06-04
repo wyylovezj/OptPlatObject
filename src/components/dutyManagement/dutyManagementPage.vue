@@ -1,6 +1,6 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List, UploadFilled, Download } from '@element-plus/icons-vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List, UploadFilled, Download, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { HolidayUtil } from 'lunar-javascript'
 import * as XLSX from 'xlsx'
@@ -177,7 +177,7 @@ const fetchScheduleData = async (startDate, endDate) => {
           isToday: isToday,
           dayType: dayType,
           shift: 'day',
-          shiftText: '白班 08:00-22:00',
+          shiftText: '白班 08:00-20:00',
           shiftClass: 'shift-day',
           dayBadgeClass: dayBadgeClass,
           dayBadgeText: dayBadgeText,
@@ -210,7 +210,7 @@ const fetchScheduleData = async (startDate, endDate) => {
           isToday: isToday,
           dayType: dayType,
           shift: 'night',
-          shiftText: '夜班 22:00-08:00',
+          shiftText: '夜班 20:00-08:00',
           shiftClass: 'shift-night',
           dayBadgeClass: dayBadgeClass,
           dayBadgeText: dayBadgeText,
@@ -241,7 +241,7 @@ const fetchScheduleData = async (startDate, endDate) => {
               avatarColor: 'var(--primary)',
               shiftClass: 'shift-day',
               shiftLabel: '白',
-              time: '08:00 - 22:00',
+              time: '08:00 - 20:00',
             })
           }
           if (eccNightName) {
@@ -251,7 +251,7 @@ const fetchScheduleData = async (startDate, endDate) => {
               avatarColor: 'var(--text-3)',
               shiftClass: 'shift-night',
               shiftLabel: '夜',
-              time: '22:00 - 08:00',
+              time: '20:00 - 08:00',
             })
           }
           todaySysPersons.value = sysName
@@ -340,7 +340,7 @@ const fetchScheduleData = async (startDate, endDate) => {
             isToday: isToday,
             dayType: dayType,
             shift: 'day',
-            shiftText: '白班 08:00-22:00',
+            shiftText: '白班 08:00-20:00',
             shiftClass: 'shift-day',
             dayBadgeClass: dayBadgeClass,
             dayBadgeText: dayBadgeText,
@@ -356,7 +356,7 @@ const fetchScheduleData = async (startDate, endDate) => {
             isToday: isToday,
             dayType: dayType,
             shift: 'night',
-            shiftText: '夜班 22:00-08:00',
+            shiftText: '夜班 20:00-08:00',
             shiftClass: 'shift-night',
             dayBadgeClass: dayBadgeClass,
             dayBadgeText: dayBadgeText,
@@ -607,6 +607,11 @@ const getCalDayStyle = (day) => {
 }
 
 const openWorkdayModal = () => {
+  // 打开时重置为当前月份
+  const now = new Date()
+  workdayYear.value = now.getFullYear()
+  workdayMonth.value = now.getMonth() // 0-indexed
+  workdayMonthSelect.value = now.getMonth() + 1 // 1-indexed for select
   workdayModalVisible.value = true
   // 打开模态框时获取当前月份的排班数据
   fetchMonthDutyData()
@@ -665,7 +670,6 @@ const manualFormRules = computed(() => {
   if (!isNonWorkDay.value) {
     rules.sysOps = [{ required: true, message: '请选择系统运维人员', trigger: 'change' }]
     rules.netOps = [{ required: true, message: '请选择网络运维人员', trigger: 'change' }]
-    rules.pm = [{ required: true, message: '请选择甲方PM人员', trigger: 'change' }]
   }
 
   return rules
@@ -677,11 +681,127 @@ const sysUserOptions = computed(() => sysOpsPersonnel.value)
 const netUserOptions = computed(() => netOpsPersonnel.value)
 const pmUserOptions = computed(() => pmPersonnel.value)
 
-const openAddDutyModal = () => {
+// 最新排班日期（用于控制手动排班日期可选范围）
+const latestScheduleDate = ref('')
+
+// 已排班的日期集合（用于禁用已排班日期，防止重复选择）
+const scheduledDateSet = ref(new Set())
+
+// 从值班表中获取最新排班日期
+const fetchLatestScheduleDate = async () => {
+  try {
+    const result = await getDuty(['2000-01-01', '2099-12-31'])
+    if (result && Array.isArray(result) && result.length > 0) {
+      const dates = result.map(r => r.scheduleDate || r.schedule_date).filter(Boolean)
+      if (dates.length > 0) {
+        dates.sort()
+        return dates[dates.length - 1]
+      }
+    }
+  } catch (error) {
+    console.error('获取最新排班日期失败:', error)
+  }
+  return null
+}
+
+// 排班日期禁用规则：仅禁止选择今天之前的日期
+const disabledScheduleDate = (time) => {
+  const today = new Date()
+  const timeDate = new Date(time.getFullYear(), time.getMonth(), time.getDate())
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return timeDate.getTime() < todayDate.getTime()
+}
+
+// Excel导入区域的日期提示文本
+const excelDateRangeText = computed(() => {
+  const base = latestScheduleDate.value
+  if (!base) {
+    const today = new Date().toISOString().split('T')[0]
+    return `当前暂无排班数据，新增排班日期可从 ${today} 开始`
+  }
+  const nextDate = new Date(base)
+  nextDate.setDate(nextDate.getDate() + 1)
+  const nextStr = formatDateStr(nextDate)
+  return `当前值班已排班至 ${base}，新增排班日期从 ${nextStr} 开始，可覆盖已有排班！`
+})
+
+const openAddDutyModal = async () => {
   addDutyModalVisible.value = true
+
+  // 获取值班表中所有排班数据
+  try {
+    const result = await getDuty(['2000-01-01', '2099-12-31'])
+    if (result && Array.isArray(result)) {
+      const allDates = result.map(r => r.scheduleDate || r.schedule_date).filter(Boolean)
+      // 存储已排班日期集合
+      scheduledDateSet.value = new Set(allDates)
+
+      // 获取最新排班日期
+      if (allDates.length > 0) {
+        allDates.sort()
+        const latestDate = allDates[allDates.length - 1]
+        const today = new Date().toISOString().split('T')[0]
+
+        latestScheduleDate.value = latestDate
+
+        if (latestDate >= today) {
+          // 排班日期默认值为最新排班日期的后一天
+          const nextDate = new Date(latestDate)
+          nextDate.setDate(nextDate.getDate() + 1)
+          manualForm.date = formatDateStr(nextDate)
+        } else {
+          manualForm.date = today
+        }
+      } else {
+        // 没有排班数据
+        latestScheduleDate.value = ''
+        scheduledDateSet.value = new Set()
+        manualForm.date = new Date().toISOString().split('T')[0]
+      }
+    }
+  } catch (error) {
+    console.error('获取排班数据失败:', error)
+    latestScheduleDate.value = ''
+    scheduledDateSet.value = new Set()
+    manualForm.date = new Date().toISOString().split('T')[0]
+  }
 }
 
 // 下拉框聚焦时加载数据
+// 排班日期变化时，自动获取当天的排班数据并填充到表单
+watch(() => manualForm.date, async (newDate) => {
+  if (!newDate || !addDutyModalVisible.value) return
+
+  // 先确保所有人员选项数据已加载，el-select 才能正确显示中文名称
+  await Promise.all([
+    loadEccPersonnel(),
+    loadSysPersonnel(),
+    loadNetPersonnel(),
+    loadPmPersonnel(),
+  ])
+
+  try {
+    const result = await getDuty([newDate, newDate])
+    if (result && Array.isArray(result) && result.length > 0) {
+      const record = result[0]
+      manualForm.eccDay = record.eccDayPersonnelId || record.ecc_day_personnel_id || ''
+      manualForm.eccNight = record.eccNightPersonnelId || record.ecc_night_personnel_id || ''
+      manualForm.sysOps = record.sysOpsPersonnelId || record.sys_ops_personnel_id || ''
+      manualForm.netOps = record.netOpsPersonnelId || record.net_ops_personnel_id || ''
+      manualForm.pm = record.pmPersonnelId || record.pm_personnel_id || ''
+    } else {
+      // 当天没有排班数据，清空表单
+      manualForm.eccDay = ''
+      manualForm.eccNight = ''
+      manualForm.sysOps = ''
+      manualForm.netOps = ''
+      manualForm.pm = ''
+    }
+  } catch (error) {
+    console.error('获取当日排班数据失败:', error)
+  }
+})
+
 const loadEccPersonnel = async () => {
   if (eccDayPersonnel.value.length === 0) {
     try {
@@ -777,7 +897,14 @@ const saveManualDuty = async () => {
 const closeAddDutyModal = () => {
   addDutyModalVisible.value = false
   // 清空表单中的已选值
-  manualForm.date = new Date().toISOString().split('T')[0] // 重置为当天日期
+  const baseStr = latestScheduleDate.value
+  if (baseStr) {
+    const nextDate = new Date(baseStr)
+    nextDate.setDate(nextDate.getDate() + 1)
+    manualForm.date = formatDateStr(nextDate)
+  } else {
+    manualForm.date = new Date().toISOString().split('T')[0]
+  }
   manualForm.eccDay = ''
   manualForm.eccNight = ''
   manualForm.sysOps = ''
@@ -789,6 +916,8 @@ const closeAddDutyModal = () => {
   }
   // 重置所有数据模型为初始值
   resetDutyScheduleData()
+  // 清空已排班日期集合
+  scheduledDateSet.value = new Set()
   // 清空Excel导入的数据
   excelImportData.value = []
 }
@@ -1021,14 +1150,11 @@ const handleExcelFile = async (event) => {
       return
     }
 
-    // 验证必需的列
+    // 验证必需的列（ECC为必填，系统运维、网络运维、甲方PM为非必填）
     const requiredColumns = [
       '日期',
       'ecc白班人员',
       'ecc夜班人员',
-      '系统运维人员',
-      '网络运维人员',
-      '甲方PM',
     ]
 
     const firstRow = jsonData[0]
@@ -1089,12 +1215,14 @@ const handleExcelFile = async (event) => {
 // 保存Excel导入的数据
 const saveExcelImport = async () => {
   if (excelImportData.value.length === 0) {
+    ElMessage.closeAll()
     ElMessage.warning('请先导入Excel文件')
     return
   }
 
   try {
     await saveDuty(excelImportData.value)
+    ElMessage.closeAll()
     ElMessage.success(`成功保存 ${excelImportData.value.length} 条排班数据`)
     addDutyModalVisible.value = false
     // 重置数据模型
@@ -1103,6 +1231,7 @@ const saveExcelImport = async () => {
     // 立即刷新排班表格和今日值班
     fetchScheduleData()
   } catch (error) {
+    ElMessage.closeAll()
     ElMessage.error('保存排班失败: ' + error.message)
   }
 }
@@ -1199,7 +1328,7 @@ onMounted(async () => {
                   <span style="color: var(--text-4);">未排班</span>
                   <span class="badge-shift shift-day">白</span>
                 </div>
-                <div class="p-time" style="color: var(--text-4);">08:00 - 22:00</div>
+                <div class="p-time" style="color: var(--text-4);">08:00 - 20:00</div>
               </div>
             </div>
             <div class="person-item">
@@ -1209,7 +1338,7 @@ onMounted(async () => {
                   <span style="color: var(--text-4);">未排班</span>
                   <span class="badge-shift shift-night">夜</span>
                 </div>
-                <div class="p-time" style="color: var(--text-4);">22:00 - 08:00</div>
+                <div class="p-time" style="color: var(--text-4);">20:00 - 08:00</div>
               </div>
             </div>
           </template>
@@ -1481,7 +1610,12 @@ onMounted(async () => {
         <div :class="['modal-tab', { active: addDutyTab === 'excel' }]" @click="addDutyTab = 'excel'">Excel 批量导入</div>
         <div :class="['modal-tab', { active: addDutyTab === 'manual' }]" @click="addDutyTab = 'manual'">手动配置排班</div>
       </div>
-      <div v-show="addDutyTab === 'excel'" class="upload-area-box" @click="triggerFileSelect">
+      <div v-show="addDutyTab === 'excel'">
+        <div class="excel-date-hint">
+          <el-icon><InfoFilled /></el-icon>
+          <span>{{ excelDateRangeText }}</span>
+        </div>
+        <div class="upload-area-box" @click="triggerFileSelect">
         <input ref="excelFileInput" type="file" accept=".xlsx,.xls" style="display: none" @change="handleExcelFile" />
         <el-icon class="upload-icon" :size="48"><UploadFilled /></el-icon>
         <div class="upload-title-text">点击或将 Excel 文件拖拽到此处</div>
@@ -1494,11 +1628,16 @@ onMounted(async () => {
           <el-icon><List /></el-icon>
           已导入 {{ excelImportData.length }} 条数据
         </div>
+        </div>
       </div>
       <div v-show="addDutyTab === 'manual'" class="manual-form">
+        <div class="excel-date-hint">
+          <el-icon><InfoFilled /></el-icon>
+          <span>{{ excelDateRangeText }}</span>
+        </div>
         <el-form ref="manualFormRef" :model="manualForm" :rules="manualFormRules" label-width="140px" size="small">
           <el-form-item label="排班日期" prop="date"
-            ><el-date-picker v-model="manualForm.date" type="date" value-format="YYYY-MM-DD" style="width: 100%"
+            ><el-date-picker v-model="manualForm.date" type="date" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledScheduleDate"
           /></el-form-item>
           <el-row :gutter="12">
             <el-col :span="12">
@@ -2155,6 +2294,19 @@ onMounted(async () => {
 .download-tmpl-link:hover {
   text-decoration: underline;
 }
+.excel-date-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #92400e;
+}
+
 .import-info {
   display: flex;
   align-items: center;
@@ -2169,6 +2321,6 @@ onMounted(async () => {
   font-weight: 500;
 }
 .manual-form {
-  padding: 10px 0;
+  padding: 0;
 }
 </style>

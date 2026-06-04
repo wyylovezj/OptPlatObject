@@ -103,8 +103,8 @@ const mapBackendToCard = (item) => {
   let rc
   if (role.value === 'ecc') {
     rc = shiftType === 1
-      ? { fromColor: rcData.primary, toColor: rcData.secondary, fromDesc: 'ECC 白班 · 08:00-22:00', toDesc: 'ECC 夜班 · 22:00-08:00' }
-      : { fromColor: rcData.secondary, toColor: rcData.primary, fromDesc: 'ECC 夜班 · 22:00-08:00', toDesc: 'ECC 白班 · 08:00-22:00' }
+      ? { fromColor: rcData.primary, toColor: rcData.secondary, fromDesc: 'ECC 白班 · 08:00-20:00', toDesc: 'ECC 夜班 · 20:00-08:00' }
+      : { fromColor: rcData.secondary, toColor: rcData.primary, fromDesc: 'ECC 夜班 · 20:00-08:00', toDesc: 'ECC 白班 · 08:00-20:00' }
   } else {
     rc = { fromColor: rcData.both, toColor: rcData.both, fromDesc: role.label + ' · 08:30-18:00', toDesc: role.label + ' · 08:30-18:00' }
   }
@@ -299,17 +299,37 @@ const downloadFile = (att) => {
 
 // ============ 内联新建交接班 ============
 const todaySchedule = ref(null)
+const yesterdaySchedule = ref(null)
+const prevSchedules = ref([])
 const allPersonnel = ref([])
 
 // 获取排班信息和人员列表
 const loadHandoverInitData = async () => {
   const today = new Date().toISOString().split('T')[0]
+
+  // 计算昨天日期
+  const yesterdayDate = new Date()
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+  const yesterdayStr = yesterdayDate.toISOString().split('T')[0]
+
+  // 计算过去30天的开始日期（用于查找非ECC人员的前一个排班记录）
+  const pastDate = new Date()
+  pastDate.setDate(pastDate.getDate() - 30)
+  const pastStr = pastDate.toISOString().split('T')[0]
+
   try {
-    const scheduleArr = await getDuty([today, today])
+    const [scheduleArr, yesterdayArr, pastArr] = await Promise.all([
+      getDuty([today, today]),
+      getDuty([yesterdayStr, yesterdayStr]),
+      getDuty([pastStr, yesterdayStr]),
+    ])
     todaySchedule.value = Array.isArray(scheduleArr) && scheduleArr.length > 0 ? scheduleArr[0] : null
+    yesterdaySchedule.value = Array.isArray(yesterdayArr) && yesterdayArr.length > 0 ? yesterdayArr[0] : null
+    prevSchedules.value = Array.isArray(pastArr) ? pastArr : []
   } catch (e) {
-    console.error('获取今日排班失败:', e)
+    console.error('获取排班数据失败:', e)
   }
+
   try {
     const [ecc, sys, net, pm] = await Promise.all([
       getEcc(), getSys(), getNet(), getPM()
@@ -338,93 +358,122 @@ const getSurname = (name) => name ? name.charAt(0) : ''
 // 填充交班人和接班人
 const fillPersonnel = (card) => {
   const schedule = todaySchedule.value
+  const yesterdayScheduleData = yesterdaySchedule.value
 
-  // 即使当天未排班，也根据角色设置默认头像颜色，确保头像始终显示
+  // 设置头像颜色
   if (card.roleValue === 'ecc') {
-    if (card.shiftType === 1) {
-      card.fromColor = 'var(--primary)' // 白班
-      card.toColor = 'var(--text-3)'    // 夜班
-    } else {
-      card.fromColor = 'var(--text-3)'  // 夜班
-      card.toColor = 'var(--primary)'   // 白班
-    }
-  } else if (card.roleValue === 'sys') {
-    card.fromColor = 'var(--purple)'
-    card.toColor = 'var(--purple)'
-  } else if (card.roleValue === 'net') {
-    card.fromColor = 'var(--cyan)'
-    card.toColor = 'var(--cyan)'
-  } else if (card.roleValue === 'pm') {
-    card.fromColor = 'var(--warning)'
-    card.toColor = 'var(--warning)'
+    card.fromColor = card.shiftType === 1 ? 'var(--primary)' : 'var(--text-3)'
+    card.toColor = card.shiftType === 1 ? 'var(--text-3)' : 'var(--primary)'
+  } else {
+    const colorMap = { sys: 'var(--purple)', net: 'var(--cyan)', pm: 'var(--warning)' }
+    card.fromColor = colorMap[card.roleValue] || 'var(--purple)'
+    card.toColor = colorMap[card.roleValue] || 'var(--purple)'
   }
 
-  if (!schedule) {
-    card.fromSurname = '—'
-    card.toSurname = '—'
-    // 无排班时仍设置角色描述
-    if (card.roleValue === 'ecc') {
-      if (card.shiftType === 1) {
-        card.fromRoleDesc = 'ECC 白班 · 08:00-22:00'
-        card.toRoleDesc = 'ECC 夜班 · 22:00-08:00'
+  if (card.roleValue === 'ecc') {
+    if (card.shiftType === 1) {
+      // 白班→夜班 (20:00-8:00)：交班人=今天白班，接班人=今天夜班
+      card.fromRoleDesc = 'ECC 白班 · 08:00-20:00'
+      card.toRoleDesc = 'ECC 夜班 · 20:00-08:00'
+
+      if (schedule) {
+        const fromName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
+        const toName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
+        card.fromName = getPersonName(fromName) || fromName || '未排班'
+        card.fromSurname = getSurname(card.fromName) || '—'
+        const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === card.fromName)
+        card.fromUserCode = fromPerson ? fromPerson.userCode : ''
+        card.toName = getPersonName(toName) || toName || '未排班'
+        card.toSurname = getSurname(card.toName) || '—'
+        const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
+        card.toUserCode = toPerson ? toPerson.userCode : ''
       } else {
-        card.fromRoleDesc = 'ECC 夜班 · 22:00-08:00'
-        card.toRoleDesc = 'ECC 白班 · 08:00-22:00'
+        card.fromName = '未排班'
+        card.fromSurname = '—'
+        card.fromUserCode = ''
+        card.toName = '未排班'
+        card.toSurname = '—'
+        card.toUserCode = ''
       }
-    } else if (card.roleValue === 'sys') {
-      card.fromRoleDesc = '系统运维 · 08:30-18:00'
-      card.toRoleDesc = '系统运维 · 08:30-18:00'
-    } else if (card.roleValue === 'net') {
-      card.fromRoleDesc = '网络运维 · 08:30-18:00'
-      card.toRoleDesc = '网络运维 · 08:30-18:00'
-    } else if (card.roleValue === 'pm') {
-      card.fromRoleDesc = '甲方PM · 08:30-18:00'
-      card.toRoleDesc = '甲方PM · 08:30-18:00'
-    }
-    return
-  }
-
-  let fromName = ''
-  let toName = ''
-
-  if (card.roleValue === 'ecc') {
-    if (card.shiftType === 1) {
-      fromName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
-      toName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
-      card.fromRoleDesc = 'ECC 白班 · 08:00-22:00'
-      card.toRoleDesc = 'ECC 夜班 · 22:00-08:00'
     } else {
-      fromName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
-      toName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
-      card.fromRoleDesc = 'ECC 夜班 · 22:00-08:00'
-      card.toRoleDesc = 'ECC 白班 · 08:00-22:00'
-    }
-  } else if (card.roleValue === 'sys') {
-    fromName = schedule.sysOpsPersonnelName || schedule.sys_ops_personnel_id || ''
-    toName = fromName
-    card.fromRoleDesc = '系统运维 · 08:30-18:00'
-    card.toRoleDesc = '系统运维 · 08:30-18:00'
-  } else if (card.roleValue === 'net') {
-    fromName = schedule.netOpsPersonnelName || schedule.net_ops_personnel_id || ''
-    toName = fromName
-    card.fromRoleDesc = '网络运维 · 08:30-18:00'
-    card.toRoleDesc = '网络运维 · 08:30-18:00'
-  } else if (card.roleValue === 'pm') {
-    fromName = schedule.pmPersonnelName || schedule.pm_personnel_id || ''
-    toName = fromName
-    card.fromRoleDesc = '甲方PM · 08:30-18:00'
-    card.toRoleDesc = '甲方PM · 08:30-18:00'
-  }
+      // 夜班→白班 (8:00-20:00)：交班人=前一天夜班，接班人=今天白班
+      card.fromRoleDesc = 'ECC 夜班 · 20:00-08:00'
+      card.toRoleDesc = 'ECC 白班 · 08:00-20:00'
 
-  // 如果返回的是 userCode 则转成姓名，否则直接用姓名
-  card.fromName = getPersonName(fromName) || fromName
-  card.fromSurname = getSurname(card.fromName) || '—'
-  const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === card.fromName)
-  card.fromUserCode = fromPerson ? fromPerson.userCode : ''
-  card.toName = getPersonName(toName) || toName
-  card.toSurname = getSurname(card.toName) || '—'
-  const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
-  card.toUserCode = toPerson ? toPerson.userCode : ''
+      // 交班人：前一天的夜班人员
+      if (yesterdayScheduleData) {
+        const fromName = yesterdayScheduleData.eccNightPersonnelName || yesterdayScheduleData.ecc_night_personnel_id || ''
+        card.fromName = getPersonName(fromName) || fromName || '未排班'
+        card.fromSurname = getSurname(card.fromName) || '—'
+        const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === card.fromName)
+        card.fromUserCode = fromPerson ? fromPerson.userCode : ''
+      } else {
+        card.fromName = '未排班'
+        card.fromSurname = '—'
+        card.fromUserCode = ''
+      }
+
+      // 接班人：今天的白班人员
+      if (schedule) {
+        const toName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
+        card.toName = getPersonName(toName) || toName || '未排班'
+        card.toSurname = getSurname(card.toName) || '—'
+        const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
+        card.toUserCode = toPerson ? toPerson.userCode : ''
+      } else {
+        card.toName = '未排班'
+        card.toSurname = '—'
+        card.toUserCode = ''
+      }
+    }
+  } else {
+    // 非ECC（系统运维/网络运维/甲方PM）
+    const roleFieldMap = {
+      sys: { name: 'sysOpsPersonnelName', id2: 'sys_ops_personnel_id', label: '系统运维 · 08:30-18:00' },
+      net: { name: 'netOpsPersonnelName', id2: 'net_ops_personnel_id', label: '网络运维 · 08:30-18:00' },
+      pm:  { name: 'pmPersonnelName', id2: 'pm_personnel_id', label: '甲方PM · 08:30-18:00' },
+    }
+    const field = roleFieldMap[card.roleValue]
+    card.fromRoleDesc = field.label
+    card.toRoleDesc = field.label
+
+    // 接班人：今天的排班人员
+    if (schedule) {
+      const toName = schedule[field.name] || schedule[field.id2] || ''
+      card.toName = getPersonName(toName) || toName || '未排班'
+      card.toSurname = getSurname(card.toName) || '—'
+      const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
+      card.toUserCode = toPerson ? toPerson.userCode : ''
+    } else {
+      card.toName = '未排班'
+      card.toSurname = '—'
+      card.toUserCode = ''
+    }
+
+    // 交班人：前一个有该类型人员排班记录的人员（从历史排班中从后往前找）
+    const today = new Date().toISOString().split('T')[0]
+    const reversed = [...prevSchedules.value].reverse()
+    let foundFrom = false
+    for (const record of reversed) {
+      const dateStr = record.scheduleDate || record.schedule_date
+      if (!dateStr || dateStr === today) continue
+
+      const personName = record[field.name] || record[field.id2] || ''
+      if (personName) {
+        card.fromName = getPersonName(personName) || personName
+        card.fromSurname = getSurname(card.fromName) || '—'
+        const fromPerson = allPersonnel.value.find(p => p.userCode === personName || p.name === card.fromName)
+        card.fromUserCode = fromPerson ? fromPerson.userCode : ''
+        foundFrom = true
+        break
+      }
+    }
+    if (!foundFrom) {
+      card.fromName = '未排班'
+      card.fromSurname = '—'
+      card.fromUserCode = ''
+    }
+  }
 }
 
 // 根据卡片角色筛选可用人员
@@ -491,7 +540,7 @@ const createDraftCard = async () => {
 
   const now = new Date()
   const hour = now.getHours()
-  const shiftType = (hour >= 8 && hour < 22) ? 2 : 1
+  const shiftType = (hour >= 8 && hour < 20) ? 2 : 1
 
   const pad = n => String(n).padStart(2, '0')
   const today = now.toISOString().split('T')[0]
@@ -553,7 +602,7 @@ const onRoleChange = (card) => {
   } else {
     const now = new Date()
     const hour = now.getHours()
-    card.shiftType = (hour >= 8 && hour < 22) ? 2 : 1
+    card.shiftType = (hour >= 8 && hour < 20) ? 2 : 1
     card.shiftLabel = card.shiftType === 1 ? '白班 → 夜班' : '夜班 → 白班'
     card.shiftClass = card.shiftType === 1 ? 'shift-day' : 'shift-night'
   }
