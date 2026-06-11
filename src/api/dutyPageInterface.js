@@ -58,6 +58,32 @@ export const getPM = async () => {
 }
 
 /**
+ * 获取跑批人员
+ * @returns {Promise} - 返回跑批人员数组
+ */
+export const getBatch = async () => {
+  try {
+    const response = await axios.get(`${RBAC_IP.value}/getBatch`)
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取跑批人员失败')
+  }
+}
+
+/**
+ * 获取运维服务台人员
+ * @returns {Promise} - 返回运维服务台人员数组
+ */
+export const getService = async () => {
+  try {
+    const response = await axios.get(`${RBAC_IP.value}/getService`)
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取运维服务台人员失败')
+  }
+}
+
+/**
  * 新增排班
  * @param {Object} dutyData - 排班数据
  * @returns {Promise} - 返回响应数据
@@ -354,3 +380,210 @@ export const getNotes = async (noteDate) => {
     throw new Error(error.response?.data?.message || '获取值班备注失败')
   }
 }
+
+// ===================== 日常工作交接（动态表格）接口 =====================
+
+/**
+ * 获取字段列配置列表
+ * @returns {Promise<{status: string, data: Array}>} - 返回字段配置数组
+ */
+export const getDailyHandoverFieldConfig = async () => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/getDailyHandoverFieldConfig`)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取字段配置失败')
+  }
+}
+
+/**
+ * 批量同步字段配置（全量覆盖）
+ * @param {Array} configs - 字段配置数组 [{field_key, field_label, is_visible, sort_order, is_system}]
+ * @returns {Promise<{status: string, message: string}>}
+ */
+export const saveDailyHandoverFieldConfig = async (configs) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/saveDailyHandoverFieldConfig`, { configs })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '保存字段配置失败')
+  }
+}
+
+/**
+ * 新增自定义字段
+ * @param {string} fieldKey - 字段标识
+ * @param {string} fieldLabel - 显示名称
+ * @returns {Promise<{status: string, message: string, data: Object}>}
+ */
+export const addDailyHandoverField = async (fieldKey, fieldLabel) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/addDailyHandoverField`, {
+      field_key: fieldKey,
+      field_label: fieldLabel,
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '新增字段失败')
+  }
+}
+
+/**
+ * 删除自定义字段
+ * @param {string} fieldKey - 字段标识
+ * @returns {Promise<{status: string, message: string}>}
+ */
+export const deleteDailyHandoverField = async (fieldKey) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/deleteDailyHandoverField`, {
+      field_key: fieldKey,
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '删除字段失败')
+  }
+}
+
+/**
+ * 保存日常工作交接数据（批量 upsert）
+ * @param {Array} records - 记录数组，每条含 handover_date, shift_type, duty_person, remark1, items
+ * @returns {Promise<{status: string, message: string}>}
+ */
+/**
+ * 更新字段显示名称
+ * @param {string} fieldKey - 字段标识
+ * @param {string} fieldLabel - 新的显示名称
+ * @returns {Promise<{status: string, message: string}>}
+ */
+export const updateDailyHandoverFieldLabel = async (fieldKey, fieldLabel) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/updateDailyHandoverFieldLabel`, {
+      field_key: fieldKey,
+      field_label: fieldLabel,
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '更新字段名称失败')
+  }
+}
+
+/**
+ * 批量更新字段排序号（交换 sort_order）
+ * @param {Array} orders - 排序数据数组 [{field_key, sort_order}, ...]
+ * @returns {Promise<{status: string, message: string}>}
+ */
+export const updateDailyHandoverFieldSortOrder = async (orders) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/updateDailyHandoverFieldSortOrder`, { orders })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '更新字段排序失败')
+  }
+}
+
+export const saveDailyHandoverData = async (records) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/saveDailyHandoverData`, { records })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '保存日常交接数据失败')
+  }
+}
+
+/**
+ * 按日期范围查询日常工作交接数据
+ * @param {Array} dateRange - [开始日期, 结束日期] 格式 ['YYYY-MM-DD', 'YYYY-MM-DD']
+ * @returns {Promise<{status: string, data: Array}>} - 返回含 items 子数组的记录列表
+ */
+export const getDailyHandoverData = async (dateRange) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/getDailyHandoverData`, { dateRange })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取日常交接数据失败')
+  }
+}
+
+/**
+ * 按日期查询ECC排班（白班/夜班值班人姓名）
+ * @param {string} dateStr - 日期 YYYY-MM-DD
+ * @returns {Promise<{status: string, data: {eccDayName: string|null, eccNightName: string|null}}>}
+ */
+export const getEccScheduleByDate = async (dateStr) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/getEccScheduleByDate`, { date: dateStr })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '查询ECC排班失败')
+  }
+}
+
+/**
+ * 删除某天的日常交接记录
+ * @param {string} handoverDate - 日期 YYYY-MM-DD
+ * @param {number} [shiftType] - 班次类型 1-白班 2-夜班，不传则删除该天所有记录
+ * @returns {Promise<{status: string, message: string}>}
+ */
+/**
+ * 按日期范围导出日常交接数据为 Excel
+ * @param {Array} dateRange - [开始日期, 结束日期] 格式 ['YYYY-MM-DD', 'YYYY-MM-DD']
+ * @returns {Promise<Blob>} - 返回文件 Blob
+ */
+export const exportDailyHandover = async (dateRange) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/exportDailyHandover`, { dateRange }, {
+      responseType: 'blob',
+    })
+    return response
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '导出日常交接数据失败')
+  }
+}
+
+/**
+ * 按日期范围导出ECC交接班记录为 Excel
+ * @param {Array} dateRange - [开始日期, 结束日期] 格式 ['YYYY-MM-DD', 'YYYY-MM-DD']
+ * @returns {Promise<Blob>} - 返回文件 Blob
+ */
+export const exportHandoverExcel = async (dateRange) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/exportHandoverExcel`, { dateRange }, {
+      responseType: 'blob',
+    })
+    return response
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '导出ECC交接班记录失败')
+  }
+}
+
+/**
+ * 按日期范围合并导出ECC交接班记录和日常交接数据到同一个Excel
+ * @param {Array} dateRange - [开始日期, 结束日期] 格式 ['YYYY-MM-DD', 'YYYY-MM-DD']
+ * @returns {Promise<Blob>} - 返回文件 Blob（交接记录sheet1 + 工作内容sheet2）
+ */
+export const exportMergedHandover = async (dateRange) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/mergeExportDailyHandover`, { dateRange }, {
+      responseType: 'blob',
+    })
+    return response
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '合并导出失败')
+  }
+}
+
+export const deleteDailyHandoverRecord = async (handoverDate, shiftType) => {
+  try {
+    const params = { handover_date: handoverDate }
+    if (shiftType !== undefined && shiftType !== null) {
+      params.shift_type = shiftType
+    }
+    const response = await axios.post(`${RBAC_IP.value}/deleteDailyHandoverRecord`, params)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '删除日常交接记录失败')
+  }
+}
+
+
+

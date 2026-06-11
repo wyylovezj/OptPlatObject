@@ -1,12 +1,10 @@
 <script setup>
 import { ref, reactive, nextTick, onBeforeUnmount, onMounted } from 'vue'
-import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox, ElInput, ElTooltip } from 'element-plus'
-import { getDuty, getEcc, getSys, getNet, getPM, deleteHandover, saveHandover, getHandovers, confirmHandovers } from '@/api/dutyPageInterface.js'
+import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload, RefreshLeft, Message, Download } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElInput, ElTooltip, ElTag } from 'element-plus'
+import { getDuty, getEcc, getSys, getNet, getPM, getBatch, getService, deleteHandover, saveHandover, getHandovers, confirmHandovers, exportHandoverExcel } from '@/api/dutyPageInterface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { RBAC_IP } from '@/utils/dutyPageData.js'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
 
 // 权限状态管理
 const permissionStore = usePermissionStore()
@@ -28,15 +26,12 @@ const filterRole = ref('')
 const filterStatus = ref('')
 const filterShiftType = ref('')
 
-// 日期范围：默认近一周
-const getWeekRangeStr = () => {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(start.getDate() - 6)
-  const fmt = d => d.toISOString().split('T')[0]
-  return [fmt(start), fmt(end)]
+// 日期范围：默认当天
+const getTodayRangeStr = () => {
+  const today = new Date().toISOString().split('T')[0]
+  return [today, today]
 }
-const filterDate = ref(getWeekRangeStr())
+const filterDate = ref(getTodayRangeStr())
 
 // 后端数据映射为前端卡片结构
 const mapBackendToCard = (item) => {
@@ -110,7 +105,7 @@ const mapBackendToCard = (item) => {
   }
 
 
-  return {
+  const card = {
     isDraft: false,
     handoverId: item.handover_id || item.id || '',
     _cardId: 'card-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
@@ -125,12 +120,12 @@ const mapBackendToCard = (item) => {
     statusBadgeClass: statusBadge,
     statusIcon,
     statusText,
-    fromName: item.fromPersonnelName || '',
+    fromName: item.fromPersonnelName || '未排班',
     fromUserCode: item.fromPersonnelId || '',
     fromSurname: (item.fromPersonnelName || '').charAt(0) || '—',
     fromColor: rc.fromColor,
     fromRoleDesc: rc.fromDesc,
-    toName: item.toPersonnelName || '',
+    toName: item.toPersonnelName || '未排班',
     toUserCode: toPersonnelId,
     toSurname: (item.toPersonnelName || '').charAt(0) || '—',
     toColor: rc.toColor,
@@ -143,10 +138,72 @@ const mapBackendToCard = (item) => {
     confirmTime: item.confirmTime || '',
     createUserNickname: item.create_user_nickname || '',
     createUser: item.create_user || '',
+    batchPersonA: item.batchPersonA || '未排班',
+    batchPersonACode: item.batchPersonACode || '',
+    batchPersonASurname: item.batchPersonASurname || (item.batchPersonA ? item.batchPersonA.charAt(0) : '—'),
+    batchPersonAEditing: false,
+    batchPersonB: item.batchPersonB || '未排班',
+    batchPersonBCode: item.batchPersonBCode || '',
+    batchPersonBSurname: item.batchPersonBSurname || (item.batchPersonB ? item.batchPersonB.charAt(0) : '—'),
+    batchPersonBEditing: false,
+    servicePerson1: item.servicePerson1 || '未排班',
+    servicePerson1Code: item.servicePerson1Code || '',
+    servicePerson1Surname: item.servicePerson1Surname || (item.servicePerson1 ? item.servicePerson1.charAt(0) : '—'),
+    servicePerson1Editing: false,
+    servicePerson2: item.servicePerson2 || '未排班',
+    servicePerson2Code: item.servicePerson2Code || '',
+    servicePerson2Surname: item.servicePerson2Surname || (item.servicePerson2 ? item.servicePerson2.charAt(0) : '—'),
+    servicePerson2Editing: false,
+    servicePerson3: item.servicePerson3 || '未排班',
+    servicePerson3Code: item.servicePerson3Code || '',
+    servicePerson3Surname: item.servicePerson3Surname || (item.servicePerson3 ? item.servicePerson3.charAt(0) : '—'),
+    servicePerson3Editing: false,
     editingRole: false,
     editingFrom: false,
     editingTo: false,
   }
+
+  // 对于ECC夜班(personnelType=1, shiftType=2)的记录，从otherDuty中提取跑批和服务台人员数据
+  if (item.personnelType === 1 && shiftType === 2 && item.otherDuty) {
+    const od = item.otherDuty
+    if (od.batch_A) {
+      card.batchPersonA = od.batch_A
+      card.batchPersonASurname = od.batch_A.charAt(0) || '—'
+    }
+    if (od.batch_A_id) {
+      card.batchPersonACode = od.batch_A_id
+    }
+    if (od.batch_B) {
+      card.batchPersonB = od.batch_B
+      card.batchPersonBSurname = od.batch_B.charAt(0) || '—'
+    }
+    if (od.batch_B_id) {
+      card.batchPersonBCode = od.batch_B_id
+    }
+    if (od.service_A) {
+      card.servicePerson1 = od.service_A
+      card.servicePerson1Surname = od.service_A.charAt(0) || '—'
+    }
+    if (od.service_A_id) {
+      card.servicePerson1Code = od.service_A_id
+    }
+    if (od.service_B) {
+      card.servicePerson2 = od.service_B
+      card.servicePerson2Surname = od.service_B.charAt(0) || '—'
+    }
+    if (od.service_B_id) {
+      card.servicePerson2Code = od.service_B_id
+    }
+    if (od.service_C) {
+      card.servicePerson3 = od.service_C
+      card.servicePerson3Surname = od.service_C.charAt(0) || '—'
+    }
+    if (od.service_C_id) {
+      card.servicePerson3Code = od.service_C_id
+    }
+  }
+
+  return card
 }
 
 // 重置筛选条件
@@ -154,7 +211,7 @@ const resetFilters = () => {
   filterRole.value = ''
   filterStatus.value = ''
   filterShiftType.value = ''
-  filterDate.value = getWeekRangeStr()
+  filterDate.value = getTodayRangeStr()
   searchHandover()
 }
 
@@ -253,6 +310,27 @@ const getLevelClass = (level) => {
   return 'level-' + level
 }
 
+// 判断当前是否为白班时间
+const isDayShift = () => {
+  const hour = new Date().getHours()
+  return hour >= 8 && hour < 20
+}
+
+// 根据卡片获取当前班次标签
+const getCardShiftLabel = (card) => {
+  if (card.roleValue === 'ecc') {
+    return card.shiftType === 1 ? '☀️ 白班' : '🌙 夜班'
+  }
+  return '☀️ 白班'
+}
+
+const getCardShiftTagType = (card) => {
+  if (card.roleValue === 'ecc') {
+    return card.shiftType === 1 ? 'warning' : 'info'
+  }
+  return 'warning'
+}
+
 // 判断文件名是否为图片
 const isImage = (name) => /(\.(jpg|jpeg|png|gif|webp|bmp|svg))$/i.test(name)
 
@@ -303,6 +381,12 @@ const yesterdaySchedule = ref(null)
 const prevSchedules = ref([])
 const allPersonnel = ref([])
 
+// 跑批人员（单独从 getBatch 接口获取）
+const batchPersonnel = ref([])
+
+// 运维服务台人员（单独从 getService 接口获取）
+const servicePersonnel = ref([])
+
 // 获取排班信息和人员列表
 const loadHandoverInitData = async () => {
   const today = new Date().toISOString().split('T')[0]
@@ -330,19 +414,7 @@ const loadHandoverInitData = async () => {
     console.error('获取排班数据失败:', e)
   }
 
-  try {
-    const [ecc, sys, net, pm] = await Promise.all([
-      getEcc(), getSys(), getNet(), getPM()
-    ])
-    allPersonnel.value = [
-      ...(ecc || []).map(p => ({ ...p, category: 'ecc' })),
-      ...(sys || []).map(p => ({ ...p, category: 'sys' })),
-      ...(net || []).map(p => ({ ...p, category: 'net' })),
-      ...(pm || []).map(p => ({ ...p, category: 'pm' })),
-    ]
-  } catch (e) {
-    console.error('获取人员列表失败:', e)
-  }
+    await loadPersonnelData()
 }
 
 // 根据 userCode 获取人员姓名
@@ -476,6 +548,50 @@ const fillPersonnel = (card) => {
   }
 }
 
+// 获取所有人员数据（含跑批人员）
+const loadPersonnelData = async () => {
+  try {
+    const [ecc, sys, net, pm] = await Promise.all([
+      getEcc(), getSys(), getNet(), getPM()
+    ])
+    allPersonnel.value = [
+      ...(ecc || []).map(p => ({ ...p, category: 'ecc' })),
+      ...(sys || []).map(p => ({ ...p, category: 'sys' })),
+      ...(net || []).map(p => ({ ...p, category: 'net' })),
+      ...(pm || []).map(p => ({ ...p, category: 'pm' })),
+    ]
+
+    // 获取跑批人员
+    await loadBatchPersonnel()
+    // 获取运维服务台人员
+    await loadServicePersonnel()
+  } catch (e) {
+    console.error('获取人员列表失败:', e)
+  }
+}
+
+// 获取运维服务台人员：调用 getService 接口获取
+const loadServicePersonnel = async () => {
+  try {
+    const data = await getService()
+    servicePersonnel.value = data || []
+  } catch (e) {
+    console.error('获取运维服务台人员失败:', e)
+    servicePersonnel.value = []
+  }
+}
+
+// 获取跑批人员：调用 getBatch 接口获取
+const loadBatchPersonnel = async () => {
+  try {
+    const data = await getBatch()
+    batchPersonnel.value = data || []
+  } catch (e) {
+    console.error('获取跑批人员失败:', e)
+    batchPersonnel.value = []
+  }
+}
+
 // 根据卡片角色筛选可用人员
 const getPersonnelByCard = (card) => {
   const categoryMap = { ecc: 'ecc', sys: 'sys', net: 'net', pm: 'pm' }
@@ -483,8 +599,25 @@ const getPersonnelByCard = (card) => {
   return cat ? allPersonnel.value.filter(p => p.category === cat) : allPersonnel.value
 }
 
+// 获取跑批人员：从 batchPersonnel ref 中获取
+const getBatchPersonnel = () => {
+  return batchPersonnel.value
+}
+
+// 获取运维服务台人员：从 servicePersonnel ref 中获取
+const getServicePersonnel = () => {
+  return servicePersonnel.value
+}
+
 // 交班人选择
 const onFromSelect = (card, userCode) => {
+  if (!userCode) {
+    card.fromName = ''
+    card.fromUserCode = ''
+    card.fromSurname = ''
+    card.editingFrom = false
+    return
+  }
   const person = allPersonnel.value.find(p => p.userCode === userCode)
   if (person) {
     card.fromName = person.name
@@ -496,6 +629,13 @@ const onFromSelect = (card, userCode) => {
 
 // 接班人选择
 const onToSelect = (card, userCode) => {
+  if (!userCode) {
+    card.toName = ''
+    card.toUserCode = ''
+    card.toSurname = ''
+    card.editingTo = false
+    return
+  }
   const person = allPersonnel.value.find(p => p.userCode === userCode)
   if (person) {
     card.toName = person.name
@@ -505,8 +645,114 @@ const onToSelect = (card, userCode) => {
   card.editingTo = false
 }
 
-// 点击编辑交班人/接班人：显示下拉框并自动聚焦展开
-const handleEditPerson = (card, type) => {
+// 跑批A角选择
+const onBatchASelect = (card, userCode) => {
+  if (!userCode) {
+    card.batchPersonA = ''
+    card.batchPersonACode = ''
+    card.batchPersonASurname = ''
+    card.batchPersonAEditing = false
+    return
+  }
+  const person = batchPersonnel.value.find(p => p.userCode === userCode)
+  if (person) {
+    card.batchPersonA = person.name
+    card.batchPersonACode = person.userCode
+    card.batchPersonASurname = getSurname(person.name)
+  }
+  card.batchPersonAEditing = false
+}
+
+// 跑批B角选择
+const onBatchBSelect = (card, userCode) => {
+  if (!userCode) {
+    card.batchPersonB = ''
+    card.batchPersonBCode = ''
+    card.batchPersonBSurname = ''
+    card.batchPersonBEditing = false
+    return
+  }
+  const person = batchPersonnel.value.find(p => p.userCode === userCode)
+  if (person) {
+    card.batchPersonB = person.name
+    card.batchPersonBCode = person.userCode
+    card.batchPersonBSurname = getSurname(person.name)
+  }
+  card.batchPersonBEditing = false
+}
+
+// 点击编辑跑批A角
+const handleEditBatchA = async (card) => {
+  await loadPersonnelData()
+  card.batchPersonAEditing = true
+  nextTick(() => {
+    const sel = document.querySelector(`[data-edit-select="batchA-${card._cardId}"]`)
+    if (sel) {
+      const wrapper = sel.querySelector('.el-input__wrapper') || sel.querySelector('.el-select__wrapper')
+      if (wrapper) wrapper.click()
+    }
+  })
+}
+
+// 点击编辑跑批B角
+const handleEditBatchB = async (card) => {
+  await loadPersonnelData()
+  card.batchPersonBEditing = true
+  nextTick(() => {
+    const sel = document.querySelector(`[data-edit-select="batchB-${card._cardId}"]`)
+    if (sel) {
+      const wrapper = sel.querySelector('.el-input__wrapper') || sel.querySelector('.el-select__wrapper')
+      if (wrapper) wrapper.click()
+    }
+  })
+}
+
+// ===== 运维服务台人员选择 =====
+const makeServiceHandler = (idx) => {
+  const nameKey = `servicePerson${idx}`
+  const codeKey = `servicePerson${idx}Code`
+  const surnameKey = `servicePerson${idx}Surname`
+  const editingKey = `servicePerson${idx}Editing`
+
+  const onSelect = (card, userCode) => {
+    if (!userCode) {
+      card[nameKey] = ''
+      card[codeKey] = ''
+      card[surnameKey] = ''
+      card[editingKey] = false
+      return
+    }
+    const person = servicePersonnel.value.find(p => p.userCode === userCode)
+    if (person) {
+      card[nameKey] = person.name
+      card[codeKey] = person.userCode
+      card[surnameKey] = getSurname(person.name)
+    }
+    card[editingKey] = false
+  }
+
+  const handleEdit = async (card) => {
+    await loadPersonnelData()
+    card[editingKey] = true
+    nextTick(() => {
+      const sel = document.querySelector(`[data-edit-select="service${idx}-${card._cardId}"]`)
+      if (sel) {
+        const wrapper = sel.querySelector('.el-input__wrapper') || sel.querySelector('.el-select__wrapper')
+        if (wrapper) wrapper.click()
+      }
+    })
+  }
+
+  return { onSelect, handleEdit }
+}
+
+const serviceHandlers1 = makeServiceHandler(1)
+const serviceHandlers2 = makeServiceHandler(2)
+const serviceHandlers3 = makeServiceHandler(3)
+
+// 点击编辑交班人/接班人：加载人员后显示下拉框并自动聚焦展开
+const handleEditPerson = async (card, type) => {
+  await loadPersonnelData()
   if (type === 'from') {
     card.editingFrom = true
   } else {
@@ -540,7 +786,7 @@ const createDraftCard = async () => {
 
   const now = new Date()
   const hour = now.getHours()
-  const shiftType = (hour >= 8 && hour < 20) ? 2 : 1
+  const shiftType = (hour >= 8 && hour < 20) ? 1 : 2
 
   const pad = n => String(n).padStart(2, '0')
   const today = now.toISOString().split('T')[0]
@@ -574,6 +820,26 @@ const createDraftCard = async () => {
     systemStatus: [{ text: '', level: 0, _uid: ++lineUidCounter.value }],
     todoItems: [{ text: '', level: 0, _uid: ++lineUidCounter.value, attachments: [] }],
     handoverTime: handoverTime,
+    batchPersonA: '未排班',
+    batchPersonACode: '',
+    batchPersonASurname: '—',
+    batchPersonAEditing: false,
+    batchPersonB: '未排班',
+    batchPersonBCode: '',
+    batchPersonBSurname: '—',
+    batchPersonBEditing: false,
+    servicePerson1: '未排班',
+    servicePerson1Code: '',
+    servicePerson1Surname: '—',
+    servicePerson1Editing: false,
+    servicePerson2: '未排班',
+    servicePerson2Code: '',
+    servicePerson2Surname: '—',
+    servicePerson2Editing: false,
+    servicePerson3: '未排班',
+    servicePerson3Code: '',
+    servicePerson3Surname: '—',
+    servicePerson3Editing: false,
     confirmText: '待确认',
     confirmColor: 'var(--warning)',
     confirmTime: '',
@@ -596,24 +862,57 @@ const onRoleChange = (card) => {
     card.personnelType = opt.type
   }
   if (card.roleValue !== 'ecc') {
+    // 离开 ECC：备份所有 ECC 专用字段，切回来时完整恢复
+    if (card.shiftType !== 3) {
+      card._eccBackup = {
+        shiftType: card.shiftType,
+        shiftLabel: card.shiftLabel,
+        shiftClass: card.shiftClass,
+        fromName: card.fromName,
+        fromUserCode: card.fromUserCode,
+        fromSurname: card.fromSurname,
+        fromColor: card.fromColor,
+        fromRoleDesc: card.fromRoleDesc,
+        toName: card.toName,
+        toUserCode: card.toUserCode,
+        toSurname: card.toSurname,
+        toColor: card.toColor,
+        toRoleDesc: card.toRoleDesc,
+        batchPersonA: card.batchPersonA,
+        batchPersonACode: card.batchPersonACode,
+        batchPersonASurname: card.batchPersonASurname,
+        batchPersonB: card.batchPersonB,
+        batchPersonBCode: card.batchPersonBCode,
+        batchPersonBSurname: card.batchPersonBSurname,
+        servicePerson1: card.servicePerson1,
+        servicePerson1Code: card.servicePerson1Code,
+        servicePerson1Surname: card.servicePerson1Surname,
+        servicePerson2: card.servicePerson2,
+        servicePerson2Code: card.servicePerson2Code,
+        servicePerson2Surname: card.servicePerson2Surname,
+        servicePerson3: card.servicePerson3,
+        servicePerson3Code: card.servicePerson3Code,
+        servicePerson3Surname: card.servicePerson3Surname,
+      }
+    }
     card.shiftType = 3
     card.shiftLabel = '同组交接'
     card.shiftClass = 'shift-day'
+    // 清空交班人和接班人
+    card.fromName = ''
+    card.fromUserCode = ''
+    card.fromSurname = ''
+    card.toName = ''
+    card.toUserCode = ''
+    card.toSurname = ''
+    fillPersonnel(card)
   } else {
-    const now = new Date()
-    const hour = now.getHours()
-    card.shiftType = (hour >= 8 && hour < 20) ? 2 : 1
-    card.shiftLabel = card.shiftType === 1 ? '白班 → 夜班' : '夜班 → 白班'
-    card.shiftClass = card.shiftType === 1 ? 'shift-day' : 'shift-night'
+    // 切回 ECC：恢复备份数据（类型不变 + 数据不丢失）
+    if (card._eccBackup) {
+      Object.assign(card, card._eccBackup)
+      delete card._eccBackup
+    }
   }
-  // 清空交班人和接班人
-  card.fromName = ''
-  card.fromUserCode = ''
-  card.fromSurname = ''
-  card.toName = ''
-  card.toUserCode = ''
-  card.toSurname = ''
-  fillPersonnel(card)
   card.editingRole = false
 }
 
@@ -629,6 +928,22 @@ const toggleShift = (card) => {
   ;[card.fromSurname, card.toSurname] = [card.toSurname, card.fromSurname]
   ;[card.fromColor, card.toColor] = [card.toColor, card.fromColor]
   ;[card.fromRoleDesc, card.toRoleDesc] = [card.toRoleDesc, card.fromRoleDesc]
+  // 同步更新备份
+  if (card._eccBackup) {
+    card._eccBackup.shiftType = card.shiftType
+    card._eccBackup.shiftLabel = card.shiftLabel
+    card._eccBackup.shiftClass = card.shiftClass
+    card._eccBackup.fromName = card.fromName
+    card._eccBackup.fromUserCode = card.fromUserCode
+    card._eccBackup.fromSurname = card.fromSurname
+    card._eccBackup.fromColor = card.fromColor
+    card._eccBackup.fromRoleDesc = card.fromRoleDesc
+    card._eccBackup.toName = card.toName
+    card._eccBackup.toUserCode = card.toUserCode
+    card._eccBackup.toSurname = card.toSurname
+    card._eccBackup.toColor = card.toColor
+    card._eccBackup.toRoleDesc = card.toRoleDesc
+  }
 }
 
 // 系统运行状态：添加新行
@@ -724,6 +1039,50 @@ const saveDraftCard = async (card) => {
     ElMessage.warning('请选择接班人后再保存')
     return
   }
+
+  // 检查当天是否已有同班次的交接班记录
+  const todayStr = card.date
+  try {
+    const existingData = await getHandovers({
+      scheduleDateRange: [todayStr, todayStr],
+      personnelType: card.personnelType,
+      shiftType: card.shiftType,
+    })
+    if (existingData && existingData.length > 0) {
+      const duplicate = existingData.find(r => {
+        const existingId = r.handover_id || r.id
+        return existingId && existingId !== card.handoverId
+      })
+      if (duplicate) {
+        const shiftPeriod = card.roleValue === 'ecc'
+          ? (card.shiftType === 1 ? '白班' : '夜班')
+          : card.role
+        ElMessage.warning(`今日已有${shiftPeriod}交班记录，不允许重复，请确认是否是对应班次`)
+        return
+      }
+    }
+  } catch (e) {
+    console.error('查询交接班记录失败:', e)
+  }
+
+  // 弹出确认框
+  try {
+    await ElMessageBox.confirm(
+      '确定保存此交接班记录吗？',
+      '保存确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('保存确认失败:', e)
+    }
+    return
+  }
+
   // 原地删除空行，保留响应式引用
   for (let i = card.systemStatus.length - 1; i >= 0; i--) {
     if (!card.systemStatus[i].text.trim()) {
@@ -736,10 +1095,10 @@ const saveDraftCard = async (card) => {
     }
   }
   if (card.systemStatus.length === 0) {
-    card.systemStatus.push({ text: '—', level: 0, _uid: ++lineUidCounter.value })
+    card.systemStatus.push({ text: '', level: 0, _uid: ++lineUidCounter.value })
   }
   if (card.todoItems.length === 0) {
-    card.todoItems.push({ text: '—', level: 0, _uid: ++lineUidCounter.value, attachments: [] })
+    card.todoItems.push({ text: '', level: 0, _uid: ++lineUidCounter.value, attachments: [] })
   }
 
   // ============ 构建交接班数据模型 ============
@@ -780,6 +1139,22 @@ const saveDraftCard = async (card) => {
     })),
   }
 
+  // 仅ECC夜班保存时上传跑批和运维服务台人员
+  if (card.roleValue === 'ecc' && card.shiftType === 2) {
+    handoverDataModel.otherDuty = {
+      batch_A_id: card.batchPersonACode || '',
+      batch_A: card.batchPersonA || '',
+      batch_B_id: card.batchPersonBCode || '',
+      batch_B: card.batchPersonB || '',
+      service_A_id: card.servicePerson1Code || '',
+      service_A: card.servicePerson1 || '',
+      service_B_id: card.servicePerson2Code || '',
+      service_B: card.servicePerson2 || '',
+      service_C_id: card.servicePerson3Code || '',
+      service_C: card.servicePerson3 || '',
+    }
+  }
+
   console.log('========== 交接班数据模型（传递给后端）==========')
   console.log(JSON.stringify(handoverDataModel, null, 2))
 
@@ -801,8 +1176,85 @@ const saveDraftCard = async (card) => {
   }
 }
 
+// 保存编辑前快照，用于撤销
+const cardSnapshots = new Map()
+
+// 克隆卡片可编辑字段
+const cloneEditableFields = (card) => {
+  return {
+    role: card.role,
+    roleValue: card.roleValue,
+    personnelType: card.personnelType,
+    shiftType: card.shiftType,
+    shiftLabel: card.shiftLabel,
+    shiftClass: card.shiftClass,
+    fromName: card.fromName,
+    fromUserCode: card.fromUserCode,
+    fromSurname: card.fromSurname,
+    fromColor: card.fromColor,
+    fromRoleDesc: card.fromRoleDesc,
+    toName: card.toName,
+    toUserCode: card.toUserCode,
+    toSurname: card.toSurname,
+    toColor: card.toColor,
+    toRoleDesc: card.toRoleDesc,
+    batchPersonA: card.batchPersonA,
+    batchPersonACode: card.batchPersonACode,
+    batchPersonASurname: card.batchPersonASurname,
+    batchPersonB: card.batchPersonB,
+    batchPersonBCode: card.batchPersonBCode,
+    batchPersonBSurname: card.batchPersonBSurname,
+    servicePerson1: card.servicePerson1,
+    servicePerson1Code: card.servicePerson1Code,
+    servicePerson1Surname: card.servicePerson1Surname,
+    servicePerson2: card.servicePerson2,
+    servicePerson2Code: card.servicePerson2Code,
+    servicePerson2Surname: card.servicePerson2Surname,
+    servicePerson3: card.servicePerson3,
+    servicePerson3Code: card.servicePerson3Code,
+    servicePerson3Surname: card.servicePerson3Surname,
+    systemStatus: JSON.parse(JSON.stringify(card.systemStatus)),
+    todoItems: JSON.parse(JSON.stringify(card.todoItems)),
+    handoverTime: card.handoverTime,
+    confirmText: card.confirmText,
+    confirmColor: card.confirmColor,
+    _eccBackup: card._eccBackup ? JSON.parse(JSON.stringify(card._eccBackup)) : undefined,
+  }
+}
+
+// 撤销编辑，恢复到编辑前状态
+const undoEditCard = async (card) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定撤销当前修改吗？已编辑的内容将丢失。',
+      '撤销修改',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    const snapshot = cardSnapshots.get(card._cardId)
+    if (!snapshot) {
+      // 新建但未保存的草稿，仅重置表单内容，保持草稿状态
+      card.systemStatus = [{ text: '', level: 0, _uid: ++lineUidCounter.value }]
+      card.todoItems = [{ text: '', level: 0, _uid: ++lineUidCounter.value, attachments: [] }]
+      return
+    }
+    Object.assign(card, snapshot)
+    card.isDraft = false
+    cardSnapshots.delete(card._cardId)
+    await searchHandover()
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('撤销修改失败:', e)
+    }
+  }
+}
+
 // 重新编辑已保存的卡片
 const editDraftCard = (card) => {
+  cardSnapshots.set(card._cardId, cloneEditableFields(card))
   card.isDraft = true
   // 如果列表为空则补一个空行方便编辑
   if (card.systemStatus.length === 0 || card.systemStatus.every(s => !s.text || s.text === '—')) {
@@ -875,68 +1327,38 @@ const deleteCard = async (card) => {
   }
 }
 
-// ============ 导出 PDF ============
-const exportToPdf = async () => {
+// ============ 导出 Excel ============
+const exportToExcel = async () => {
   ElMessage.closeAll()
-  if (handoverList.value.length === 0) {
-    ElMessage.warning('当前没有可导出的记录')
+  if (!filterDate.value || filterDate.value.length !== 2) {
+    ElMessage.warning('请先选择日期范围再导出')
     return
   }
 
-  ElMessage.info('正在生成 PDF，请稍候...')
+  ElMessage.info('正在生成 Excel，请稍候...')
 
   try {
-    const pdf = new jsPDF('l', 'mm', 'a4') // 横向 A4
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const margin = 5
-    const gap = 6 // 卡片间距 mm
-    const maxWidth = pageWidth - margin * 2
-    const usableHeight = pageHeight - margin * 2
+    const dateRange = [filterDate.value[0], filterDate.value[1]]
+    const response = await exportHandoverExcel(dateRange)
 
-    const cards = document.querySelectorAll('.handover-card')
-    if (cards.length === 0) {
-      ElMessage.warning('未找到可导出的卡片')
-      return
-    }
-
-    let yOffset = margin
-
-    for (let i = 0; i < cards.length; i++) {
-      const canvas = await html2canvas(cards[i], {
-        useCORS: true,
-        scale: 3,
-        backgroundColor: '#ffffff',
-        logging: false,
-      })
-
-      const imgData = canvas.toDataURL('image/png')
-      const imgWidth = maxWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      // 如果当前页剩余空间不够放这张卡片，另起一页
-      if (yOffset + imgHeight > margin + usableHeight) {
-        pdf.addPage()
-        yOffset = margin
-      }
-
-      // 水平居中
-      const xOffset = margin + (maxWidth - imgWidth) / 2
-      pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight)
-      yOffset += imgHeight + gap
-    }
-
-    const now = new Date()
-    const pad = n => String(n).padStart(2, '0')
-    const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-    pdf.save(`\u4ea4\u63a5\u73ed\u8bb0\u5f55_${dateStr}.pdf`)
+    // 触发浏览器下载
+    const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const dateStr = `${dateRange[0]}-${dateRange[1]}`
+    link.download = `ECC值班交接记录_${dateStr}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
 
     ElMessage.closeAll()
-    ElMessage.success(`导出成功，共 ${cards.length} 条记录`)
+    ElMessage.success('导出成功')
   } catch (e) {
-    console.error('导出 PDF 失败:', e)
+    console.error('导出 Excel 失败:', e)
     ElMessage.closeAll()
-    ElMessage.error('导出 PDF 失败：' + (e.message || '未知错误'))
+    ElMessage.error('导出失败：' + (e.message || '未知错误'))
   }
 }
 
@@ -958,7 +1380,9 @@ onBeforeUnmount(() => {
     <div class="page-toolbar">
       <h2 class="page-title">交接班记录</h2>
       <div class="toolbar-actions">
-        <el-button v-if="permissionStore.hasPermission('duty:handoverExport')" class="btn-outline" @click="exportToPdf">导出记录</el-button>
+        <el-button v-if="permissionStore.hasPermission('duty:handoverExport')" type="warning" plain @click="exportToExcel">
+          <el-icon><Download /></el-icon>&nbsp;导出
+        </el-button>
         <el-button v-if="permissionStore.hasPermission('duty:handoverCreate')" type="primary" class="btn-primary-custom" @click="createDraftCard">
           <el-icon><Plus /></el-icon>
           新建交接班
@@ -1045,6 +1469,7 @@ onBeforeUnmount(() => {
                     class="role-inline-select"
                     :data-edit-role="item._cardId"
                     :teleported="false"
+                    clearable
                     @change="onRoleChange(item)"
                     @visible-change="(v) => { if (!v) item.editingRole = false }"
                   >
@@ -1054,6 +1479,12 @@ onBeforeUnmount(() => {
               </template>
               <template v-else>{{ item.role }}</template>
             </div>
+            <!-- 当前班次醒目提示 -->
+            <div class="handover-header-center">
+              <el-tag :type="getCardShiftTagType(item)" size="small" effect="dark">
+                {{ getCardShiftLabel(item) }}
+              </el-tag>
+            </div>
             <div class="handover-header-right">
               <div class="handover-header-actions">
                 <!-- 保存按钮：仅创建者（isCardCreator）可用 -->
@@ -1061,6 +1492,17 @@ onBeforeUnmount(() => {
                   <el-tooltip content="保存草稿" placement="top">
                     <span class="header-icon-btn save" @click="saveDraftCard(item)">
                       <el-icon><Check /></el-icon>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip content="撤销修改" placement="top">
+                    <span class="header-icon-btn undo" @click="undoEditCard(item)">
+                      <el-icon><RefreshLeft /></el-icon>
+                    </span>
+                  </el-tooltip>
+                  <!-- 未保存的草稿允许直接删除 -->
+                  <el-tooltip v-if="!cardSnapshots.has(item._cardId) && permissionStore.hasPermission('duty:handoverDelete') && isCardCreator(item)" content="删除" placement="top">
+                    <span class="header-icon-btn delete" @click="deleteCard(item)">
+                      <el-icon><Delete /></el-icon>
                     </span>
                   </el-tooltip>
                 </template>
@@ -1078,7 +1520,7 @@ onBeforeUnmount(() => {
                   </el-tooltip>
                 </template>
                 <!-- 删除：仅创建者可用，非已完成卡片可见 -->
-                <el-tooltip v-if="item.statusClass !== 'completed' && permissionStore.hasPermission('duty:handoverDelete') && isCardCreator(item)" content="删除" placement="top">
+                <el-tooltip v-if="item.statusClass !== 'completed' && !item.isDraft && permissionStore.hasPermission('duty:handoverDelete') && isCardCreator(item)" content="删除" placement="top">
                   <span class="header-icon-btn delete" @click="deleteCard(item)">
                     <el-icon><Delete /></el-icon>
                   </span>
@@ -1114,6 +1556,7 @@ onBeforeUnmount(() => {
                         class="person-inline-select"
                         :data-edit-select="'from-' + item._cardId"
                         :teleported="false"
+                        clearable
                         placeholder="选择交班人"
                         @change="onFromSelect(item, item.fromName)"
                         @visible-change="(v) => { if (!v) item.editingFrom = false }"
@@ -1149,6 +1592,7 @@ onBeforeUnmount(() => {
                         class="person-inline-select"
                         :data-edit-select="'to-' + item._cardId"
                         :teleported="false"
+                        clearable
                         placeholder="选择接班人"
                         @change="onToSelect(item, item.toName)"
                         @visible-change="(v) => { if (!v) item.editingTo = false }"
@@ -1166,13 +1610,194 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
+            <!-- 跑批人员（仅ECC夜班显示） -->
+            <!-- 跑批人员标题 - 全宽 -->
+            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-content-block" style="margin-top: 0; margin-bottom: 0; padding-bottom: 0;">
+              <div class="handover-section-title">
+                <el-icon><UserFilled /></el-icon> 跑批人员
+              </div>
+            </div>
+            <!-- 跑批A角 -->
+            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-col">
+              <div class="handover-person-row">
+                <div class="handover-person-avatar" style="background: var(--purple);">{{ item.batchPersonASurname || '—' }}</div>
+                <div class="handover-person-info">
+                  <template v-if="item.isDraft">
+                    <div class="person-name-wrap">
+                      <span v-show="!item.batchPersonAEditing" class="person-clickable" @click="handleEditBatchA(item)">{{ item.batchPersonA || '(点击选择)' }}</span>
+                      <el-select
+                        v-show="item.batchPersonAEditing"
+                        v-model="item.batchPersonACode"
+                        size="small"
+                        class="person-inline-select"
+                        :data-edit-select="'batchA-' + item._cardId"
+                        :teleported="false"
+                        clearable
+                        placeholder="选择A角"
+                        @change="onBatchASelect(item, item.batchPersonACode)"
+                        @visible-change="(v) => { if (!v) item.batchPersonAEditing = false }"
+                        autofocus
+                      >
+                        <el-option v-for="p in getBatchPersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                      </el-select>
+                    </div>
+                    <div class="handover-person-role">跑批A角 · 08:30-18:00</div>
+                  </template>
+                  <template v-else>
+                    <div class="handover-person-name">{{ item.batchPersonA || '—' }}</div>
+                    <div class="handover-person-role">跑批A角 · 08:30-18:00</div>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <!-- 跑批B角 -->
+            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-col">
+              <div class="handover-person-row">
+                <div class="handover-person-avatar" style="background: var(--purple);">{{ item.batchPersonBSurname || '—' }}</div>
+                <div class="handover-person-info">
+                  <template v-if="item.isDraft">
+                    <div class="person-name-wrap">
+                      <span v-show="!item.batchPersonBEditing" class="person-clickable" @click="handleEditBatchB(item)">{{ item.batchPersonB || '(点击选择)' }}</span>
+                      <el-select
+                        v-show="item.batchPersonBEditing"
+                        v-model="item.batchPersonBCode"
+                        size="small"
+                        class="person-inline-select"
+                        :data-edit-select="'batchB-' + item._cardId"
+                        :teleported="false"
+                        clearable
+                        placeholder="选择B角"
+                        @change="onBatchBSelect(item, item.batchPersonBCode)"
+                        @visible-change="(v) => { if (!v) item.batchPersonBEditing = false }"
+                        autofocus
+                      >
+                        <el-option v-for="p in getBatchPersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                      </el-select>
+                    </div>
+                    <div class="handover-person-role">跑批B角 · 08:30-18:00</div>
+                  </template>
+                  <template v-else>
+                    <div class="handover-person-name">{{ item.batchPersonB || '—' }}</div>
+                    <div class="handover-person-role">跑批B角 · 08:30-18:00</div>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <!-- 运维服务台（仅ECC夜班显示） -->
+            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-content-block" style="margin-top: 0; margin-bottom: 0; padding-bottom: 0;">
+              <div class="handover-section-title">
+                <el-icon><UserFilled /></el-icon> 运维服务台
+              </div>
+            </div>
+            <!-- 服务台1/2/3 - flex行三列 -->
+            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="service-row">
+              <!-- 服务台1 -->
+              <div class="service-col">
+                <div class="handover-person-row">
+                  <div class="handover-person-avatar" style="background: var(--primary);">{{ item.servicePerson1Surname || '—' }}</div>
+                  <div class="handover-person-info">
+                    <template v-if="item.isDraft">
+                      <div class="person-name-wrap">
+                        <span v-show="!item.servicePerson1Editing" class="person-clickable" @click="serviceHandlers1.handleEdit(item)">{{ item.servicePerson1 || '(点击选择)' }}</span>
+                        <el-select
+                          v-show="item.servicePerson1Editing"
+                          v-model="item.servicePerson1Code"
+                          size="small"
+                          class="person-inline-select"
+                          :data-edit-select="'service1-' + item._cardId"
+                          :teleported="false"
+                          clearable
+                          placeholder="选择人员"
+                          @change="serviceHandlers1.onSelect(item, item.servicePerson1Code)"
+                          @visible-change="(v) => { if (!v) item.servicePerson1Editing = false }"
+                          autofocus
+                        >
+                          <el-option v-for="p in getServicePersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                        </el-select>
+                      </div>
+                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                    </template>
+                    <template v-else>
+                      <div class="handover-person-name">{{ item.servicePerson1 || '—' }}</div>
+                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <!-- 服务台2 -->
+              <div class="service-col">
+                <div class="handover-person-row">
+                  <div class="handover-person-avatar" style="background: var(--primary);">{{ item.servicePerson2Surname || '—' }}</div>
+                  <div class="handover-person-info">
+                    <template v-if="item.isDraft">
+                      <div class="person-name-wrap">
+                        <span v-show="!item.servicePerson2Editing" class="person-clickable" @click="serviceHandlers2.handleEdit(item)">{{ item.servicePerson2 || '(点击选择)' }}</span>
+                        <el-select
+                          v-show="item.servicePerson2Editing"
+                          v-model="item.servicePerson2Code"
+                          size="small"
+                          class="person-inline-select"
+                          :data-edit-select="'service2-' + item._cardId"
+                          :teleported="false"
+                          clearable
+                          placeholder="选择人员"
+                          @change="serviceHandlers2.onSelect(item, item.servicePerson2Code)"
+                          @visible-change="(v) => { if (!v) item.servicePerson2Editing = false }"
+                          autofocus
+                        >
+                          <el-option v-for="p in getServicePersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                        </el-select>
+                      </div>
+                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                    </template>
+                    <template v-else>
+                      <div class="handover-person-name">{{ item.servicePerson2 || '—' }}</div>
+                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <!-- 服务台3 -->
+              <div class="service-col">
+                <div class="handover-person-row">
+                  <div class="handover-person-avatar" style="background: var(--primary);">{{ item.servicePerson3Surname || '—' }}</div>
+                  <div class="handover-person-info">
+                    <template v-if="item.isDraft">
+                      <div class="person-name-wrap">
+                        <span v-show="!item.servicePerson3Editing" class="person-clickable" @click="serviceHandlers3.handleEdit(item)">{{ item.servicePerson3 || '(点击选择)' }}</span>
+                        <el-select
+                          v-show="item.servicePerson3Editing"
+                          v-model="item.servicePerson3Code"
+                          size="small"
+                          class="person-inline-select"
+                          :data-edit-select="'service3-' + item._cardId"
+                          :teleported="false"
+                          clearable
+                          placeholder="选择人员"
+                          @change="serviceHandlers3.onSelect(item, item.servicePerson3Code)"
+                          @visible-change="(v) => { if (!v) item.servicePerson3Editing = false }"
+                          autofocus
+                        >
+                          <el-option v-for="p in getServicePersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                        </el-select>
+                      </div>
+                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                    </template>
+                    <template v-else>
+                      <div class="handover-person-name">{{ item.servicePerson3 || '—' }}</div>
+                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div class="handover-divider"></div>
 
             <!-- 系统运行状态 -->
             <div class="handover-content-block">
               <div class="handover-content-title">
-                <el-icon><Monitor /></el-icon> 系统运行状态
+                <el-icon><Message /></el-icon> 交接事件明细
               </div>
               <template v-if="item.isDraft">
                 <div v-for="(line, li) in item.systemStatus" :key="'s-' + line._uid" class="handover-input-row-with-dot" :data-status-uid="line._uid">
@@ -1182,6 +1807,7 @@ onBeforeUnmount(() => {
                     :title="severityLevels.find(s => s.value === line.level)?.label"
                     @click="cycleLevel(line)"
                   ></span>
+                  <span class="row-index">{{ li + 1 }}.</span>
                   <el-input
                     v-model="line.text"
                     size="small"
@@ -1195,16 +1821,19 @@ onBeforeUnmount(() => {
                 </div>
               </template>
               <ul v-else class="handover-list">
-                <li v-for="(line, li) in item.systemStatus" :key="'s-' + li" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
-                  {{ line.text }}
-                </li>
+                <template v-for="(line, li) in item.systemStatus" :key="'s-' + li">
+                  <li v-if="line.text && line.text.trim() && line.text.trim() !== '-' && line.text.trim() !== '—'" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
+                    {{ li + 1 }}. {{ line.text }}
+                  </li>
+                  <li v-else class="handover-list-empty"></li>
+                </template>
               </ul>
             </div>
 
             <!-- 待跟进事项 -->
             <div class="handover-content-block">
               <div class="handover-content-title">
-                <el-icon><Document /></el-icon> 待跟进事项
+                <el-icon><Document /></el-icon> 备注
               </div>
               <template v-if="item.isDraft">
                 <template v-for="(line, li) in item.todoItems" :key="'t-' + line._uid">
@@ -1215,11 +1844,12 @@ onBeforeUnmount(() => {
                       :title="severityLevels.find(s => s.value === line.level)?.label"
                       @click="cycleLevel(line)"
                     ></span>
+                    <span class="row-index">{{ li + 1 }}.</span>
                     <el-input
                       v-model="line.text"
                       size="small"
                       spellcheck="false"
-                      placeholder="输入待跟进事项，回车添加下一条..."
+                      placeholder="输入备注，回车添加下一条..."
                       @keydown.enter.prevent="addTodoItem(item, li)"
                     />
                     <span class="row-delete-btn" @click="removeLineItem(item.todoItems, li)" v-if="item.todoItems.length > 1">
@@ -1265,14 +1895,18 @@ onBeforeUnmount(() => {
               </template>
               <template v-else>
                 <ul class="handover-list">
-                  <li v-for="(line, li) in item.todoItems" :key="'t-' + li" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
-                    {{ line.text }}
-                  </li>
+                  <template v-for="(line, li) in item.todoItems" :key="'t-' + li">
+                    <li v-if="line.text && line.text.trim() && line.text.trim() !== '-' && line.text.trim() !== '—'" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
+                      {{ li + 1 }}. {{ line.text }}
+                    </li>
+                    <li v-else class="handover-list-empty"></li>
+                  </template>
                 </ul>
                 <!-- 查看模式附件 -->
                 <div class="handover-content-title" style="margin-top: 12px;">
                   <el-icon><Upload /></el-icon> 附件
                 </div>
+                <div v-if="!item.todoItems.some(t => t.attachments?.length)" class="no-attachment-hint">无附件</div>
                 <template v-for="(line, li) in item.todoItems" :key="'att-img-' + line._uid">
                   <div v-if="line.attachments?.some(a => isImage(a.name))" class="attachment-previews" style="margin-top: 6px;">
                     <template v-for="(att, ai) in line.attachments" :key="'img-' + ai">
@@ -1353,7 +1987,7 @@ onBeforeUnmount(() => {
         <el-form-item label="系统运行状态">
           <el-input v-model="newHandover.systemStatus" spellcheck="false" type="textarea" :rows="3" placeholder="描述当前各系统运行状况..." />
         </el-form-item>
-        <el-form-item label="待跟进事项">
+        <el-form-item label="备注">
           <el-input v-model="newHandover.todo" spellcheck="false" type="textarea" :rows="3" placeholder="需要接班人关注的事项..." />
         </el-form-item>
         <el-form-item label="附件">
@@ -1574,6 +2208,14 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border-light);
+  position: relative;
+}
+
+/* 当前班次提示居中 */
+.handover-header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .handover-date {
   font-size: 14px;
@@ -1770,6 +2412,13 @@ onBeforeUnmount(() => {
   background: var(--success-bg);
   color: #15803d;
 }
+.header-icon-btn.undo {
+  color: var(--text-3);
+}
+.header-icon-btn.undo:hover {
+  background: var(--bg-page);
+  color: var(--text-1);
+}
 
 /* 弹窗 */
 .upload-area-box {
@@ -1893,6 +2542,23 @@ onBeforeUnmount(() => {
 .person-inline-select :deep(.el-select__caret) {
   display: none;
 }
+.person-inline-select :deep(.el-select__clear) {
+  display: inline-flex !important;
+  color: var(--text-4);
+  font-size: 14px;
+}
+
+/* 运维服务台行：三列等宽 flex 布局 */
+.service-row {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 24px;
+}
+.service-col {
+  flex: 1;
+  min-width: 0;
+}
+
 .handover-input-row {
   margin-bottom: 6px;
 }
@@ -1907,11 +2573,10 @@ onBeforeUnmount(() => {
 .handover-input-row-with-dot {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
   padding: 6px 10px;
   background: var(--bg-page);
   border-radius: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-size: 13px;
 }
 .handover-input-row-with-dot:last-child {
@@ -1945,6 +2610,16 @@ onBeforeUnmount(() => {
   background: transparent !important;
 }
 
+/* 行序号 */
+.row-index {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 19.5px;
+  color: var(--text-2);
+  margin-right: 4px;
+  user-select: none;
+}
+
 /* 颜色点 */
 .severity-dot {
   width: 8px;
@@ -1952,6 +2627,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   flex-shrink: 0;
   margin-top: 6px;
+  margin-right: 8px;
   cursor: pointer;
   transition: transform 0.15s;
   border: none;
@@ -2013,6 +2689,13 @@ onBeforeUnmount(() => {
 
 .preview-img {
   cursor: pointer;
+}
+
+/* 无附件提示 */
+.no-attachment-hint {
+  font-size: 13px;
+  color: var(--text-4);
+  padding: 6px 0;
 }
 
 /* 文档附件列表行（同行排列） */
@@ -2110,6 +2793,17 @@ onBeforeUnmount(() => {
 }
 .handover-list li.level-0::before {
   background: #16a34a;
+}
+
+/* 空行占位 */
+.handover-list-empty {
+  font-size: 13px;
+  padding: 6px 10px;
+  background: var(--bg-page);
+  border-radius: 6px;
+  min-height: 19.5px;
+  line-height: 19.5px;
+  list-style: none;
 }
 
 /* 待跟进事项 - 上传附件入口 */

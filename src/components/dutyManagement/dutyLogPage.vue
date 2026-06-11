@@ -1,7 +1,7 @@
 0
 <script setup>
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
-import { Plus, ArrowLeft, ArrowRight, Document, Edit, Paperclip, Check, Delete, CircleCheck, Refresh } from '@element-plus/icons-vue'
+import { Plus, ArrowLeft, ArrowRight, Document, Edit, Paperclip, Check, Delete, CircleCheck, Refresh, RefreshLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElTooltip, ElPopover, ElDialog, ElEmpty } from 'element-plus'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -149,8 +149,47 @@ const isLogCreator = (item) => {
     permissionStore.userInfo.username === item.createUser
 }
 
+// 日志条目编辑前快照，用于撤销
+const logEntrySnapshots = new Map()
+
 const editLogEntry = (idx) => {
-  logEntries.value[idx].isDraft = true
+  const entry = logEntries.value[idx]
+  logEntrySnapshots.set(idx, {
+    title: entry.title,
+    desc: entry.desc,
+    dotClass: entry.dotClass,
+    tags: JSON.parse(JSON.stringify(entry.tags || [])),
+    attachments: JSON.parse(JSON.stringify(entry.attachments || [])),
+  })
+  entry.isDraft = true
+}
+
+// 撤销日志编辑，恢复到编辑前状态
+const undoLogEntry = async (idx) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定撤销当前修改吗？已编辑的内容将丢失。',
+      '撤销修改',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    const snapshot = logEntrySnapshots.get(idx)
+    if (!snapshot) {
+      logEntries.value[idx].isDraft = false
+      return
+    }
+    Object.assign(logEntries.value[idx], snapshot)
+    logEntries.value[idx].isDraft = false
+    logEntrySnapshots.delete(idx)
+    await loadLogEntries()
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('撤销修改失败:', e)
+    }
+  }
 }
 
 const handleEditTitle = (idx) => {
@@ -177,6 +216,25 @@ const saveLogEntry = async (idx) => {
     ElMessage.warning('请填写事件标题')
     return
   }
+
+  // 弹出确认框
+  try {
+    await ElMessageBox.confirm(
+      '确定保存此值班日志吗？',
+      '保存确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('保存确认失败:', e)
+    }
+    return
+  }
+
   const date = logDate.value
   // 如果条目自带 logDate 则用它，否则用导航日期
   const logDateStr = entry.logDate || `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -301,6 +359,7 @@ const logEntries = ref([])
 const dutyNoteUidCounter = ref(0)
 const dutyNoteItems = ref([])
 const dutyNoteEditing = ref(false)
+const dutyNoteSnapshot = ref([])
 
 // 生成全局唯一 ID（用于新建值班备注的 note_id）
 const genNoteId = () => {
@@ -327,6 +386,7 @@ const removeDutyNoteItem = (list, index) => {
 
 const editDutyNote = async () => {
   await loadDutyNotes()
+  dutyNoteSnapshot.value = JSON.parse(JSON.stringify(dutyNoteItems.value))
   dutyNoteEditing.value = true
   if (dutyNoteItems.value.length === 0) {
     dutyNoteItems.value = [{ text: '', level: 0, _uid: ++dutyNoteUidCounter.value, _noteId: '', _originalText: '', _originalCreateUser: '', _originalCreateUserNickname: '' }]
@@ -335,6 +395,25 @@ const editDutyNote = async () => {
 
 const saveDutyNote = async () => {
   ElMessage.closeAll()
+
+  // 弹出确认框
+  try {
+    await ElMessageBox.confirm(
+      '确定保存此值班备注吗？',
+      '保存确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('保存确认失败:', e)
+    }
+    return
+  }
+
   // 清理空行
   for (let i = dutyNoteItems.value.length - 1; i >= 0; i--) {
     if (!dutyNoteItems.value[i].text.trim()) {
@@ -374,6 +453,29 @@ const saveDutyNote = async () => {
   } catch (e) {
     ElMessage.error('保存备注失败: ' + e.message)
     await loadLogEntries()
+  }
+}
+
+// 撤销值班备注编辑，恢复到编辑前状态
+const undoDutyNote = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定撤销当前修改吗？已编辑的内容将丢失。',
+      '撤销修改',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    dutyNoteItems.value = JSON.parse(JSON.stringify(dutyNoteSnapshot.value))
+    dutyNoteEditing.value = false
+    dutyNoteSnapshot.value = []
+    await loadLogEntries()
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('撤销修改失败:', e)
+    }
   }
 }
 
@@ -784,6 +886,11 @@ const exportToPdf = async () => {
                           <el-icon><Check /></el-icon>
                         </span>
                       </el-tooltip>
+                      <el-tooltip v-if="isLogCreator(entry)" content="撤销修改" placement="top">
+                        <span class="header-icon-btn undo" @click="undoLogEntry(idx)">
+                          <el-icon><RefreshLeft /></el-icon>
+                        </span>
+                      </el-tooltip>
                     </template>
                     <template v-else-if="!entry.confirmed">
                       <el-tooltip v-if="permissionStore.hasPermission('duty:logEdit') && isLogCreator(entry)" content="编辑" placement="top">
@@ -797,7 +904,7 @@ const exportToPdf = async () => {
                         </span>
                       </el-tooltip>
                     </template>
-                    <el-tooltip v-if="!entry.confirmed && permissionStore.hasPermission('duty:logDelete') && isLogCreator(entry)" content="删除" placement="top">
+                    <el-tooltip v-if="!entry.confirmed && !entry.isDraft && permissionStore.hasPermission('duty:logDelete') && isLogCreator(entry)" content="删除" placement="top">
                       <span class="header-icon-btn delete" @click="deleteLogEntry(idx)">
                         <el-icon><Delete /></el-icon>
                       </span>
@@ -909,6 +1016,11 @@ const exportToPdf = async () => {
               <el-tooltip v-if="permissionStore.hasPermission('duty:noteSave')" content="保存" placement="top">
                 <span class="header-icon-btn save" @click="saveDutyNote">
                   <el-icon><Check /></el-icon>
+                </span>
+              </el-tooltip>
+              <el-tooltip content="撤销修改" placement="top">
+                <span class="header-icon-btn undo" @click="undoDutyNote">
+                  <el-icon><RefreshLeft /></el-icon>
                 </span>
               </el-tooltip>
             </template>
@@ -1911,6 +2023,13 @@ const exportToPdf = async () => {
 .header-icon-btn.add:hover {
   background: var(--success-bg);
   color: #15803d;
+}
+.header-icon-btn.undo {
+  color: var(--text-3);
+}
+.header-icon-btn.undo:hover {
+  background: var(--bg-page);
+  color: var(--text-1);
 }
 
 /* 圆点颜色选择弹窗 */

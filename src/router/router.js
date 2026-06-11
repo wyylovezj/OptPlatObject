@@ -19,6 +19,7 @@ import HomePage from '@/components/homePage/HomePage.vue'
 import DutyManagementPage from '@/components/dutyManagement/dutyManagementPage.vue'
 import DutyHandoverPage from '@/components/dutyManagement/dutyHandoverPage.vue'
 import DutyLogPage from '@/components/dutyManagement/dutyLogPage.vue'
+import DailyHandoverPage from '@/components/dutyManagement/DailyHandoverPage.vue'
 
 
 // 创建路由实例
@@ -272,6 +273,17 @@ const router = createRouter({
             title: '值班日志',
             breadcrumb: '值班日志',
             permission: 'duty:log',
+          },
+        },
+        {
+          path: 'dailyHandover',
+          name: 'DailyHandover',
+          component: DailyHandoverPage,
+          meta: {
+            requiresAuth: true,
+            title: '日常工作交接',
+            breadcrumb: '日常工作交接',
+            permission: 'duty:dailyHandover',
           },
         },
       ],
