@@ -1019,7 +1019,7 @@ const addStatusItem = (card, index) => {
   const newUid = ++lineUidCounter.value
   card.systemStatus.splice(index + 1, 0, { text: '', level: 0, _uid: newUid })
   nextTick(() => {
-    const el = document.querySelector(`[data-status-uid="${newUid}"] input`)
+    const el = document.querySelector(`[data-status-uid="${newUid}"] textarea`)
     if (el) el.focus()
   })
 }
@@ -1035,7 +1035,7 @@ const addTodoItem = (card, index) => {
   const newUid = ++lineUidCounter.value
   card.todoItems.splice(index + 1, 0, { text: '', level: 0, _uid: newUid, attachments: [] })
   nextTick(() => {
-    const el = document.querySelector(`[data-todo-uid="${newUid}"] input`)
+    const el = document.querySelector(`[data-todo-uid="${newUid}"] textarea`)
     if (el) el.focus()
   })
 }
