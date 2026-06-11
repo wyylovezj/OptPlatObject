@@ -694,15 +694,12 @@ const handleMergeExport = async () => {
 
   try {
     const response = await exportMergedHandover(dateRange.value)
-    // 从响应头中获取文件名
-    const contentDisposition = response.headers['content-disposition']
-    let filename = 'ECC合并交接记录.xlsx'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;\n]+)/i)
-      if (match) {
-        filename = decodeURIComponent(match[1])
-      }
-    }
+    // 从日期范围构建文件名
+    const [startDate] = dateRange.value
+    const dateObj = new Date(startDate)
+    const year = dateObj.getFullYear()
+    const month = dateObj.getMonth() + 1
+    let filename = `${year}年${month}月ECC交接记录.xlsx`
     // 创建下载链接
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
@@ -1216,6 +1213,10 @@ const loadFieldConfig = async () => {
   font-size: 13.5px;
   font-weight: 500;
   color: #1a1a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
 }
 
 .column-tag {
