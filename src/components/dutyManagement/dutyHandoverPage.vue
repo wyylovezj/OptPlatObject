@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, nextTick, onBeforeUnmount, onMounted } from 'vue'
-import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload, RefreshLeft, Message, Download } from '@element-plus/icons-vue'
+import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload, RefreshLeft, Message, Download, CopyDocument, Close } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElInput, ElTooltip, ElTag } from 'element-plus'
 import { getDuty, getEcc, getSys, getNet, getPM, getBatch, getService, deleteHandover, saveHandover, getHandovers, confirmHandovers, exportHandoverExcel } from '@/api/dutyPageInterface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
@@ -378,6 +378,7 @@ const downloadFile = (att) => {
 // ============ 内联新建交接班 ============
 const todaySchedule = ref(null)
 const yesterdaySchedule = ref(null)
+const tomorrowSchedule = ref(null)
 const prevSchedules = ref([])
 const allPersonnel = ref([])
 
@@ -396,19 +397,26 @@ const loadHandoverInitData = async () => {
   yesterdayDate.setDate(yesterdayDate.getDate() - 1)
   const yesterdayStr = yesterdayDate.toISOString().split('T')[0]
 
+  // 计算明天日期
+  const tomorrowDate = new Date()
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+  const tomorrowStr = tomorrowDate.toISOString().split('T')[0]
+
   // 计算过去30天的开始日期（用于查找非ECC人员的前一个排班记录）
   const pastDate = new Date()
   pastDate.setDate(pastDate.getDate() - 30)
   const pastStr = pastDate.toISOString().split('T')[0]
 
   try {
-    const [scheduleArr, yesterdayArr, pastArr] = await Promise.all([
+    const [scheduleArr, yesterdayArr, tomorrowArr, pastArr] = await Promise.all([
       getDuty([today, today]),
       getDuty([yesterdayStr, yesterdayStr]),
+      getDuty([tomorrowStr, tomorrowStr]),
       getDuty([pastStr, yesterdayStr]),
     ])
     todaySchedule.value = Array.isArray(scheduleArr) && scheduleArr.length > 0 ? scheduleArr[0] : null
     yesterdaySchedule.value = Array.isArray(yesterdayArr) && yesterdayArr.length > 0 ? yesterdayArr[0] : null
+    tomorrowSchedule.value = Array.isArray(tomorrowArr) && tomorrowArr.length > 0 ? tomorrowArr[0] : null
     prevSchedules.value = Array.isArray(pastArr) ? pastArr : []
   } catch (e) {
     console.error('获取排班数据失败:', e)
@@ -468,7 +476,7 @@ const fillPersonnel = (card) => {
         card.toUserCode = ''
       }
     } else {
-      // 夜班→白班 (8:00-20:00)：交班人=前一天夜班，接班人=今天白班
+      // 夜班→白班 (8:00-20:00)：交班人=前一天夜班，接班人=第二天白班
       card.fromRoleDesc = 'ECC 夜班 · 20:00-08:00'
       card.toRoleDesc = 'ECC 白班 · 08:00-20:00'
 
@@ -485,9 +493,10 @@ const fillPersonnel = (card) => {
         card.fromUserCode = ''
       }
 
-      // 接班人：今天的白班人员
-      if (schedule) {
-        const toName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
+      // 接班人：第二天的白班人员
+      const tomorrowScheduleData = tomorrowSchedule.value
+      if (tomorrowScheduleData) {
+        const toName = tomorrowScheduleData.eccDayPersonnelName || tomorrowScheduleData.ecc_day_personnel_id || ''
         card.toName = getPersonName(toName) || toName || '未排班'
         card.toSurname = getSurname(card.toName) || '—'
         const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
@@ -922,12 +931,71 @@ const toggleShift = (card) => {
   card.shiftType = card.shiftType === 1 ? 2 : 1
   card.shiftLabel = card.shiftType === 1 ? '白班 → 夜班' : '夜班 → 白班'
   card.shiftClass = card.shiftType === 1 ? 'shift-day' : 'shift-night'
-  // 仅交换交班人和接班人，保留用户已选人员，不覆盖
-  ;[card.fromName, card.toName] = [card.toName, card.fromName]
-  ;[card.fromUserCode, card.toUserCode] = [card.toUserCode, card.fromUserCode]
-  ;[card.fromSurname, card.toSurname] = [card.toSurname, card.fromSurname]
-  ;[card.fromColor, card.toColor] = [card.toColor, card.fromColor]
-  ;[card.fromRoleDesc, card.toRoleDesc] = [card.toRoleDesc, card.fromRoleDesc]
+
+  if (card.shiftType === 2) {
+    // 切换到夜班(夜班→白班)：交班人=今天夜班，接班人取第二天白班
+    card.fromRoleDesc = 'ECC 夜班 · 20:00-08:00'
+    card.toRoleDesc = 'ECC 白班 · 08:00-20:00'
+    // 交班人 = 今天的夜班人员（从今天排班取）
+    const schedule = todaySchedule.value
+    if (schedule) {
+      const fromName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
+      const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === getPersonName(fromName))
+      card.fromName = getPersonName(fromName) || fromName || ''
+      card.fromUserCode = fromPerson ? fromPerson.userCode : fromName
+      card.fromSurname = getSurname(card.fromName) || '—'
+    } else {
+      card.fromName = ''
+      card.fromUserCode = ''
+      card.fromSurname = '—'
+    }
+    // 接班人 = 第二天的白班人员
+    const tomorrowScheduleData = tomorrowSchedule.value
+    if (tomorrowScheduleData) {
+      const toName = tomorrowScheduleData.eccDayPersonnelName || tomorrowScheduleData.ecc_day_personnel_id || ''
+      const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === getPersonName(toName))
+      card.toName = getPersonName(toName) || toName || ''
+      card.toUserCode = toPerson ? toPerson.userCode : toName
+      card.toSurname = getSurname(card.toName) || '—'
+    } else {
+      card.toName = ''
+      card.toUserCode = ''
+      card.toSurname = '—'
+    }
+    card.fromColor = 'var(--text-3)'
+    card.toColor = 'var(--primary)'
+  } else {
+    // 切换到白班(白班→夜班)：交班人=今天白班，接班人=今天夜班
+    card.fromRoleDesc = 'ECC 白班 · 08:00-20:00'
+    card.toRoleDesc = 'ECC 夜班 · 20:00-08:00'
+    // 交班人 = 今天的白班人员
+    const schedule = todaySchedule.value
+    if (schedule) {
+      const fromName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
+      const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === getPersonName(fromName))
+      card.fromName = getPersonName(fromName) || fromName || ''
+      card.fromUserCode = fromPerson ? fromPerson.userCode : fromName
+      card.fromSurname = getSurname(card.fromName) || '—'
+    } else {
+      card.fromName = ''
+      card.fromUserCode = ''
+      card.fromSurname = '—'
+    }
+    // 接班人 = 今天的夜班人员
+    if (schedule) {
+      const toName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
+      const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === getPersonName(toName))
+      card.toName = getPersonName(toName) || toName || ''
+      card.toUserCode = toPerson ? toPerson.userCode : toName
+      card.toSurname = getSurname(card.toName) || '—'
+    } else {
+      card.toName = ''
+      card.toUserCode = ''
+      card.toSurname = '—'
+    }
+    card.fromColor = 'var(--primary)'
+    card.toColor = 'var(--text-3)'
+  }
   // 同步更新备份
   if (card._eccBackup) {
     card._eccBackup.shiftType = card.shiftType
@@ -1253,7 +1321,9 @@ const undoEditCard = async (card) => {
 }
 
 // 重新编辑已保存的卡片
-const editDraftCard = (card) => {
+const editDraftCard = async (card) => {
+  // 加载排班数据，确保切换班次时能获取到正确的默认人员
+  await loadHandoverInitData()
   cardSnapshots.set(card._cardId, cloneEditableFields(card))
   card.isDraft = true
   // 如果列表为空则补一个空行方便编辑
@@ -1297,6 +1367,26 @@ const confirmHandover = async (item) => {
       await searchHandover()
     }
   }
+}
+
+// 复制文本到剪贴板
+const copyText = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.closeAll()
+    ElMessage.success('已复制到剪贴板')
+  }).catch(() => {
+    // 降级方案
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    ElMessage.closeAll()
+    ElMessage.success('已复制到剪贴板')
+  })
 }
 
 // 删除卡片
@@ -1800,7 +1890,7 @@ onBeforeUnmount(() => {
                 <el-icon><Message /></el-icon> 交接事件明细
               </div>
               <template v-if="item.isDraft">
-                <div v-for="(line, li) in item.systemStatus" :key="'s-' + line._uid" class="handover-input-row-with-dot" :data-status-uid="line._uid">
+                <div v-for="(line, li) in item.systemStatus" :key="'s-' + line._uid" class="handover-input-row-with-dot" :class="'input-level-' + line.level" :data-status-uid="line._uid">
                   <span
                     class="severity-dot"
                     :style="{ background: getLevelColor(line.level) }"
@@ -1810,20 +1900,28 @@ onBeforeUnmount(() => {
                   <span class="row-index">{{ li + 1 }}.</span>
                   <el-input
                     v-model="line.text"
+                    type="textarea"
+                    :autosize="{ minRows: 1, maxRows: 10 }"
                     size="small"
                     spellcheck="false"
                     placeholder="输入系统运行状态，回车添加下一条..."
                     @keydown.enter.prevent="addStatusItem(item, li)"
                   />
-                  <span class="row-delete-btn" @click="removeLineItem(item.systemStatus, li)" v-if="item.systemStatus.length > 1">
+                  <span v-if="item.systemStatus.length > 1" class="row-delete-btn" @click="removeLineItem(item.systemStatus, li)">
                     <el-icon><Delete /></el-icon>
+                  </span>
+                  <span v-else class="row-clear-btn" @click="line.text = ''; line.level = 0" title="清空">
+                    <el-icon><Close /></el-icon>
                   </span>
                 </div>
               </template>
               <ul v-else class="handover-list">
                 <template v-for="(line, li) in item.systemStatus" :key="'s-' + li">
                   <li v-if="line.text && line.text.trim() && line.text.trim() !== '-' && line.text.trim() !== '—'" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
-                    {{ li + 1 }}. {{ line.text }}
+                    <span class="handover-list-text">{{ li + 1 }}. {{ line.text }}</span>
+                    <span class="handover-list-copy" @click="copyText(line.text)" title="复制">
+                      <el-icon><CopyDocument /></el-icon>
+                    </span>
                   </li>
                   <li v-else class="handover-list-empty"></li>
                 </template>
@@ -1837,7 +1935,7 @@ onBeforeUnmount(() => {
               </div>
               <template v-if="item.isDraft">
                 <template v-for="(line, li) in item.todoItems" :key="'t-' + line._uid">
-                  <div class="handover-input-row-with-dot" :data-todo-uid="line._uid">
+                  <div class="handover-input-row-with-dot" :class="'input-level-' + line.level" :data-todo-uid="line._uid">
                     <span
                       class="severity-dot"
                       :style="{ background: getLevelColor(line.level) }"
@@ -1847,13 +1945,18 @@ onBeforeUnmount(() => {
                     <span class="row-index">{{ li + 1 }}.</span>
                     <el-input
                       v-model="line.text"
+                      type="textarea"
+                      :autosize="{ minRows: 1, maxRows: 10 }"
                       size="small"
                       spellcheck="false"
                       placeholder="输入备注，回车添加下一条..."
                       @keydown.enter.prevent="addTodoItem(item, li)"
                     />
-                    <span class="row-delete-btn" @click="removeLineItem(item.todoItems, li)" v-if="item.todoItems.length > 1">
+                    <span v-if="item.todoItems.length > 1" class="row-delete-btn" @click="removeLineItem(item.todoItems, li)">
                       <el-icon><Delete /></el-icon>
+                    </span>
+                    <span v-else class="row-clear-btn" @click="line.text = ''; line.level = 0" title="清空">
+                      <el-icon><Close /></el-icon>
                     </span>
                   </div>
                 </template>
@@ -1897,7 +2000,10 @@ onBeforeUnmount(() => {
                 <ul class="handover-list">
                   <template v-for="(line, li) in item.todoItems" :key="'t-' + li">
                     <li v-if="line.text && line.text.trim() && line.text.trim() !== '-' && line.text.trim() !== '—'" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
-                      {{ li + 1 }}. {{ line.text }}
+                      <span class="handover-list-text">{{ li + 1 }}. {{ line.text }}</span>
+                      <span class="handover-list-copy" @click="copyText(line.text)" title="复制">
+                        <el-icon><CopyDocument /></el-icon>
+                      </span>
                     </li>
                     <li v-else class="handover-list-empty"></li>
                   </template>
@@ -2582,7 +2688,8 @@ onBeforeUnmount(() => {
 .handover-input-row-with-dot:last-child {
   margin-bottom: 0;
 }
-.handover-input-row-with-dot :deep(.el-input) {
+.handover-input-row-with-dot :deep(.el-input),
+.handover-input-row-with-dot :deep(.el-textarea) {
   flex: 1;
   --el-input-border-color: transparent !important;
   --el-input-bg-color: transparent !important;
@@ -2601,13 +2708,17 @@ onBeforeUnmount(() => {
   box-shadow: none !important;
   border: none !important;
 }
-.handover-input-row-with-dot :deep(.el-input__inner) {
+.handover-input-row-with-dot :deep(.el-input__inner),
+.handover-input-row-with-dot :deep(.el-textarea__inner) {
   font-size: 13px;
   color: var(--text-2);
-  height: 19.5px;
   line-height: 19.5px;
   padding: 0;
   background: transparent !important;
+  resize: none !important;
+}
+.handover-input-row-with-dot :deep(.el-textarea__inner) {
+  min-height: 19.5px;
 }
 
 /* 行序号 */
@@ -2643,11 +2754,25 @@ onBeforeUnmount(() => {
   color: var(--text-4);
   display: flex;
   align-items: center;
-  margin-top: 1px;
+  align-self: center;
   transition: color 0.15s;
 }
 .row-delete-btn:hover {
   color: var(--danger);
+}
+
+/* 行清空按钮 */
+.row-clear-btn {
+  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--text-4);
+  display: flex;
+  align-items: center;
+  align-self: center;
+  transition: color 0.15s;
+}
+.row-clear-btn:hover {
+  color: var(--warning);
 }
 
 /* 行上传按钮 */
@@ -2793,6 +2918,54 @@ onBeforeUnmount(() => {
 }
 .handover-list li.level-0::before {
   background: #16a34a;
+}
+
+/* 查看模式文本颜色跟随圆点 */
+.handover-list li.level-2 {
+  color: #dc2626;
+}
+.handover-list li.level-1 {
+  color: #f59e0b;
+}
+
+/* 列表文本 - 自动撑满 */
+/* 编辑模式文本颜色跟随圆点 */
+.handover-input-row-with-dot.input-level-2 :deep(.el-input__inner),
+.handover-input-row-with-dot.input-level-2 :deep(.el-textarea__inner) {
+  color: #dc2626 !important;
+}
+.handover-input-row-with-dot.input-level-2 .row-index {
+  color: #dc2626;
+}
+.handover-input-row-with-dot.input-level-1 :deep(.el-input__inner),
+.handover-input-row-with-dot.input-level-1 :deep(.el-textarea__inner) {
+  color: #f59e0b !important;
+}
+.handover-input-row-with-dot.input-level-1 .row-index {
+  color: #f59e0b;
+}
+
+.handover-list-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 复制按钮 */
+.handover-list-copy {
+  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--text-4);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: 4px;
+}
+.handover-list li:hover .handover-list-copy {
+  opacity: 1;
+}
+.handover-list-copy:hover {
+  color: var(--primary);
 }
 
 /* 空行占位 */
