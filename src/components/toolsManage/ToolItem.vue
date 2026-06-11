@@ -20,7 +20,7 @@ import {
 } from '@/utils/publicDataTools.js'
 import { CircleCheckFilled, CircleCloseFilled, UploadFilled } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox } from 'element-plus'
+import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox, ElLoading } from 'element-plus'
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
 import { Search, Edit,Key,Timer,Download,Unlock } from '@element-plus/icons-vue'
@@ -1612,15 +1612,23 @@ const handleEmailAliasQuerySubmit = async () => {
   if (!emailAliasQueryForm.value) return
   await emailAliasQueryForm.value.validate(async (valid, fields) => {
     if (valid) {
+      // 检查是否有数据
+      if (!EmailAccountDataModel.value.emailAliasArray || EmailAccountDataModel.value.emailAliasArray.length === 0) {
+        ElMessage.warning('请输入或导入邮件别名数据')
+        return
+      }
+
+      exportDisabled.value.renameSubmit = true
+
+      // 显示全局遮罩层
+      const loadingInstance = ElLoading.service({
+        lock: true,
+        text: '温馨提示：邮件别名查询可能需要较长时间⏳，请耐心等待，不要离开页面！',
+        background: 'rgba(0, 0, 0, 0.7)',
+        customClass: 'custom-loading-progress',
+      })
+
       try {
-        // 检查是否有数据
-        if (!EmailAccountDataModel.value.emailAliasArray || EmailAccountDataModel.value.emailAliasArray.length === 0) {
-          ElMessage.warning('请输入或导入邮件别名数据')
-          return
-        }
-
-        exportDisabled.value.renameSubmit = true
-
         // 调用邮件别名查询接口
         const response = await mailUserView(EmailAccountDataModel.value.emailAliasArray)
 
@@ -1659,7 +1667,9 @@ const handleEmailAliasQuerySubmit = async () => {
       } catch (e) {
         exportDisabled.value.renameSubmit = false
         ElMessage.error('查询失败：' + e.message)
-        throw new Error(e)
+      } finally {
+        // 关闭全局遮罩层
+        loadingInstance.close()
       }
     } else {
       if (validateTimer) {
