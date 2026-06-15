@@ -64,10 +64,11 @@ const loadMenuTree = async () => {
 }
 
 // 格式化菜单树
-const formatMenuTree = (menus,level = 1) => {
+const formatMenuTree = (menus, level = 1, parentId = null) => {
   console.log('menus',menus)
   return menus.map(menu => ({
     id: menu.id,
+    parentId: parentId,
     label: menu.name,
     path: menu.path,
     icon: menu.icon,
@@ -75,7 +76,7 @@ const formatMenuTree = (menus,level = 1) => {
     order: menu.orderNum,
     type: menu.menuType,
     level: level,
-    children: menu.children ? formatMenuTree(menu.children,level + 1) : []
+    children: menu.children ? formatMenuTree(menu.children, level + 1, menu.id) : []
   }))
 }
 
@@ -116,10 +117,25 @@ const openCreateDialog = (parent) => {
   dialogVisible.value = true
 }
 
+// 根据子节点id在菜单树中查找父节点
+const findParentInTree = (nodes, childId) => {
+  for (const node of nodes) {
+    if (node.children && node.children.some(c => c.id === childId)) {
+      return node
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findParentInTree(node.children, childId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 // 打开编辑菜单对话框
 const openEditDialog = (menu) => {
   console.log('menu',menu)
   currentMenu.value = menu
+  const parent = findParentInTree(menuTree.value, menu.id)
   formData.value = {
     parentId: menu.parentId,
     parentName: parent ? parent.label : null,

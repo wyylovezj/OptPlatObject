@@ -59,7 +59,7 @@
         style="width: 100%"
         :max-height="tableMaxHeight"
         :span-method="spanMethod"
-        :header-cell-style="{ background: '#f5f7fa', color: '#303133', fontWeight: '600', textAlign: 'center' }"
+        :header-cell-style="{ background: '#5B9BD5', color: '#FFFFFF', fontWeight: '600', textAlign: 'center' }"
         :cell-style="{ textAlign: 'center' }"
         @cell-click="onCellClick"
       >
@@ -222,8 +222,9 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Setting, Check, Refresh, Download, Top, Bottom, Edit, Close, Files, RefreshLeft } from '@element-plus/icons-vue'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 
@@ -232,40 +233,6 @@ const permissionStore = usePermissionStore()
 // 统一消息提示：弹出前关闭已有提示，避免重叠
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
 
-// 待保存通知管理
-let unsavedNotifyInstance = null
-let hasNewRowSinceLastSave = false // 是否有新增但从未保存过的行
-
-const showUnsavedNotify = () => {
-  if (unsavedNotifyInstance) return
-  ElMessage.closeAll()
-  unsavedNotifyInstance = ElNotification({
-    title: '',
-    dangerouslyUseHTMLString: true,
-    message: `
-      <div class="unsaved-card">
-        <div class="unsaved-card-accent"></div>
-        <div class="unsaved-card-body">
-          <div class="unsaved-card-icon">📝</div>
-          <div class="unsaved-card-content">
-            <div class="unsaved-card-title">数据未保存</div>
-            <div class="unsaved-card-desc">你有待保存的数据，请及时保存</div>
-          </div>
-        </div>
-      </div>
-    `,
-    duration: 0,
-    position: 'top-right',
-    customClass: 'unsaved-notification',
-  })
-}
-
-const hideUnsavedNotify = () => {
-  if (unsavedNotifyInstance) {
-    unsavedNotifyInstance.close()
-    unsavedNotifyInstance = null
-  }
-}
 import { saveDailyHandoverData, getDailyHandoverData, getDailyHandoverFieldConfig, addDailyHandoverField, updateDailyHandoverFieldLabel, updateDailyHandoverFieldSortOrder, exportDailyHandover, exportMergedHandover, getDuty } from '@/api/dutyPageInterface'
 
 // 表格容器引用，用于动态计算 max-height
@@ -325,6 +292,31 @@ const visibleColumns = computed(() =>
 // 工作内容字段列表（动态计算，只含可见列）
 const workContentFields = computed(() => visibleColumns.value.map((c) => c.field))
 
+// ==================== 未保存提示 ====================
+const dirty = ref(false)
+const isLoadingData = ref(false) // 加载数据时抑制watch
+
+// 浏览器关闭/刷新提示
+const handleBeforeUnload = (e) => {
+  if (dirty.value) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+}
+
+// 路由离开前提示
+onBeforeRouteLeave(async () => {
+  if (dirty.value) {
+    try {
+      await ElMessageBox.confirm('当前有未保存的修改，确定要离开吗？', '未保存提示', {
+        confirmButtonText: '离开', cancelButtonText: '取消', type: 'warning',
+      })
+      return true
+    } catch { return false }
+  }
+  return true
+})
+
 // 列管理对话框状态
 const columnDialogVisible = ref(false)
 
@@ -350,6 +342,10 @@ const pageTitle = computed(() => {
 
 // 所有数据（初始为空，由用户通过新增按钮添加）
 const allData = ref([])
+
+// 监听数据变化，标记未保存状态（放在 allData 和 columnConfig 都声明之后）
+watch(allData, () => { if (!isLoadingData.value) dirty.value = true }, { deep: true })
+watch(columnConfig, () => { if (!isLoadingData.value) dirty.value = true }, { deep: true })
 
 // 最后一次保存/加载时的数据快照，用于撤销恢复
 const savedDataCopy = ref([])
@@ -463,7 +459,6 @@ const confirmCellStatus = () => {
   if (selectedStatus.value === '正常') {
     // 选择正常，清空文本内容
     row[field] = ''
-    showUnsavedNotify()
   } else if (selectedStatus.value === '其他') {
     // 选择其他，默认空文本
     if (!row[field]) {
@@ -511,9 +506,7 @@ const handleUndo = async () => {
     })
     allData.value = JSON.parse(JSON.stringify(savedDataCopy.value))
     filterDataByDateRange()
-    if (!hasNewRowSinceLastSave) {
-      hideUnsavedNotify()
-    }
+    dirty.value = false
     msg('success', '已撤销所有未保存的修改')
   } catch {
     // 用户取消，不做任何操作
@@ -526,7 +519,6 @@ const confirmEdit = () => {
   const field = currentEditField.value
   if (row && field) {
     row[field] = editValue.value
-    showUnsavedNotify()
   }
   editDialogVisible.value = false
 }
@@ -568,8 +560,6 @@ const handleAddRow = async () => {
   )
   filterDataByDateRange()
   updateSavedDataCopy()
-  hasNewRowSinceLastSave = true
-  showUnsavedNotify()
   msg('success', `已成功新增 ${todayStr} 的行数据`)
 }
 
@@ -608,7 +598,6 @@ const handleAddColumn = async () => {
       })
       newColumnForm.value = { field: '', label: '' }
       updateSavedDataCopy()
-      showUnsavedNotify()
       msg('success', `新增字段 "${label}" 成功`)
     } else {
       msg('error', res.message || '新增字段失败')
@@ -812,8 +801,7 @@ const handleSave = async () => {
     const res = await saveDailyHandoverData(records)
     if (res.status === 'success') {
       updateSavedDataCopy()
-      hasNewRowSinceLastSave = false
-      hideUnsavedNotify()
+      dirty.value = false
       msg('success', '保存成功')
     } else {
       msg('error', res.message || '保存失败')
@@ -843,8 +831,13 @@ const createFrontendRow = (date, dutyPerson, shiftLabel, backendRecord) => {
 
 // 从后端加载数据
 const loadData = async () => {
-  hasNewRowSinceLastSave = false
-  hideUnsavedNotify()
+  if (dirty.value) {
+    try {
+      await ElMessageBox.confirm('当前有未保存的修改，重新加载将丢失更改，是否继续？', '未保存提示', {
+        confirmButtonText: '继续加载', cancelButtonText: '取消', type: 'warning',
+      })
+    } catch { return }
+  }
   if (!dateRange.value || dateRange.value.length !== 2) {
     msg('warning', '请先选择日期范围')
     return
@@ -882,13 +875,21 @@ const loadData = async () => {
           }
         })
 
+      isLoadingData.value = true
       allData.value = newRows
       updateSavedDataCopy()
       filterDataByDateRange()
+      await nextTick()
+      dirty.value = false
+      isLoadingData.value = false
       msg('success', `已加载 ${new Set(res.data.map(r => r.handover_date)).size} 条记录`)
     } else {
+      isLoadingData.value = true
       allData.value = []
       filterDataByDateRange()
+      await nextTick()
+      dirty.value = false
+      isLoadingData.value = false
     }
   } catch (e) {
     msg('error', e.message || '加载数据失败')
@@ -901,6 +902,7 @@ let resizeObserver = null
 onMounted(async () => {
   await loadFieldConfig()
   loadData()
+  window.addEventListener('beforeunload', handleBeforeUnload)
 
   // 使用 ResizeObserver 监听容器高度，确保表格滚动正常工作
   nextTick(() => {
@@ -919,8 +921,8 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect()
   }
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   ElMessage.closeAll()
-  hideUnsavedNotify()
 })
 
 // 从后端加载完整的字段配置（不再硬编码系统字段）
@@ -937,6 +939,7 @@ const loadFieldConfig = async () => {
         sortOrder: cfg.sort_order,
       }))
       configs.sort((a, b) => a.sortOrder - b.sortOrder)
+      isLoadingData.value = true
       columnConfig.value = configs
 
       // 初始化已有数据行的新字段
@@ -948,6 +951,9 @@ const loadFieldConfig = async () => {
           }
         })
       })
+      await nextTick()
+      dirty.value = false
+      isLoadingData.value = false
     } else {
       console.warn('后端字段配置为空', res)
     }
@@ -969,6 +975,7 @@ const loadFieldConfig = async () => {
   overflow: hidden;
   padding: 20px;
   box-sizing: border-box;
+  user-select: none;
 }
 
 .header-bar {
@@ -1390,11 +1397,12 @@ const loadFieldConfig = async () => {
 }
 
 :deep(.el-table__header) {
-  background-color: #f5f7fa;
+  background-color: #5B9BD5;
 }
 
 :deep(.el-table__header th) {
-  background-color: #f5f7fa !important;
+  background-color: #5B9BD5 !important;
+  color: #FFFFFF !important;
 }
 
 /* 移除表格默认斑马纹，统一所有单元格背景色为白色 */
@@ -1513,124 +1521,6 @@ const loadFieldConfig = async () => {
 .cell-placeholder {
   color: var(--el-text-color-placeholder);
   font-size: 12px;
-}
-
-/* 未保存通知卡片样式（:global 因为通知渲染在组件 DOM 树之外） */
-:global(.unsaved-notification) {
-  padding: 0 !important;
-  border: none !important;
-  border-radius: 14px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  min-width: 340px;
-}
-
-:global(.unsaved-notification .el-notification__group) {
-  margin-left: 0 !important;
-  padding: 0 !important;
-  align-items: stretch !important;
-  width: 100%;
-}
-
-:global(.unsaved-notification .el-notification__title) {
-  display: none !important;
-}
-
-:global(.unsaved-notification .el-notification__content) {
-  margin: 0 !important;
-  width: 100%;
-}
-
-:global(.unsaved-notification .el-notification__icon) {
-  display: none !important;
-}
-
-:global(.unsaved-notification .el-notification__closeBtn) {
-  position: absolute !important;
-  top: 8px !important;
-  right: 10px !important;
-  font-size: 16px !important;
-  color: #bbb !important;
-  transition: color 0.2s, transform 0.2s !important;
-  z-index: 1;
-}
-
-:global(.unsaved-notification .el-notification__closeBtn:hover) {
-  color: #666 !important;
-  transform: rotate(90deg) scale(1.15) !important;
-}
-
-:global(.unsaved-card) {
-  position: relative;
-  display: flex;
-  background: linear-gradient(135deg, #fffaf0, #fef7e6);
-  border: 1px solid #fdecc8;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
-  animation: unsaved-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-:global(.unsaved-card-accent) {
-  width: 4px;
-  flex-shrink: 0;
-  background: linear-gradient(180deg, #fbbf24, #f59e0b);
-}
-
-:global(.unsaved-card-body) {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-}
-
-:global(.unsaved-card-icon) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  font-size: 18px;
-  flex-shrink: 0;
-  animation: unsaved-bounce 2s ease-in-out infinite;
-}
-
-:global(.unsaved-card-content) {
-  flex: 1;
-  min-width: 0;
-}
-
-:global(.unsaved-card-title) {
-  font-size: 14px;
-  font-weight: 700;
-  color: #92400e;
-  line-height: 1.4;
-}
-
-:global(.unsaved-card-desc) {
-  font-size: 12.5px;
-  color: #a16207;
-  line-height: 1.4;
-  margin-top: 1px;
-}
-
-@keyframes unsaved-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(40px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes unsaved-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
 }
 
 .cell-input {

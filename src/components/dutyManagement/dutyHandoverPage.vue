@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, nextTick, onBeforeUnmount, onMounted } from 'vue'
-import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload, RefreshLeft, Message, Download, CopyDocument, Close } from '@element-plus/icons-vue'
+import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload, RefreshLeft, Message, Download, CopyDocument, Close, Tickets } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElInput, ElTooltip, ElTag } from 'element-plus'
 import { getDuty, getEcc, getSys, getNet, getPM, getBatch, getService, deleteHandover, saveHandover, getHandovers, confirmHandovers, exportHandoverExcel } from '@/api/dutyPageInterface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
@@ -1389,6 +1389,67 @@ const copyText = (text) => {
   })
 }
 
+// 一键复制全部条目（交接事件明细 / 备注）
+const copyAllItems = (items, label) => {
+  const lines = items
+    .filter(s => s.text && s.text.trim() && s.text.trim() !== '-' && s.text.trim() !== '—')
+    .map((s, i) => `${i + 1}. ${s.text}`)
+  if (lines.length === 0) {
+    ElMessage.closeAll()
+    ElMessage.warning(`${label}无内容可复制`)
+    return
+  }
+  copyText(lines.join('\n'))
+}
+
+// 一键粘贴全部条目（交接事件明细 / 备注）
+const pasteAllItems = async (card, field, label) => {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text || !text.trim()) {
+      ElMessage.closeAll()
+      ElMessage.warning('剪贴板为空，无法粘贴')
+      return
+    }
+    const lines = text.split(/\r?\n/).map(l => l.replace(/^\d+[\.\)、]\s*/, '').trim()).filter(Boolean)
+    if (lines.length === 0) {
+      ElMessage.closeAll()
+      ElMessage.warning('剪贴板无有效内容')
+      return
+    }
+    const list = card[field]
+    // 若当前仅有一行空行则替换，否则追加
+    const isEmpty = list.length === 0 || (list.length === 1 && !list[0].text?.trim())
+    const newItems = lines.map(l => ({
+      text: l,
+      level: 0,
+      _uid: ++lineUidCounter.value,
+      ...(field === 'todoItems' ? { attachments: [] } : {}),
+    }))
+    if (isEmpty) {
+      list.splice(0, list.length, ...newItems)
+    } else {
+      list.push(...newItems)
+    }
+    ElMessage.closeAll()
+    ElMessage.success(`已粘贴 ${lines.length} 条${label}`)
+  } catch (e) {
+    ElMessage.closeAll()
+    ElMessage.error('粘贴失败，请检查浏览器剪贴板权限')
+  }
+}
+
+// 一键清除所有条目（交接事件明细 / 备注）
+const clearAllItems = (card, field) => {
+  const list = card[field]
+  list.splice(0, list.length)
+  if (field === 'todoItems') {
+    list.push({ text: '', level: 0, _uid: ++lineUidCounter.value, attachments: [] })
+  } else {
+    list.push({ text: '', level: 0, _uid: ++lineUidCounter.value })
+  }
+}
+
 // 删除卡片
 const deleteCard = async (card) => {
   try {
@@ -1888,6 +1949,27 @@ onBeforeUnmount(() => {
             <div class="handover-content-block">
               <div class="handover-content-title">
                 <el-icon><Message /></el-icon> 交接事件明细
+                <template v-if="!item.isDraft">
+                  <el-tooltip :content="`复制全部(${item.systemStatus.filter(s => s.text && s.text.trim() && s.text.trim() !== '-' && s.text.trim() !== '—').length}条)`" placement="top">
+                    <span class="title-action-btn" @click="copyAllItems(item.systemStatus, '交接事件明细')">
+                      <el-icon><CopyDocument /></el-icon>
+                    </span>
+                  </el-tooltip>
+                </template>
+                <template v-else>
+                  <div class="title-action-group">
+                    <el-tooltip content="一键粘贴全部" placement="top">
+                      <span class="title-action-btn paste" @click="pasteAllItems(item, 'systemStatus', '交接事件明细')">
+                        <el-icon><Tickets /></el-icon>
+                      </span>
+                    </el-tooltip>
+                    <el-tooltip content="一键清除全部" placement="top">
+                      <span class="title-action-btn clear" @click="clearAllItems(item, 'systemStatus')">
+                        <el-icon><Delete /></el-icon>
+                      </span>
+                    </el-tooltip>
+                  </div>
+                </template>
               </div>
               <template v-if="item.isDraft">
                 <div v-for="(line, li) in item.systemStatus" :key="'s-' + line._uid" class="handover-input-row-with-dot" :class="'input-level-' + line.level" :data-status-uid="line._uid">
@@ -1932,6 +2014,27 @@ onBeforeUnmount(() => {
             <div class="handover-content-block">
               <div class="handover-content-title">
                 <el-icon><Document /></el-icon> 备注
+                <template v-if="!item.isDraft">
+                  <el-tooltip :content="`复制全部(${item.todoItems.filter(s => s.text && s.text.trim() && s.text.trim() !== '-' && s.text.trim() !== '—').length}条)`" placement="top">
+                    <span class="title-action-btn" @click="copyAllItems(item.todoItems, '备注')">
+                      <el-icon><CopyDocument /></el-icon>
+                    </span>
+                  </el-tooltip>
+                </template>
+                <template v-else>
+                  <div class="title-action-group">
+                    <el-tooltip content="一键粘贴全部" placement="top">
+                      <span class="title-action-btn paste" @click="pasteAllItems(item, 'todoItems', '备注')">
+                        <el-icon><Tickets /></el-icon>
+                      </span>
+                    </el-tooltip>
+                    <el-tooltip content="一键清除全部" placement="top">
+                      <span class="title-action-btn clear" @click="clearAllItems(item, 'todoItems')">
+                        <el-icon><Delete /></el-icon>
+                      </span>
+                    </el-tooltip>
+                  </div>
+                </template>
               </div>
               <template v-if="item.isDraft">
                 <template v-for="(line, li) in item.todoItems" :key="'t-' + line._uid">
@@ -2948,6 +3051,49 @@ onBeforeUnmount(() => {
 .handover-list-text {
   flex: 1;
   min-width: 0;
+}
+
+/* 标题右侧操作按钮组（编辑模式多按钮容器） */
+.title-action-group {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.title-action-group .title-action-btn {
+  margin-left: 0;
+}
+
+/* 标题右侧操作按钮 */
+.title-action-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--text-4);
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.title-action-btn:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
+.title-action-btn.paste {
+  color: var(--warning);
+}
+.title-action-btn.paste:hover {
+  color: #d97706;
+  background: var(--warning-bg);
+}
+.title-action-btn.clear {
+  color: var(--text-4);
+}
+.title-action-btn.clear:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 /* 复制按钮 */

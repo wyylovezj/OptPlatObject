@@ -20,6 +20,8 @@ import DutyManagementPage from '@/components/dutyManagement/dutyManagementPage.v
 import DutyHandoverPage from '@/components/dutyManagement/dutyHandoverPage.vue'
 import DutyLogPage from '@/components/dutyManagement/dutyLogPage.vue'
 import DailyHandoverPage from '@/components/dutyManagement/DailyHandoverPage.vue'
+import RemoteRecordPage from '@/components/dutyManagement/RemoteRecordPage.vue'
+import SecurityDeviceMonitorPage from '@/components/dutyManagement/SecurityDeviceMonitorPage.vue'
 
 
 // 创建路由实例
@@ -284,6 +286,28 @@ const router = createRouter({
             title: '日常工作交接',
             breadcrumb: '日常工作交接',
             permission: 'duty:dailyHandover',
+          },
+        },
+        {
+          path: 'remoteRecord',
+          name: 'RemoteRecord',
+          component: RemoteRecordPage,
+          meta: {
+            requiresAuth: true,
+            title: '远程记录',
+            breadcrumb: '远程记录',
+            permission: 'duty:remoteRecord',
+          },
+        },
+        {
+          path: 'securityDeviceMonitor',
+          name: 'SecurityDeviceMonitor',
+          component: SecurityDeviceMonitorPage,
+          meta: {
+            requiresAuth: true,
+            title: '安全设备监控',
+            breadcrumb: '安全设备监控',
+            permission: 'duty:securityDeviceMonitor',
           },
         },
       ],
