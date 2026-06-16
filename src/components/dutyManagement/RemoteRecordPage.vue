@@ -26,6 +26,14 @@
               />
             </div>
             <span class="filter-sep"></span>
+            <div class="toolbar-filter">
+              <span class="filter-label">邮件：</span>
+              <el-select v-model="moaVpnEmailFilter" size="small" clearable placeholder="全部" style="width: 100px">
+                <el-option label="未补发" value="未补发" />
+                <el-option label="已补发" value="已补发" />
+              </el-select>
+            </div>
+            <span class="filter-sep"></span>
             <div class="toolbar-right">
               <div class="toolbar-actions-left">
                 <el-button v-if="permissionStore.hasPermission('remote:moaVpn:save')" type="success" size="small" @click="handleMoaVpnSave">
@@ -54,7 +62,7 @@
           <!-- 表格 -->
           <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="moaVpnTableRef">
             <el-table
-              :data="moaVpnTableData"
+              :data="filteredMoaVpnTableData"
               border
               style="width: 100%"
               :max-height="tableMaxHeight"
@@ -297,6 +305,7 @@ const tableMaxHeight = ref(0)
 
 // 日期快捷选项
 const today = new Date().toISOString().split('T')[0]
+const lastWeek = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0] })()
 const dateShortcuts = [
   {
     text: '本月',
@@ -318,8 +327,16 @@ const dateShortcuts = [
 ]
 
 // ==================== MOA及VPN权限使用记录 ====================
-const moaVpnDateRange = ref([today, today])
+const moaVpnDateRange = ref([lastWeek, today])
+const moaVpnEmailFilter = ref('未补发')
 const moaVpnTableData = ref([])
+
+// 按邮件筛选条件过滤表格显示数据
+const filteredMoaVpnTableData = computed(() => {
+  if (!moaVpnEmailFilter.value) return moaVpnTableData.value
+  return moaVpnTableData.value.filter(r => r.email === moaVpnEmailFilter.value)
+})
+
 const moaVpnSelectedRows = ref([])
 
 // 下拉数据源
@@ -459,7 +476,7 @@ const moaVpnTitle = computed(() => {
 
 const handleMoaVpnSelectionChange = (rows) => { moaVpnSelectedRows.value = rows }
 const handleMoaVpnDateChange = () => { loadMoaVpnData() }
-const handleMoaVpnClear = () => { moaVpnDateRange.value = [today, today]; loadMoaVpnData() }
+const handleMoaVpnClear = () => { moaVpnDateRange.value = [lastWeek, today]; loadMoaVpnData() }
 
 const handleMoaVpnAddRow = () => {
   moaVpnTableData.value.push({
@@ -472,7 +489,7 @@ const handleMoaVpnAddRow = () => {
     end_time: '',
     ecc_duty_person: '',
     approver: '',
-    email: '',
+    email: '未补发',
     remark: '',
   })
   loadEccDutyByTableDates()
@@ -582,7 +599,7 @@ const loadMoaVpnData = async () => {
       await nextTick()
       moaVpnDirty.value = false
       isLoadingData.value = false
-      msg('success', `已加载 ${res.data.length} 条记录`)
+      msg('success', `已加载 ${filteredMoaVpnTableData.value.length} 条记录`)
       loadEccDutyByTableDates()
     } else {
       isLoadingData.value = true
@@ -692,7 +709,7 @@ const handleMergedExport = async () => {
 }
 
 // ==================== ECC联系异常情况 ====================
-const eccContactDateRange = ref([today, today])
+const eccContactDateRange = ref([lastWeek, today])
 const eccContactTableData = ref([])
 const eccContactSelectedRows = ref([])
 
@@ -748,7 +765,7 @@ const eccContactTitle = computed(() => {
 
 const handleEccContactSelectionChange = (rows) => { eccContactSelectedRows.value = rows }
 const handleEccContactDateChange = () => { loadEccContactData() }
-const handleEccContactClear = () => { eccContactDateRange.value = [today, today]; loadEccContactData() }
+const handleEccContactClear = () => { eccContactDateRange.value = [lastWeek, today]; loadEccContactData() }
 
 const handleEccContactAddRow = () => {
   eccContactTableData.value.push({
@@ -1031,6 +1048,19 @@ onUnmounted(() => {
   background: #e2e8f0;
   flex-shrink: 0;
   margin: 0 4px;
+}
+
+.toolbar-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.filter-label {
+  font-size: 13px;
+  color: #606266;
+  white-space: nowrap;
 }
 
 /* 日期选择器 */
