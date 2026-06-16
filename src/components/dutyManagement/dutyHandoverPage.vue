@@ -1442,15 +1442,33 @@ const confirmHandover = async (item) => {
   }
 }
 
-// 复制文本到剪贴板
-const copyText = (text) => {
-  navigator.clipboard.writeText(text).then(() => {
+// 根据 level 返回对应的中文标签（用于复制粘贴保留颜色）
+const getLevelLabel = (level) => {
+  const found = severityLevels.find(s => s.value === level)
+  return found ? found.label : '普通'
+}
+
+// 根据中文标签解析 level 值
+const parseLevelLabel = (text) => {
+  const match = text.match(/^\[(普通|重要|严重)\]/)
+  if (match) {
+    const found = severityLevels.find(s => s.label === match[1])
+    return { level: found ? found.value : 0, text: text.slice(match[0].length).trim() }
+  }
+  return { level: 0, text }
+}
+
+// 复制文本到剪贴板（可选携带级别信息）
+const copyText = (text, level) => {
+  const prefix = level !== undefined ? `[${getLevelLabel(level)}]` : ''
+  const fullText = prefix + text
+  navigator.clipboard.writeText(fullText).then(() => {
     ElMessage.closeAll()
     ElMessage.success('已复制到剪贴板')
   }).catch(() => {
     // 降级方案
     const textarea = document.createElement('textarea')
-    textarea.value = text
+    textarea.value = fullText
     textarea.style.position = 'fixed'
     textarea.style.opacity = '0'
     document.body.appendChild(textarea)
@@ -1462,17 +1480,71 @@ const copyText = (text) => {
   })
 }
 
-// 一键复制全部条目（交接事件明细 / 备注）
+// 一键复制全部条目（交接事件明细 / 备注），保留颜色级别
 const copyAllItems = (items, label) => {
   const lines = items
     .filter(s => s.text && s.text.trim() && s.text.trim() !== '-' && s.text.trim() !== '—')
-    .map((s, i) => `${i + 1}. ${s.text}`)
+    .map((s, i) => `${i + 1}. [${getLevelLabel(s.level)}]${s.text}`)
   if (lines.length === 0) {
     ElMessage.closeAll()
     ElMessage.warning(`${label}无内容可复制`)
     return
   }
   copyText(lines.join('\n'))
+}
+
+// 处理编辑模式下 textarea 的粘贴事件：自动解析 [普通]/[重要]/[严重] 前缀并设置级别
+const handlePaste = (e, line) => {
+  const text = e.clipboardData.getData('text')
+  if (!text) return
+
+  // 只处理单行粘贴（不含换行符），避免影响多行一键粘贴逻辑
+  if (text.includes('\n') || text.includes('\r')) return
+
+  const result = parseLevelLabel(text.trim())
+  if (result.level !== 0) {
+    e.preventDefault()
+    line.level = result.level
+    // 在光标位置插入纯文本
+    const target = e.target
+    // el-input 内部 textarea 可能嵌套，处理原生 textarea 或 el-input 元素
+    const textarea = target.tagName === 'TEXTAREA' ? target : target.querySelector('textarea')
+    if (!textarea) {
+      // 降级：直接赋值
+      line.text = result.text
+      return
+    }
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const currentText = line.text || ''
+    line.text = currentText.substring(0, start) + result.text + currentText.substring(end)
+    // 移动光标到插入文本末尾
+    nextTick(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + result.text.length
+      textarea.focus()
+    })
+  }
+}
+
+// 处理编辑模式下 textarea 的复制事件（Ctrl+C）：选中文本时自动附加 [级别] 前缀
+const handleCopy = (e, line) => {
+  // 只处理有选中文本的复制，且自身级别非普通
+  if (line.level === 0) return
+
+  const target = e.target
+  const textarea = target.tagName === 'TEXTAREA' ? target : target.querySelector('textarea')
+  if (!textarea) return
+
+  const selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
+  if (!selectedText || selectedText.includes('\n')) return
+
+  // 如果选中文本已包含 [级别] 前缀则不重复添加
+  const levelLabel = getLevelLabel(line.level)
+  if (selectedText.startsWith(`[${levelLabel}]`)) return
+
+  e.preventDefault()
+  const formattedText = `[${levelLabel}]${selectedText}`
+  e.clipboardData.setData('text/plain', formattedText)
 }
 
 // 一键粘贴全部条目（交接事件明细 / 备注）
@@ -1484,7 +1556,12 @@ const pasteAllItems = async (card, field, label) => {
       ElMessage.warning('剪贴板为空，无法粘贴')
       return
     }
-    const lines = text.split(/\r?\n/).map(l => l.replace(/^\d+[\.\)、]\s*/, '').trim()).filter(Boolean)
+    const lines = text.split(/\r?\n/).map(l => {
+      const cleaned = l.replace(/^\d+[\.\)、]\s*/, '').trim()
+      if (!cleaned) return null
+      const parsed = parseLevelLabel(cleaned)
+      return parsed
+    }).filter(Boolean)
     if (lines.length === 0) {
       ElMessage.closeAll()
       ElMessage.warning('剪贴板无有效内容')
@@ -1493,9 +1570,9 @@ const pasteAllItems = async (card, field, label) => {
     const list = card[field]
     // 若当前仅有一行空行则替换，否则追加
     const isEmpty = list.length === 0 || (list.length === 1 && !list[0].text?.trim())
-    const newItems = lines.map(l => ({
-      text: l,
-      level: 0,
+    const newItems = lines.map(parsed => ({
+      text: parsed.text,
+      level: parsed.level,
       _uid: ++lineUidCounter.value,
       ...(field === 'todoItems' ? { attachments: [] } : {}),
     }))
@@ -2061,6 +2138,8 @@ onBeforeUnmount(() => {
                     spellcheck="false"
                     placeholder="输入系统运行状态，回车添加下一条..."
                     @keydown.enter.prevent="addStatusItem(item, li)"
+                    @paste="handlePaste($event, line)"
+                    @copy="handleCopy($event, line)"
                   />
                   <span v-if="item.systemStatus.length > 1" class="row-delete-btn" @click="removeLineItem(item.systemStatus, li)">
                     <el-icon><Delete /></el-icon>
@@ -2074,7 +2153,7 @@ onBeforeUnmount(() => {
                 <template v-for="(line, li) in item.systemStatus" :key="'s-' + li">
                   <li v-if="line.text && line.text.trim() && line.text.trim() !== '-' && line.text.trim() !== '—'" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
                     <span class="handover-list-text">{{ li + 1 }}. {{ line.text }}</span>
-                    <span class="handover-list-copy" @click="copyText(line.text)" title="复制">
+                    <span class="handover-list-copy" @click="copyText(line.text, line.level)" title="复制">
                       <el-icon><CopyDocument /></el-icon>
                     </span>
                   </li>
@@ -2127,6 +2206,8 @@ onBeforeUnmount(() => {
                       spellcheck="false"
                       placeholder="输入备注，回车添加下一条..."
                       @keydown.enter.prevent="addTodoItem(item, li)"
+                      @paste="handlePaste($event, line)"
+                      @copy="handleCopy($event, line)"
                     />
                     <span v-if="item.todoItems.length > 1" class="row-delete-btn" @click="removeLineItem(item.todoItems, li)">
                       <el-icon><Delete /></el-icon>
@@ -2177,7 +2258,7 @@ onBeforeUnmount(() => {
                   <template v-for="(line, li) in item.todoItems" :key="'t-' + li">
                     <li v-if="line.text && line.text.trim() && line.text.trim() !== '-' && line.text.trim() !== '—'" :class="getLevelClass(line.level) || { 'warn-item': line.warn, 'danger-item': line.danger }">
                       <span class="handover-list-text">{{ li + 1 }}. {{ line.text }}</span>
-                      <span class="handover-list-copy" @click="copyText(line.text)" title="复制">
+                      <span class="handover-list-copy" @click="copyText(line.text, line.level)" title="复制">
                         <el-icon><CopyDocument /></el-icon>
                       </span>
                     </li>
