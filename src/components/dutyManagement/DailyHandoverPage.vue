@@ -52,7 +52,7 @@
     </div>
 
     <!-- 表格容器 -->
-    <div class="table-wrapper" ref="tableWrapperRef">
+    <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="tableWrapperRef">
       <el-table
         :data="tableData"
         border
@@ -301,6 +301,7 @@ const workContentFields = computed(() => visibleColumns.value.map((c) => c.field
 // ==================== 未保存提示 ====================
 const dirty = ref(false)
 const isLoadingData = ref(false) // 加载数据时抑制watch
+let _lastLoadTime = 0
 
 // 浏览器关闭/刷新提示
 const handleBeforeUnload = (e) => {
@@ -837,6 +838,9 @@ const createFrontendRow = (date, dutyPerson, shiftLabel, backendRecord) => {
 
 // 从后端加载数据
 const loadData = async () => {
+  const _now = Date.now()
+  if (_now - _lastLoadTime < 500) return
+  _lastLoadTime = _now
   if (dirty.value) {
     try {
       await ElMessageBox.confirm('当前有未保存的修改，重新加载将丢失更改，是否继续？', '未保存提示', {
@@ -849,6 +853,8 @@ const loadData = async () => {
     return
   }
 
+  isLoadingData.value = true
+  // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getDailyHandoverData(dateRange.value)
     if (res.status === 'success' && res.data) {
@@ -1229,7 +1235,7 @@ const loadFieldConfig = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 180px;
+  max-width: 250px;
 }
 
 .column-tag {
@@ -1264,7 +1270,7 @@ const loadFieldConfig = async () => {
 }
 
 .label-edit-input {
-  width: 160px;
+  width: 280px;
 }
 
 .label-edit-input :deep(.el-input__wrapper) {
@@ -1380,6 +1386,7 @@ const loadFieldConfig = async () => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 /* 自定义输入框样式 - 默认无边框无阴影，hover 时显示 */

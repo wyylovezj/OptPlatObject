@@ -229,6 +229,12 @@ const resetFilters = () => {
 
 // 搜索函数
 const searchHandover = async () => {
+  const _now = Date.now()
+  if (_now - _lastSearchTime < 500) return
+  _lastSearchTime = _now
+  isLoading.value = true
+  // 模拟3秒延迟，测试loading遮罩
+  // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const params = {}
     if (filterDate.value && filterDate.value.length === 2) {
@@ -249,6 +255,8 @@ const searchHandover = async () => {
   } catch (e) {
     console.error('查询交接班记录失败:', e)
     ElMessage.error('查询交接班记录失败')
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -290,6 +298,10 @@ const lineUidCounter = { value: 0 }
 const nextLineUid = () => ++lineUidCounter.value
 
 const handoverList = ref([])
+
+// 加载状态
+const isLoading = ref(false)
+let _lastSearchTime = 0
 
 // ============ 值班选项常量 ============
 const roleOptions = [
@@ -1728,6 +1740,7 @@ onBeforeUnmount(() => {
             :shortcuts="dateShortcuts"
             unlink-panels
             style="width: 260px"
+            @clear="filterDate = getDefaultDateRange(); searchHandover()"
           />
         </el-form-item>
         <span class="filter-sep"></span>
@@ -1750,11 +1763,13 @@ onBeforeUnmount(() => {
       </el-form>
     </div>
 
-    <!-- 交接班时间线 -->
-    <div v-if="handoverList.length === 0" class="handover-empty-wrapper">
-      <el-empty description="暂无交接班记录" :image-size="200" />
-    </div>
-    <el-scrollbar v-else class="handover-timeline">
+   <!-- 交接班时间线 -->
+    <div v-loading="isLoading" class="handover-timeline-wrapper">
+      <!-- 内容始终渲染 -->
+      <div v-if="handoverList.length === 0" class="handover-empty-wrapper">
+        <el-empty description="暂无交接班记录" :image-size="200" />
+      </div>
+      <el-scrollbar v-else class="handover-timeline">
       <div v-for="(item, index) in handoverList" :key="index" class="handover-item">
         <span :class="['handover-dot', item.statusClass]"></span>
         <div class="handover-card">
@@ -2309,6 +2324,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </el-scrollbar>
+    </div>
 
     <!-- 新建交接班弹窗 -->
     <el-dialog v-model="handoverModalVisible" title="新建交接班记录" width="620px" :close-on-click-modal="false">
@@ -2508,6 +2524,13 @@ onBeforeUnmount(() => {
 }
 
 /* 交接班时间线 */
+.handover-timeline-wrapper {
+  flex: 1;
+  position: relative;
+  min-height: 300px;
+  overflow: hidden;
+}
+
 .handover-empty-wrapper {
   flex: 1;
   display: flex;

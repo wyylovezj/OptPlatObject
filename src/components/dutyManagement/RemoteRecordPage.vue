@@ -52,7 +52,7 @@
             </div>
           </div>
           <!-- 表格 -->
-          <div class="table-wrapper" ref="moaVpnTableRef">
+          <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="moaVpnTableRef">
             <el-table
               :data="moaVpnTableData"
               border
@@ -199,7 +199,7 @@
             </div>
           </div>
           <!-- 表格 -->
-          <div class="table-wrapper" ref="eccContactTableRef">
+          <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="eccContactTableRef">
             <el-table
               :data="eccContactTableData"
               border
@@ -413,6 +413,7 @@ const moaVpnDirty = ref(false)
 const eccContactDirty = ref(false)
 const isDirty = computed(() => moaVpnDirty.value || eccContactDirty.value)
 const isLoadingData = ref(false) // 加载数据时抑制watch
+let _lastLoadTime = 0
 
 // 浏览器关闭/刷新提示
 const handleBeforeUnload = (e) => {
@@ -557,6 +558,9 @@ const handleMoaVpnSave = async () => {
 }
 
 const loadMoaVpnData = async () => {
+  const _now = Date.now()
+  if (_now - _lastLoadTime < 500) return
+  _lastLoadTime = _now
   if (moaVpnDirty.value) {
     try {
       await ElMessageBox.confirm('当前有未保存的修改，重新加载将丢失更改，是否继续？', '未保存提示', {
@@ -568,6 +572,8 @@ const loadMoaVpnData = async () => {
     msg('warning', '请先选择日期范围')
     return
   }
+  isLoadingData.value = true
+  // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getMoaVpnRecord(moaVpnDateRange.value)
     if (res.status === 'success' && res.data) {
@@ -830,6 +836,9 @@ const handleEccContactSave = async () => {
 }
 
 const loadEccContactData = async () => {
+  const _now = Date.now()
+  if (_now - _lastLoadTime < 500) return
+  _lastLoadTime = _now
   if (eccContactDirty.value) {
     try {
       await ElMessageBox.confirm('当前有未保存的修改，重新加载将丢失更改，是否继续？', '未保存提示', {
@@ -841,6 +850,8 @@ const loadEccContactData = async () => {
     msg('warning', '请先选择日期范围')
     return
   }
+  isLoadingData.value = true
+  await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getEccContactException(eccContactDateRange.value)
     if (res.status === 'success' && res.data) {
@@ -1048,6 +1059,7 @@ onUnmounted(() => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 /* 输入框样式 */

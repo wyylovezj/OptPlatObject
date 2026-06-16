@@ -44,7 +44,7 @@
       </div>
     </div>
     <!-- 表格 -->
-    <div class="table-wrapper" ref="tableRef">
+    <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="tableRef">
       <el-table
         :data="tableData"
         border
@@ -216,6 +216,7 @@ const getOpsPersonUsername = (name) => {
 // ==================== 未保存提示 ====================
 const dirty = ref(false)
 const isLoadingData = ref(false) // 加载数据时抑制watch
+let _lastLoadTime = 0
 
 // 浏览器关闭/刷新提示
 const handleBeforeUnload = (e) => {
@@ -339,6 +340,9 @@ const handleSave = async () => {
 }
 
 const loadData = async () => {
+  const _now = Date.now()
+  if (_now - _lastLoadTime < 500) return
+  _lastLoadTime = _now
   if (dirty.value) {
     try {
       await ElMessageBox.confirm('当前有未保存的修改，重新加载将丢失更改，是否继续？', '未保存提示', {
@@ -350,6 +354,8 @@ const loadData = async () => {
     msg('warning', '请先选择日期范围')
     return
   }
+  isLoadingData.value = true
+  // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getSecurityDeviceRecord(dateRange.value)
     if (res.status === 'success' && res.data) {
@@ -568,6 +574,7 @@ onUnmounted(() => {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  position: relative;
 }
 
 /* 输入框样式 */
