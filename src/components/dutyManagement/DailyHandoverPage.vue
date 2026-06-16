@@ -235,12 +235,18 @@ const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) 
 
 import { saveDailyHandoverData, getDailyHandoverData, getDailyHandoverFieldConfig, addDailyHandoverField, updateDailyHandoverFieldLabel, updateDailyHandoverFieldSortOrder, exportDailyHandover, exportMergedHandover, getDuty } from '@/api/dutyPageInterface'
 
+// 本地日期字符串：避免 toISOString 的 UTC 时区偏移问题（UTC+8 时区 0:00~8:00 会得到前一天日期）
+const getLocalDateStr = (date = new Date()) => {
+  const pad = n => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 // 表格容器引用，用于动态计算 max-height
 const tableWrapperRef = ref(null)
 const tableMaxHeight = ref(0)
 
 // 日期范围选择器
-const today = new Date().toISOString().split('T')[0]
+const today = getLocalDateStr()
 const dateRange = ref([today, today])
 
 // 快捷日期导航
@@ -525,7 +531,7 @@ const confirmEdit = () => {
 
 // ========== 新增行 ==========
 const handleAddRow = async () => {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateStr()
   const todayExists = allData.value.some((row) => row.date === todayStr)
   if (todayExists) {
     msg('warning', `今日（${todayStr}）的行数据已存在，无需重复新增`)

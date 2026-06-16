@@ -198,6 +198,21 @@ const onRowDateChange = (row) => {
   row.ecc_duty_person = ''
 }
 
+// username 反查辅助函数
+const getEccPersonUsername = (name) => {
+  if (!name) return ''
+  for (const date in eccDutyMap.value) {
+    const person = eccDutyMap.value[date]?.find(p => p.name === name)
+    if (person) return person.userCode || ''
+  }
+  return ''
+}
+const getOpsPersonUsername = (name) => {
+  if (!name) return ''
+  const person = opsList.value.find(p => p.name === name)
+  return person?.userCode || ''
+}
+
 // ==================== 未保存提示 ====================
 const dirty = ref(false)
 const isLoadingData = ref(false) // 加载数据时抑制watch
@@ -304,7 +319,9 @@ const handleSave = async () => {
     record_date: r.record_date,
     alert_content: r.alert_content || '',
     ecc_duty_person: r.ecc_duty_person || '',
+    ecc_duty_person_username: getEccPersonUsername(r.ecc_duty_person),
     ops_confirm_person: r.ops_confirm_person || '',
+    ops_confirm_person_username: getOpsPersonUsername(r.ops_confirm_person),
     remark: r.remark || '',
   }))
 

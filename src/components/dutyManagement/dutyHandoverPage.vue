@@ -2,7 +2,7 @@
 import { ref, reactive, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { Plus, User, UserFilled, Monitor, Document, Grid, Notebook, Check, Edit, Delete, CircleCheck, Upload, RefreshLeft, Message, Download, CopyDocument, Close, Tickets } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElInput, ElTooltip, ElTag } from 'element-plus'
-import { getDuty, getEcc, getSys, getNet, getPM, getBatch, getService, deleteHandover, saveHandover, getHandovers, confirmHandovers, exportHandoverExcel } from '@/api/dutyPageInterface.js'
+import { getDuty, getEcc, getSys, getNet, getPM, getBatch, getService, getOtherDuty, deleteHandover, saveHandover, getHandovers, confirmHandovers, exportHandoverExcel } from '@/api/dutyPageInterface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { RBAC_IP } from '@/utils/dutyPageData.js'
 
@@ -26,12 +26,24 @@ const filterRole = ref('')
 const filterStatus = ref('')
 const filterShiftType = ref('')
 
-// 日期范围：默认当天
-const getTodayRangeStr = () => {
-  const today = new Date().toISOString().split('T')[0]
+// 本地日期字符串：避免 toISOString 的 UTC 时区偏移问题（UTC+8 时区 0:00~7:00 会得到前一天日期）
+const getLocalDateStr = (date = new Date()) => {
+  const pad = n => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// 默认日期范围：0:00~8:00 时为 [昨天, 今天]，其他时间为 [今天, 今天]
+const getDefaultDateRange = () => {
+  const now = new Date()
+  const today = getLocalDateStr(now)
+  if (now.getHours() < 8) {
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    return [getLocalDateStr(yesterday), today]
+  }
   return [today, today]
 }
-const filterDate = ref(getTodayRangeStr())
+const filterDate = ref(getDefaultDateRange())
 
 // 后端数据映射为前端卡片结构
 const mapBackendToCard = (item) => {
@@ -98,8 +110,8 @@ const mapBackendToCard = (item) => {
   let rc
   if (role.value === 'ecc') {
     rc = shiftType === 1
-      ? { fromColor: rcData.primary, toColor: rcData.secondary, fromDesc: 'ECC 白班 · 08:00-20:00', toDesc: 'ECC 夜班 · 20:00-08:00' }
-      : { fromColor: rcData.secondary, toColor: rcData.primary, fromDesc: 'ECC 夜班 · 20:00-08:00', toDesc: 'ECC 白班 · 08:00-20:00' }
+      ? { fromColor: rcData.primary, toColor: rcData.secondary, fromDesc: 'ECC 白班 · 07:00-19:00', toDesc: 'ECC 夜班 · 19:00-07:00' }
+      : { fromColor: rcData.secondary, toColor: rcData.primary, fromDesc: 'ECC 夜班 · 19:00-07:00', toDesc: 'ECC 白班 · 07:00-19:00' }
   } else {
     rc = { fromColor: rcData.both, toColor: rcData.both, fromDesc: role.label + ' · 08:30-18:00', toDesc: role.label + ' · 08:30-18:00' }
   }
@@ -211,7 +223,7 @@ const resetFilters = () => {
   filterRole.value = ''
   filterStatus.value = ''
   filterShiftType.value = ''
-  filterDate.value = getTodayRangeStr()
+  filterDate.value = getDefaultDateRange()
   searchHandover()
 }
 
@@ -313,7 +325,7 @@ const getLevelClass = (level) => {
 // 判断当前是否为白班时间
 const isDayShift = () => {
   const hour = new Date().getHours()
-  return hour >= 8 && hour < 20
+  return hour >= 7 && hour < 19
 }
 
 // 根据卡片获取当前班次标签
@@ -388,24 +400,27 @@ const batchPersonnel = ref([])
 // 运维服务台人员（单独从 getService 接口获取）
 const servicePersonnel = ref([])
 
+// 今日跑批+服务台排班数据（from other_duty 表）
+const todayOtherDuty = ref(null)
+
 // 获取排班信息和人员列表
 const loadHandoverInitData = async () => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateStr()
 
   // 计算昨天日期
   const yesterdayDate = new Date()
   yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-  const yesterdayStr = yesterdayDate.toISOString().split('T')[0]
+  const yesterdayStr = getLocalDateStr(yesterdayDate)
 
   // 计算明天日期
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
-  const tomorrowStr = tomorrowDate.toISOString().split('T')[0]
+  const tomorrowStr = getLocalDateStr(tomorrowDate)
 
   // 计算过去30天的开始日期（用于查找非ECC人员的前一个排班记录）
   const pastDate = new Date()
   pastDate.setDate(pastDate.getDate() - 30)
-  const pastStr = pastDate.toISOString().split('T')[0]
+  const pastStr = getLocalDateStr(pastDate)
 
   try {
     const [scheduleArr, yesterdayArr, tomorrowArr, pastArr] = await Promise.all([
@@ -418,6 +433,14 @@ const loadHandoverInitData = async () => {
     yesterdaySchedule.value = Array.isArray(yesterdayArr) && yesterdayArr.length > 0 ? yesterdayArr[0] : null
     tomorrowSchedule.value = Array.isArray(tomorrowArr) && tomorrowArr.length > 0 ? tomorrowArr[0] : null
     prevSchedules.value = Array.isArray(pastArr) ? pastArr : []
+
+    // 获取今日跑批+服务台排班数据
+    try {
+      todayOtherDuty.value = await getOtherDuty(today)
+    } catch (e) {
+      console.error('获取今日跑批/服务台排班失败:', e)
+      todayOtherDuty.value = null
+    }
   } catch (e) {
     console.error('获取排班数据失败:', e)
   }
@@ -452,9 +475,9 @@ const fillPersonnel = (card) => {
 
   if (card.roleValue === 'ecc') {
     if (card.shiftType === 1) {
-      // 白班→夜班 (20:00-8:00)：交班人=今天白班，接班人=今天夜班
-      card.fromRoleDesc = 'ECC 白班 · 08:00-20:00'
-      card.toRoleDesc = 'ECC 夜班 · 20:00-08:00'
+      // 白班→夜班 (19:00-7:00)：交班人=今天白班，接班人=今天夜班
+      card.fromRoleDesc = 'ECC 白班 · 07:00-19:00'
+      card.toRoleDesc = 'ECC 夜班 · 19:00-07:00'
 
       if (schedule) {
         const fromName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
@@ -476,13 +499,19 @@ const fillPersonnel = (card) => {
         card.toUserCode = ''
       }
     } else {
-      // 夜班→白班 (8:00-20:00)：交班人=前一天夜班，接班人=第二天白班
-      card.fromRoleDesc = 'ECC 夜班 · 20:00-08:00'
-      card.toRoleDesc = 'ECC 白班 · 08:00-20:00'
+      // 夜班→白班：根据当前小时区分时间段
+      // 19:00~24:00：交班人=今天夜班人员，接班人=明天白班人员
+      // 0:00~7:00：交班人=昨天夜班人员，接班人=今天白班人员
+      const currentHour = new Date().getHours()
+      const isEveningCreation = currentHour >= 19
 
-      // 交班人：前一天的夜班人员
-      if (yesterdayScheduleData) {
-        const fromName = yesterdayScheduleData.eccNightPersonnelName || yesterdayScheduleData.ecc_night_personnel_id || ''
+      card.fromRoleDesc = 'ECC 夜班 · 19:00-07:00'
+      card.toRoleDesc = 'ECC 白班 · 07:00-19:00'
+
+      // 交班人
+      const fromSchedule = isEveningCreation ? schedule : yesterdayScheduleData
+      if (fromSchedule) {
+        const fromName = fromSchedule.eccNightPersonnelName || fromSchedule.ecc_night_personnel_id || ''
         card.fromName = getPersonName(fromName) || fromName || '未排班'
         card.fromSurname = getSurname(card.fromName) || '—'
         const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === card.fromName)
@@ -493,10 +522,10 @@ const fillPersonnel = (card) => {
         card.fromUserCode = ''
       }
 
-      // 接班人：第二天的白班人员
-      const tomorrowScheduleData = tomorrowSchedule.value
-      if (tomorrowScheduleData) {
-        const toName = tomorrowScheduleData.eccDayPersonnelName || tomorrowScheduleData.ecc_day_personnel_id || ''
+      // 接班人
+      const toSchedule = isEveningCreation ? tomorrowSchedule.value : schedule
+      if (toSchedule) {
+        const toName = toSchedule.eccDayPersonnelName || toSchedule.ecc_day_personnel_id || ''
         card.toName = getPersonName(toName) || toName || '未排班'
         card.toSurname = getSurname(card.toName) || '—'
         const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
@@ -532,7 +561,7 @@ const fillPersonnel = (card) => {
     }
 
     // 交班人：前一个有该类型人员排班记录的人员（从历史排班中从后往前找）
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     const reversed = [...prevSchedules.value].reverse()
     let foundFrom = false
     for (const record of reversed) {
@@ -553,6 +582,36 @@ const fillPersonnel = (card) => {
       card.fromName = '未排班'
       card.fromSurname = '—'
       card.fromUserCode = ''
+    }
+  }
+
+  // 填充跑批和服务台人员：优先从今日 other_duty 排班中获取
+  const od = todayOtherDuty.value
+  if (od) {
+    if (od.batchA) {
+      card.batchPersonA = od.batchA
+      card.batchPersonACode = od.batchAId || ''
+      card.batchPersonASurname = od.batchA.charAt(0) || '—'
+    }
+    if (od.batchB) {
+      card.batchPersonB = od.batchB
+      card.batchPersonBCode = od.batchBId || ''
+      card.batchPersonBSurname = od.batchB.charAt(0) || '—'
+    }
+    if (od.serviceA) {
+      card.servicePerson1 = od.serviceA
+      card.servicePerson1Code = od.serviceAId || ''
+      card.servicePerson1Surname = od.serviceA.charAt(0) || '—'
+    }
+    if (od.serviceB) {
+      card.servicePerson2 = od.serviceB
+      card.servicePerson2Code = od.serviceBId || ''
+      card.servicePerson2Surname = od.serviceB.charAt(0) || '—'
+    }
+    if (od.serviceC) {
+      card.servicePerson3 = od.serviceC
+      card.servicePerson3Code = od.serviceCId || ''
+      card.servicePerson3Surname = od.serviceC.charAt(0) || '—'
     }
   }
 }
@@ -616,6 +675,11 @@ const getBatchPersonnel = () => {
 // 获取运维服务台人员：从 servicePersonnel ref 中获取
 const getServicePersonnel = () => {
   return servicePersonnel.value
+}
+
+// 按服务台分组获取人员
+const getServicePersonnelByGroup = (group) => {
+  return servicePersonnel.value.filter(p => p.serviceGroup === group)
 }
 
 // 交班人选择
@@ -795,17 +859,26 @@ const createDraftCard = async () => {
 
   const now = new Date()
   const hour = now.getHours()
-  const shiftType = (hour >= 8 && hour < 20) ? 1 : 2
+  const shiftType = (hour >= 7 && hour < 19) ? 1 : 2
 
   const pad = n => String(n).padStart(2, '0')
-  const today = now.toISOString().split('T')[0]
+  const today = getLocalDateStr(now)
   const handoverTime = `${today} ${pad(hour)}:${pad(now.getMinutes())}`
+
+  // 0:00~7:00 创建的夜班卡片业务上属于前一天的夜班，卡片日期显示为前一天
+  let cardDate = today
+  if (shiftType === 2 && hour < 7) {
+    const yesterdayDate = new Date(now)
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+    cardDate = getLocalDateStr(yesterdayDate)
+  }
+  console.log(`[createDraftCard] hour=${hour}, shiftType=${shiftType}, today=${today}, cardDate=${cardDate}`)
 
   const draftCard = reactive({
     isDraft: true,
     handoverId: crypto.randomUUID(),
     _cardId: 'card-draft-' + Date.now(),
-    date: today,
+    date: cardDate,
     role: 'ECC 指挥中心',
     roleValue: 'ecc',
     personnelType: 1,
@@ -934,8 +1007,8 @@ const toggleShift = (card) => {
 
   if (card.shiftType === 2) {
     // 切换到夜班(夜班→白班)：交班人=今天夜班，接班人取第二天白班
-    card.fromRoleDesc = 'ECC 夜班 · 20:00-08:00'
-    card.toRoleDesc = 'ECC 白班 · 08:00-20:00'
+    card.fromRoleDesc = 'ECC 夜班 · 19:00-07:00'
+    card.toRoleDesc = 'ECC 白班 · 07:00-19:00'
     // 交班人 = 今天的夜班人员（从今天排班取）
     const schedule = todaySchedule.value
     if (schedule) {
@@ -966,8 +1039,8 @@ const toggleShift = (card) => {
     card.toColor = 'var(--primary)'
   } else {
     // 切换到白班(白班→夜班)：交班人=今天白班，接班人=今天夜班
-    card.fromRoleDesc = 'ECC 白班 · 08:00-20:00'
-    card.toRoleDesc = 'ECC 夜班 · 20:00-08:00'
+    card.fromRoleDesc = 'ECC 白班 · 07:00-19:00'
+    card.toRoleDesc = 'ECC 夜班 · 19:00-07:00'
     // 交班人 = 今天的白班人员
     const schedule = todaySchedule.value
     if (schedule) {
@@ -1863,14 +1936,14 @@ onBeforeUnmount(() => {
                           @visible-change="(v) => { if (!v) item.servicePerson1Editing = false }"
                           autofocus
                         >
-                          <el-option v-for="p in getServicePersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                          <el-option v-for="p in getServicePersonnelByGroup(1)" :key="p.userCode" :label="p.name" :value="p.userCode" />
                         </el-select>
                       </div>
-                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                      <div class="handover-person-role">业务组 · 08:30-18:00</div>
                     </template>
                     <template v-else>
                       <div class="handover-person-name">{{ item.servicePerson1 || '—' }}</div>
-                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                      <div class="handover-person-role">业务组 · 08:30-18:00</div>
                     </template>
                   </div>
                 </div>
@@ -1896,14 +1969,14 @@ onBeforeUnmount(() => {
                           @visible-change="(v) => { if (!v) item.servicePerson2Editing = false }"
                           autofocus
                         >
-                          <el-option v-for="p in getServicePersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                          <el-option v-for="p in getServicePersonnelByGroup(2)" :key="p.userCode" :label="p.name" :value="p.userCode" />
                         </el-select>
                       </div>
-                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                      <div class="handover-person-role">财务组 · 08:30-18:00</div>
                     </template>
                     <template v-else>
                       <div class="handover-person-name">{{ item.servicePerson2 || '—' }}</div>
-                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                      <div class="handover-person-role">财务组 · 08:30-18:00</div>
                     </template>
                   </div>
                 </div>
@@ -1929,14 +2002,14 @@ onBeforeUnmount(() => {
                           @visible-change="(v) => { if (!v) item.servicePerson3Editing = false }"
                           autofocus
                         >
-                          <el-option v-for="p in getServicePersonnel()" :key="p.userCode" :label="p.name" :value="p.userCode" />
+                          <el-option v-for="p in getServicePersonnelByGroup(3)" :key="p.userCode" :label="p.name" :value="p.userCode" />
                         </el-select>
                       </div>
-                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                      <div class="handover-person-role">办公组 · 08:30-18:00</div>
                     </template>
                     <template v-else>
                       <div class="handover-person-name">{{ item.servicePerson3 || '—' }}</div>
-                      <div class="handover-person-role">运维服务台 · 08:30-18:00</div>
+                      <div class="handover-person-role">办公组 · 08:30-18:00</div>
                     </template>
                   </div>
                 </div>
@@ -2143,10 +2216,10 @@ onBeforeUnmount(() => {
             <div class="handover-content-block">
               <div class="handover-sign">
               <template v-if="item.isDraft">
-                <span>创建人：{{ item.createUserNickname || '' }} &nbsp;|&nbsp; 交接时间：{{ item.handoverTime }}</span>
+                <span>创建人：{{ item.createUserNickname || '' }} &nbsp;|&nbsp; 创建时间：{{ item.handoverTime }}</span>
               </template>
               <template v-else>
-                <span>创建人：{{ item.createUserNickname || '' }} &nbsp;|&nbsp; 交接时间：{{ item.handoverTime }} &nbsp;|&nbsp; 接班人确认：<strong :style="{ color: item.confirmColor }">{{ item.confirmText }}</strong>
+                <span>创建人：{{ item.createUserNickname || '' }} &nbsp;|&nbsp; 创建时间：{{ item.handoverTime }} &nbsp;|&nbsp; 接班人确认：<strong :style="{ color: item.confirmColor }">{{ item.confirmText }}</strong>
                 <template v-if="item.confirmTime">&nbsp;|&nbsp; 确认时间：{{ item.confirmTime }}</template></span>
               </template>
             </div>

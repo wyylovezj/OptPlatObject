@@ -2,8 +2,8 @@
   <div class="moa-vpn-ecc-container">
     <!-- 标签页切换 -->
     <el-tabs v-model="activeTab" class="main-tabs" @tab-change="handleTabChange" @before-leave="handleBeforeTabLeave">
-      <!-- ==================== Tab1: MOA及VPN权限使用记录 ==================== -->
-      <el-tab-pane label="MOA及VPN权限使用记录" name="moaVpn">
+      <!-- ==================== Tab1: R及VPN权限使用记录 ==================== -->
+      <el-tab-pane label="RA及VPN权限使用记录" name="moaVpn">
         <div class="tab-content">
           <!-- 标题栏 -->
           <div class="header-bar">
@@ -75,7 +75,7 @@
                     <template #header>
                       <el-input v-model="userSearchKeyword" size="small" placeholder="搜索用户" clearable @click.stop @input="() => {}" style="width: 100%" />
                     </template>
-                    <el-option v-for="u in filteredUserList" :key="u.username" :label="`${u.nickname || u.username}`" :value="u.username">
+                    <el-option v-for="u in filteredUserList" :key="u.username" :label="`${u.nickname || u.username}`" :value="u.nickname || u.username">
                       <span>{{ u.nickname || u.username }}</span>
                       <span style="float: right; color: #909399; font-size: 12px; margin-left: 8px;">{{ u.username }}</span>
                     </el-option>
@@ -89,7 +89,10 @@
               </el-table-column>
               <el-table-column label="权限类别" width="100">
                 <template #default="{ row }">
-                  <el-input v-model="row.permission_type" size="small" placeholder="请输入" spellcheck="false" />
+                  <el-select v-model="row.permission_type" size="small" clearable placeholder="请选择" style="width: 100%">
+                    <el-option label="RA" value="RA" />
+                    <el-option label="VPN" value="VPN" />
+                  </el-select>
                 </template>
               </el-table-column>
               <el-table-column label="开始时间" width="110">
@@ -375,6 +378,31 @@ const onEccSelectVisibleChange = async (row, visible) => {
 }
 const onPmSelectVisibleChange = (visible) => { if (!visible) pmSearchKeyword.value = '' }
 
+// username 反查辅助函数
+const getUserUsername = (nickname) => {
+  if (!nickname) return ''
+  const user = userList.value.find(u => (u.nickname || u.username) === nickname)
+  return user?.username || ''
+}
+const getEccPersonUsername = (name) => {
+  if (!name) return ''
+  for (const date in eccDutyMap.value) {
+    const person = eccDutyMap.value[date]?.find(p => p.name === name)
+    if (person) return person.userCode || ''
+  }
+  return ''
+}
+const getPmUsername = (name) => {
+  if (!name) return ''
+  const pm = pmList.value.find(p => p.name === name)
+  return pm?.userCode || ''
+}
+const getOpsPersonUsername = (name) => {
+  if (!name) return ''
+  const person = opsPersonnelList.value.find(p => p.name === name)
+  return person?.userCode || ''
+}
+
 // 日期变化时清空ECC值班人（因为值班人列表按日期加载）
 const onMoaVpnDateChange = (row) => {
   row.ecc_duty_person = ''
@@ -422,10 +450,10 @@ const handleBeforeTabLeave = async (newTab, oldTab) => {
 }
 
 const moaVpnTitle = computed(() => {
-  if (!moaVpnDateRange.value || moaVpnDateRange.value.length !== 2) return 'MOA及VPN权限使用记录'
+  if (!moaVpnDateRange.value || moaVpnDateRange.value.length !== 2) return 'RA及VPN权限使用记录'
   const [start] = moaVpnDateRange.value
   const d = new Date(start)
-  return `${d.getFullYear()}年${d.getMonth() + 1}月MOA及VPN权限使用记录`
+  return `${d.getFullYear()}年${d.getMonth() + 1}月RA及VPN权限使用记录`
 })
 
 const handleMoaVpnSelectionChange = (rows) => { moaVpnSelectedRows.value = rows }
@@ -502,12 +530,15 @@ const handleMoaVpnSave = async () => {
     id: r._isNew ? null : r.id,
     record_date: r.record_date,
     apply_user: r.apply_user || '',
+    apply_user_username: getUserUsername(r.apply_user),
     reason: r.reason || '',
     permission_type: r.permission_type || '',
     start_time: r.start_time || '',
     end_time: r.end_time || '',
     ecc_duty_person: r.ecc_duty_person || '',
+    ecc_duty_person_username: getEccPersonUsername(r.ecc_duty_person),
     approver: r.approver || '',
+    approver_username: getPmUsername(r.approver),
     email: r.email || '',
     remark: r.remark || '',
   }))
@@ -575,23 +606,30 @@ const loadPmList = async () => {
   } catch (e) { console.error('加载PM列表失败', e) }
 }
 
-// 加载今日ECC排班人员
+// 加载ECC排班人员（当天 + 下一天，合并去重）
 const fetchEccDutyForDate = async (date) => {
   try {
-    const data = await getDuty([date, date])
+    const d = new Date(date + 'T00:00:00')
+    d.setDate(d.getDate() + 1)
+    const pad = n => String(n).padStart(2, '0')
+    const nextDay = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+    const data = await getDuty([date, nextDay])
+    const list = []
+    const seen = new Set()
     if (data && data.length > 0) {
-      const schedule = data[0]
-      const list = []
-      if (schedule.eccDayPersonnelName && schedule.eccDayPersonnelId) {
-        list.push({ name: schedule.eccDayPersonnelName, userCode: schedule.eccDayPersonnelId })
+      for (const schedule of data) {
+        if (schedule.eccDayPersonnelName && schedule.eccDayPersonnelId && !seen.has(schedule.eccDayPersonnelId)) {
+          seen.add(schedule.eccDayPersonnelId)
+          list.push({ name: schedule.eccDayPersonnelName, userCode: schedule.eccDayPersonnelId })
+        }
+        if (schedule.eccNightPersonnelName && schedule.eccNightPersonnelId && !seen.has(schedule.eccNightPersonnelId)) {
+          seen.add(schedule.eccNightPersonnelId)
+          list.push({ name: schedule.eccNightPersonnelName, userCode: schedule.eccNightPersonnelId })
+        }
       }
-      if (schedule.eccNightPersonnelName && schedule.eccNightPersonnelId) {
-        list.push({ name: schedule.eccNightPersonnelName, userCode: schedule.eccNightPersonnelId })
-      }
-      eccDutyMap.value[date] = list
-    } else {
-      eccDutyMap.value[date] = []
     }
+    eccDutyMap.value[date] = list
   } catch (e) { console.error('加载ECC排班失败', e) }
 }
 
@@ -611,7 +649,7 @@ const handleMoaVpnExport = async () => {
     const response = await exportMoaVpnRecord(moaVpnDateRange.value)
     const [startDate] = moaVpnDateRange.value
     const d = new Date(startDate)
-    let filename = `${d.getFullYear()}年${d.getMonth() + 1}月MOA及VPN权限使用记录.xlsx`
+    let filename = `${d.getFullYear()}年${d.getMonth() + 1}月RA及VPN权限使用记录.xlsx`
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
@@ -771,7 +809,9 @@ const handleEccContactSave = async () => {
     id: r._isNew ? null : r.id,
     record_date: r.record_date,
     duty_person: r.duty_person || '',
+    duty_person_username: getOpsPersonUsername(r.duty_person),
     second_contact: r.second_contact || '',
+    second_contact_username: getOpsPersonUsername(r.second_contact),
     detail: r.detail || '',
     is_callback: r.is_callback || '',
     remark: r.remark || '',

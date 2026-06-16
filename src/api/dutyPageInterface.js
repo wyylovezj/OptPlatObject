@@ -84,6 +84,20 @@ export const getService = async () => {
 }
 
 /**
+ * 获取指定日期的跑批+服务台排班数据（other_duty 表）
+ * @param {string} date - 日期 YYYY-MM-DD
+ * @returns {Promise<Object|null>} - 返回排班数据对象或 null
+ */
+export const getOtherDuty = async (date) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/getOtherDuty`, { date })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取跑批/服务台排班失败')
+  }
+}
+
+/**
  * 新增排班
  * @param {Object} dutyData - 排班数据
  * @returns {Promise} - 返回响应数据
