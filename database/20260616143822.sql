@@ -1,7 +1,7 @@
 /*
 MySQL Backup
 Database: rbac
-Backup Time: 2026-06-15 18:10:32
+Backup Time: 2026-06-16 14:38:22
 */
 
 SET FOREIGN_KEY_CHECKS=0;
@@ -31,7 +31,9 @@ CREATE TABLE `contact_exception` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '序号（主键）',
   `record_date` date NOT NULL COMMENT '日期',
   `duty_person` varchar(100) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '当班人或负责人',
+  `duty_person_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '当班人username',
   `second_contact` varchar(100) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '二次联系人',
+  `second_contact_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '二次联系人username',
   `detail` text COLLATE utf8mb4_general_ci COMMENT '详细情况',
   `is_callback` varchar(10) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '是否回电',
   `remark` varchar(500) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '备注',
@@ -41,7 +43,7 @@ CREATE TABLE `contact_exception` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_ecc_contact_date` (`record_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='ECC联系异常情况';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='ECC联系异常情况';
 CREATE TABLE `daily_handover` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `handover_date` date NOT NULL COMMENT '交接日期 YYYY-MM-DD',
@@ -55,7 +57,7 @@ CREATE TABLE `daily_handover` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_date_shift` (`handover_date`,`shift_type`),
   KEY `idx_handover_date` (`handover_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='日常工作交接主表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='日常工作交接主表';
 CREATE TABLE `daily_handover_field_config` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `field_key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '字段标识（英文，如 inspection）',
@@ -81,7 +83,7 @@ CREATE TABLE `daily_handover_item` (
   UNIQUE KEY `uk_handover_field` (`handover_id`,`field_key`),
   KEY `idx_handover_id` (`handover_id`),
   CONSTRAINT `fk_item_handover` FOREIGN KEY (`handover_id`) REFERENCES `daily_handover` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交接明细表（动态字段值）';
+) ENGINE=InnoDB AUTO_INCREMENT=89 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交接明细表（动态字段值）';
 CREATE TABLE `duty_handover` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `schedule_date` date NOT NULL COMMENT '排班日期',
@@ -108,7 +110,7 @@ CREATE TABLE `duty_handover` (
   KEY `idx_to_personnel` (`to_personnel_id`) USING BTREE,
   CONSTRAINT `fk_handover_from_personnel` FOREIGN KEY (`from_personnel_id`) REFERENCES `duty_personnel` (`user_code`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_handover_to_personnel` FOREIGN KEY (`to_personnel_id`) REFERENCES `duty_personnel` (`user_code`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='交接班记录表';
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='交接班记录表';
 CREATE TABLE `duty_handover_attachment` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `handover_id` varchar(255) NOT NULL COMMENT '交接班记录ID',
@@ -135,7 +137,7 @@ CREATE TABLE `duty_handover_system_status` (
   KEY `idx_handover_id` (`handover_id`) USING BTREE,
   KEY `idx_sort` (`sort_order`) USING BTREE,
   CONSTRAINT `fk_status_handover` FOREIGN KEY (`handover_id`) REFERENCES `duty_handover` (`handover_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=131 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='交接班系统运行状态表';
+) ENGINE=InnoDB AUTO_INCREMENT=141 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='交接班系统运行状态表';
 CREATE TABLE `duty_handover_todo_item` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `handover_id` varchar(255) NOT NULL COMMENT '交接班记录ID',
@@ -152,7 +154,7 @@ CREATE TABLE `duty_handover_todo_item` (
   KEY `idx_sort` (`sort_order`) USING BTREE,
   KEY `idx_is_completed` (`is_completed`) USING BTREE,
   CONSTRAINT `fk_todo_handover` FOREIGN KEY (`handover_id`) REFERENCES `duty_handover` (`handover_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=56 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='交接班待跟进事项表';
+) ENGINE=InnoDB AUTO_INCREMENT=64 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='交接班待跟进事项表';
 CREATE TABLE `duty_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `log_id` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '业务唯一标识(UUID)',
@@ -267,7 +269,7 @@ CREATE TABLE `duty_schedule` (
   CONSTRAINT `fk_net_ops_personnel` FOREIGN KEY (`net_ops_personnel_id`) REFERENCES `duty_personnel` (`user_code`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_pm_personnel` FOREIGN KEY (`pm_personnel_id`) REFERENCES `duty_personnel` (`user_code`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_sys_ops_personnel` FOREIGN KEY (`sys_ops_personnel_id`) REFERENCES `duty_personnel` (`user_code`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='值班排班表';
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=DYNAMIC COMMENT='值班排班表';
 CREATE TABLE `other_duty` (
   `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `schedule_date` date NOT NULL COMMENT '排班日期',
@@ -288,17 +290,20 @@ CREATE TABLE `other_duty` (
   `deleted` tinyint NOT NULL COMMENT '删除标志：0-未删除，1-已删除',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_schedule_date` (`schedule_date`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE `remote_record` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '序号（主键）',
   `record_date` date NOT NULL COMMENT '日期',
   `apply_user` varchar(100) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '申请用户',
+  `apply_user_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '申请用户username',
   `reason` varchar(500) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '使用缘由',
   `permission_type` varchar(100) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '添加权限类别',
   `start_time` varchar(50) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '开始时间',
   `end_time` varchar(50) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '结束时间',
   `ecc_duty_person` varchar(100) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT 'ECC值班人',
+  `ecc_duty_person_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT 'ECC值班人username',
   `approver` varchar(100) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '审批人',
+  `approver_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '审批人username',
   `email` varchar(200) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '邮件',
   `remark` varchar(500) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '备注',
   `created_by` varchar(50) COLLATE utf8mb4_general_ci DEFAULT '' COMMENT '创建人',
@@ -307,13 +312,15 @@ CREATE TABLE `remote_record` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_moa_vpn_date` (`record_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='MOA及VPN权限使用记录';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='MOA及VPN权限使用记录';
 CREATE TABLE `security_device_monitor` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '序号（主键）',
   `record_date` date NOT NULL COMMENT '日期',
   `alert_content` text COMMENT '告警内容',
   `ecc_duty_person` varchar(100) DEFAULT '' COMMENT 'ECC值班员',
+  `ecc_duty_person_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT 'ECC值班员username',
   `ops_confirm_person` varchar(100) DEFAULT '' COMMENT '二线运维告警确认人',
+  `ops_confirm_person_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '' COMMENT '二线运维告警确认人username',
   `remark` varchar(500) DEFAULT '' COMMENT '备注',
   `created_by` varchar(50) DEFAULT '' COMMENT '创建人',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -321,7 +328,7 @@ CREATE TABLE `security_device_monitor` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_security_device_date` (`record_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='安全设备监控记录';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='安全设备监控记录';
 CREATE TABLE `sys_menu` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '菜单 ID',
   `parent_id` bigint DEFAULT '0' COMMENT '父菜单 ID（0 表示根菜单）',
@@ -408,12 +415,14 @@ CREATE TABLE `sys_user_role` (
 BEGIN;
 LOCK TABLES `rbac`.`contact_exception` WRITE;
 DELETE FROM `rbac`.`contact_exception`;
+INSERT INTO `rbac`.`contact_exception` (`id`,`record_date`,`duty_person`,`duty_person_username`,`second_contact`,`second_contact_username`,`detail`,`is_callback`,`remark`,`created_by`,`created_at`,`updated_by`,`updated_at`) VALUES (1, '2026-06-16', '魏阳阳', 'weiyangyang', '钱文才', 'qianwencai', '', '是', '', '', '2026-06-16 10:21:49', '', '2026-06-16 10:35:35')
+;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`daily_handover` WRITE;
 DELETE FROM `rbac`.`daily_handover`;
-INSERT INTO `rbac`.`daily_handover` (`id`,`handover_date`,`shift_type`,`duty_person`,`remark1`,`created_by`,`created_at`,`updated_by`,`updated_at`) VALUES (1, '2026-06-11', 1, '赵六', '', '', '2026-06-11 09:40:23', '', '2026-06-11 09:40:23'),(2, '2026-06-11', 2, '王五', '', '', '2026-06-11 09:40:23', '', '2026-06-11 09:40:23')
+INSERT INTO `rbac`.`daily_handover` (`id`,`handover_date`,`shift_type`,`duty_person`,`remark1`,`created_by`,`created_at`,`updated_by`,`updated_at`) VALUES (1, '2026-06-11', 1, '赵六', '', '', '2026-06-11 09:40:23', '', '2026-06-11 09:40:23'),(2, '2026-06-11', 2, '王五', '', '', '2026-06-11 09:40:23', '', '2026-06-11 09:40:23'),(3, '2026-06-16', 1, '李润生', '', '', '2026-06-16 10:22:15', '', '2026-06-16 10:22:15'),(4, '2026-06-16', 2, '周厚奎', '', '', '2026-06-16 10:22:15', '', '2026-06-16 10:22:15')
 ;
 UNLOCK TABLES;
 COMMIT;
@@ -427,14 +436,14 @@ COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`daily_handover_item` WRITE;
 DELETE FROM `rbac`.`daily_handover_item`;
-INSERT INTO `rbac`.`daily_handover_item` (`id`,`handover_id`,`field_key`,`field_value`,`field_status`,`sort_order`,`created_at`,`updated_at`) VALUES (23, 1, 'inspection', '', '正常', 1, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(24, 1, 'autoPhone', '', '正常', 2, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(25, 1, 'netapp', 'ewas aDADS ASD AASDAS DAsd aSD AS DA DSa da Da das dasd ads ad A D a ', '其他', 3, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(26, 1, 'nbu', '', '正常', 4, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(27, 1, 'controlM', '', '正常', 5, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(28, 1, 'h3c', '', '正常', 6, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(29, 1, 'newEmail', '', '正常', 7, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(30, 1, 'remote', '', '正常', 8, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(31, 1, 'serverPhone', '', '正常', 10, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(32, 1, 'collaboration', '', '正常', 11, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(33, 1, 'remark', '', '正常', 12, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(34, 2, 'inspection', '', '正常', 1, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(35, 2, 'autoPhone', '', '正常', 2, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(36, 2, 'netapp', '', '正常', 3, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(37, 2, 'nbu', '', '正常', 4, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(38, 2, 'controlM', '', '正常', 5, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(39, 2, 'h3c', '', '正常', 6, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(40, 2, 'newEmail', '', '正常', 7, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(41, 2, 'remote', '', '正常', 8, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(42, 2, 'serverPhone', '', '正常', 10, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(43, 2, 'collaboration', '', '正常', 11, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(44, 2, 'remark', '', '正常', 12, '2026-06-11 10:26:38', '2026-06-11 10:26:38')
+INSERT INTO `rbac`.`daily_handover_item` (`id`,`handover_id`,`field_key`,`field_value`,`field_status`,`sort_order`,`created_at`,`updated_at`) VALUES (23, 1, 'inspection', '', '正常', 1, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(24, 1, 'autoPhone', '', '正常', 2, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(25, 1, 'netapp', 'ewas aDADS ASD AASDAS DAsd aSD AS DA DSa da Da das dasd ads ad A D a ', '其他', 3, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(26, 1, 'nbu', '', '正常', 4, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(27, 1, 'controlM', '', '正常', 5, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(28, 1, 'h3c', '', '正常', 6, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(29, 1, 'newEmail', '', '正常', 7, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(30, 1, 'remote', '', '正常', 8, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(31, 1, 'serverPhone', '', '正常', 10, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(32, 1, 'collaboration', '', '正常', 11, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(33, 1, 'remark', '', '正常', 12, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(34, 2, 'inspection', '', '正常', 1, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(35, 2, 'autoPhone', '', '正常', 2, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(36, 2, 'netapp', '', '正常', 3, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(37, 2, 'nbu', '', '正常', 4, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(38, 2, 'controlM', '', '正常', 5, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(39, 2, 'h3c', '', '正常', 6, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(40, 2, 'newEmail', '', '正常', 7, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(41, 2, 'remote', '', '正常', 8, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(42, 2, 'serverPhone', '', '正常', 10, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(43, 2, 'collaboration', '', '正常', 11, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(44, 2, 'remark', '', '正常', 12, '2026-06-11 10:26:38', '2026-06-11 10:26:38'),(67, 3, 'inspection', '', '正常', 1, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(68, 3, 'autoPhone', '', '正常', 2, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(69, 3, 'netapp', '', '正常', 3, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(70, 3, 'nbu', '', '正常', 4, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(71, 3, 'controlM', '', '正常', 5, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(72, 3, 'h3c', '', '正常', 6, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(73, 3, 'newEmail', '', '正常', 7, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(74, 3, 'remote', '', '正常', 8, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(75, 3, 'serverPhone', '', '正常', 10, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(76, 3, 'collaboration', '', '正常', 11, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(77, 3, 'remark', '', '正常', 12, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(78, 4, 'inspection', '', '正常', 1, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(79, 4, 'autoPhone', '', '正常', 2, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(80, 4, 'netapp', '', '正常', 3, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(81, 4, 'nbu', '', '正常', 4, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(82, 4, 'controlM', '', '正常', 5, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(83, 4, 'h3c', '', '正常', 6, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(84, 4, 'newEmail', '', '正常', 7, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(85, 4, 'remote', '', '正常', 8, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(86, 4, 'serverPhone', '', '正常', 10, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(87, 4, 'collaboration', '', '正常', 11, '2026-06-16 10:22:32', '2026-06-16 10:22:32'),(88, 4, 'remark', '', '正常', 12, '2026-06-16 10:22:32', '2026-06-16 10:22:32')
 ;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`duty_handover` WRITE;
 DELETE FROM `rbac`.`duty_handover`;
-INSERT INTO `rbac`.`duty_handover` (`id`,`schedule_date`,`handover_id`,`personnel_type`,`shift_type`,`from_personnel_id`,`to_personnel_id`,`handover_time`,`status`,`confirm_time`,`create_user`,`create_user_nickname`,`create_time`,`update_time`,`deleted`) VALUES (1, '2026-06-10', '52501139-1e1d-49aa-9f9d-9ec3bf4c1473', 1, 1, 'wangwu', 'lisi', '2026-06-10 14:20:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-10 14:20:52', '2026-06-10 14:20:51', 0),(2, '2026-06-10', '54d27eb7-e934-485a-8cec-1647e4d0acad', 1, 2, 'lisi', 'wangwu', '2026-06-10 14:40:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-10 14:40:28', '2026-06-10 14:40:27', 0),(3, '2026-06-11', 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', 1, 2, 'wangwu', 'zhangsan', '2026-06-11 10:16:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-11 10:18:00', '2026-06-11 16:01:56', 0),(4, '2026-06-15', 'e13089e8-acff-4155-b421-300c0a9557dd', 1, 1, 'zhangsan', 'lisi', '2026-06-15 20:41:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-15 20:41:48', '2026-06-15 20:41:48', 0),(5, '2026-06-15', '5f8c99c3-3173-4385-8119-2911553ddacb', 1, 2, 'lisi', 'lisi', '2026-06-15 08:47:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-15 08:48:03', '2026-06-15 08:48:03', 0)
+INSERT INTO `rbac`.`duty_handover` (`id`,`schedule_date`,`handover_id`,`personnel_type`,`shift_type`,`from_personnel_id`,`to_personnel_id`,`handover_time`,`status`,`confirm_time`,`create_user`,`create_user_nickname`,`create_time`,`update_time`,`deleted`) VALUES (1, '2026-06-10', '52501139-1e1d-49aa-9f9d-9ec3bf4c1473', 1, 1, 'wangwu', 'lisi', '2026-06-10 14:20:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-10 14:20:52', '2026-06-10 14:20:51', 0),(2, '2026-06-10', '54d27eb7-e934-485a-8cec-1647e4d0acad', 1, 2, 'lisi', 'wangwu', '2026-06-10 14:40:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-10 14:40:28', '2026-06-10 14:40:27', 0),(3, '2026-06-11', 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', 1, 2, 'wangwu', 'zhangsan', '2026-06-11 10:16:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-11 10:18:00', '2026-06-11 16:01:56', 0),(4, '2026-06-15', 'e13089e8-acff-4155-b421-300c0a9557dd', 1, 1, 'zhangsan', 'lisi', '2026-06-15 20:41:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-15 20:41:48', '2026-06-15 18:19:00', 1),(5, '2026-06-15', '5f8c99c3-3173-4385-8119-2911553ddacb', 1, 2, 'lisi', 'lisi', '2026-06-15 08:47:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-15 08:48:03', '2026-06-15 18:18:53', 1),(6, '2026-06-15', 'c2be6685-cf1c-4c63-84fc-2565c51baee2', 1, 2, 'fangyongjun', 'lirunsheng', '2026-06-15 18:19:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-15 18:19:08', '2026-06-16 06:55:16', 1),(7, '2026-06-15', 'd9616f04-4254-4d81-b063-2a57ce9a7e34', 1, 2, 'fangyongjun', 'lirunsheng', '2026-06-16 06:55:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-16 06:55:22', '2026-06-16 06:55:21', 0),(8, '2026-06-16', '81913210-62fe-4cf0-a7d3-caedf0df4b0d', 1, 1, 'lirunsheng', 'zhouhoukui', '2026-06-16 10:22:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-16 10:22:23', '2026-06-16 10:22:23', 0),(9, '2026-06-16', '03171504-1060-44be-b59f-7983a5997dac', 1, 2, 'zhouhoukui', 'guobing', '2026-06-16 10:22:00', 0, NULL, 'weiyangyang', '魏阳阳', '2026-06-16 10:22:29', '2026-06-16 10:22:28', 0)
 ;
 UNLOCK TABLES;
 COMMIT;
@@ -446,14 +455,14 @@ COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`duty_handover_system_status` WRITE;
 DELETE FROM `rbac`.`duty_handover_system_status`;
-INSERT INTO `rbac`.`duty_handover_system_status` (`id`,`handover_id`,`description`,`level`,`is_danger`,`sort_order`,`create_time`) VALUES (109, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。skill支持这些如恶化设计。从项目演示，运行到 项目水电费水电费水电费水电费水电费是收费', 1, 0, 1, '2026-06-11 16:46:22'),(110, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 2, '2026-06-11 16:46:22'),(111, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 3, '2026-06-11 16:46:22'),(112, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 4, '2026-06-11 16:46:22'),(113, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 5, '2026-06-11 16:46:22'),(114, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MC', 0, 0, 6, '2026-06-11 16:46:22'),(119, '5f8c99c3-3173-4385-8119-2911553ddacb', '委委屈屈我饿我去额温枪额温枪完全', 0, 0, 1, '2026-06-15 08:48:03'),(120, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问请问恶趣味恶趣味恶趣味请问', 0, 0, 2, '2026-06-15 08:48:03'),(121, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问q恶趣味恶趣味e王企鹅请问wq', 0, 0, 3, '2026-06-15 08:48:03'),(122, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问恶趣味厄齐尔去', 0, 0, 4, '2026-06-15 08:48:03'),(123, 'e13089e8-acff-4155-b421-300c0a9557dd', '委委屈屈我饿我去额温枪额温枪完全', 0, 0, 1, '2026-06-15 09:36:33'),(124, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问请问恶趣味恶趣味恶趣味请问', 0, 0, 2, '2026-06-15 09:36:33'),(125, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问q恶趣味恶趣味e王企鹅请问wq', 0, 0, 3, '2026-06-15 09:36:33'),(126, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问恶趣味厄齐尔去', 0, 0, 4, '2026-06-15 09:36:33'),(127, 'e13089e8-acff-4155-b421-300c0a9557dd', '委委屈屈我饿我去额温枪额温枪完全', 0, 0, 5, '2026-06-15 09:36:33'),(128, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问请问恶趣味恶趣味恶趣味请问', 0, 0, 6, '2026-06-15 09:36:33'),(129, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问q恶趣味恶趣味e王企鹅请问wq', 0, 0, 7, '2026-06-15 09:36:33'),(130, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问恶趣味厄齐尔去', 0, 0, 8, '2026-06-15 09:36:33')
+INSERT INTO `rbac`.`duty_handover_system_status` (`id`,`handover_id`,`description`,`level`,`is_danger`,`sort_order`,`create_time`) VALUES (109, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。skill支持这些如恶化设计。从项目演示，运行到 项目水电费水电费水电费水电费水电费是收费', 1, 0, 1, '2026-06-11 16:46:22'),(110, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 2, '2026-06-11 16:46:22'),(111, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 3, '2026-06-11 16:46:22'),(112, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 4, '2026-06-11 16:46:22'),(113, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MCP、skill支持这些如恶化设计。', 0, 0, 5, '2026-06-11 16:46:22'),(114, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '从项目演示，运行到 项目实战：架构如何设计、环境怎么搭，Agent loop，上下文、可压缩、MC', 0, 0, 6, '2026-06-11 16:46:22'),(119, '5f8c99c3-3173-4385-8119-2911553ddacb', '委委屈屈我饿我去额温枪额温枪完全', 0, 0, 1, '2026-06-15 08:48:03'),(120, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问请问恶趣味恶趣味恶趣味请问', 0, 0, 2, '2026-06-15 08:48:03'),(121, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问q恶趣味恶趣味e王企鹅请问wq', 0, 0, 3, '2026-06-15 08:48:03'),(122, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问恶趣味厄齐尔去', 0, 0, 4, '2026-06-15 08:48:03'),(123, 'e13089e8-acff-4155-b421-300c0a9557dd', '委委屈屈我饿我去额温枪额温枪完全', 0, 0, 1, '2026-06-15 09:36:33'),(124, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问请问恶趣味恶趣味恶趣味请问', 0, 0, 2, '2026-06-15 09:36:33'),(125, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问q恶趣味恶趣味e王企鹅请问wq', 0, 0, 3, '2026-06-15 09:36:33'),(126, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问恶趣味厄齐尔去', 0, 0, 4, '2026-06-15 09:36:33'),(127, 'e13089e8-acff-4155-b421-300c0a9557dd', '委委屈屈我饿我去额温枪额温枪完全', 0, 0, 5, '2026-06-15 09:36:33'),(128, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问请问恶趣味恶趣味恶趣味请问', 0, 0, 6, '2026-06-15 09:36:33'),(129, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问q恶趣味恶趣味e王企鹅请问wq', 0, 0, 7, '2026-06-15 09:36:33'),(130, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问恶趣味厄齐尔去', 0, 0, 8, '2026-06-15 09:36:33'),(131, 'c2be6685-cf1c-4c63-84fc-2565c51baee2', '', 0, 0, 1, '2026-06-15 18:19:08'),(132, 'd9616f04-4254-4d81-b063-2a57ce9a7e34', '', 0, 0, 1, '2026-06-16 06:55:22'),(134, '03171504-1060-44be-b59f-7983a5997dac', '', 0, 0, 1, '2026-06-16 10:22:29'),(138, '81913210-62fe-4cf0-a7d3-caedf0df4b0d', '青蔷薇请问请问请问请问额我', 2, 1, 1, '2026-06-16 14:30:19'),(139, '81913210-62fe-4cf0-a7d3-caedf0df4b0d', '企鹅翁请问请问请问qw', 1, 0, 2, '2026-06-16 14:30:19'),(140, '81913210-62fe-4cf0-a7d3-caedf0df4b0d', '请问其味无穷', 0, 0, 3, '2026-06-16 14:30:19')
 ;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`duty_handover_todo_item` WRITE;
 DELETE FROM `rbac`.`duty_handover_todo_item`;
-INSERT INTO `rbac`.`duty_handover_todo_item` (`id`,`handover_id`,`description`,`level`,`is_danger`,`is_completed`,`completed_time`,`sort_order`,`create_time`,`update_time`) VALUES (37, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '萨达奥迪阿是das', 0, 0, 0, NULL, 1, '2026-06-11 16:46:22', '2026-06-11 16:46:22'),(44, '5f8c99c3-3173-4385-8119-2911553ddacb', '我去额温枪恶趣味额温枪额温枪', 0, 0, 0, NULL, 1, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(45, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问完全', 0, 0, 0, NULL, 2, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(46, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问额温枪e', 0, 0, 0, NULL, 3, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(47, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问额温枪', 0, 0, 0, NULL, 4, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(48, '5f8c99c3-3173-4385-8119-2911553ddacb', '为请问王企鹅王企鹅王企鹅全额', 0, 0, 0, NULL, 5, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(49, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问额温枪', 0, 0, 0, NULL, 6, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(50, 'e13089e8-acff-4155-b421-300c0a9557dd', '我去额温枪恶趣味额温枪额温枪', 0, 0, 0, NULL, 1, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(51, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问完全', 0, 0, 0, NULL, 2, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(52, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问额温枪e', 0, 0, 0, NULL, 3, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(53, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问额温枪', 0, 0, 0, NULL, 4, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(54, 'e13089e8-acff-4155-b421-300c0a9557dd', '为请问王企鹅王企鹅王企鹅全额 ', 0, 0, 0, NULL, 5, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(55, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问额温枪', 0, 0, 0, NULL, 6, '2026-06-15 09:36:33', '2026-06-15 09:36:33')
+INSERT INTO `rbac`.`duty_handover_todo_item` (`id`,`handover_id`,`description`,`level`,`is_danger`,`is_completed`,`completed_time`,`sort_order`,`create_time`,`update_time`) VALUES (37, 'a69bf05a-a27e-44f0-8ab6-0ef6c8633cfc', '萨达奥迪阿是das', 0, 0, 0, NULL, 1, '2026-06-11 16:46:22', '2026-06-11 16:46:22'),(44, '5f8c99c3-3173-4385-8119-2911553ddacb', '我去额温枪恶趣味额温枪额温枪', 0, 0, 0, NULL, 1, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(45, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问完全', 0, 0, 0, NULL, 2, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(46, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问额温枪e', 0, 0, 0, NULL, 3, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(47, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问额温枪', 0, 0, 0, NULL, 4, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(48, '5f8c99c3-3173-4385-8119-2911553ddacb', '为请问王企鹅王企鹅王企鹅全额', 0, 0, 0, NULL, 5, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(49, '5f8c99c3-3173-4385-8119-2911553ddacb', '请问请问额温枪', 0, 0, 0, NULL, 6, '2026-06-15 08:48:03', '2026-06-15 08:48:03'),(50, 'e13089e8-acff-4155-b421-300c0a9557dd', '我去额温枪恶趣味额温枪额温枪', 0, 0, 0, NULL, 1, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(51, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问完全', 0, 0, 0, NULL, 2, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(52, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问额温枪e', 0, 0, 0, NULL, 3, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(53, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问额温枪', 0, 0, 0, NULL, 4, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(54, 'e13089e8-acff-4155-b421-300c0a9557dd', '为请问王企鹅王企鹅王企鹅全额 ', 0, 0, 0, NULL, 5, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(55, 'e13089e8-acff-4155-b421-300c0a9557dd', '请问请问额温枪', 0, 0, 0, NULL, 6, '2026-06-15 09:36:33', '2026-06-15 09:36:33'),(56, 'c2be6685-cf1c-4c63-84fc-2565c51baee2', '', 0, 0, 0, NULL, 1, '2026-06-15 18:19:08', '2026-06-15 18:19:07'),(57, 'd9616f04-4254-4d81-b063-2a57ce9a7e34', '', 0, 0, 0, NULL, 1, '2026-06-16 06:55:22', '2026-06-16 06:55:21'),(59, '03171504-1060-44be-b59f-7983a5997dac', '', 0, 0, 0, NULL, 1, '2026-06-16 10:22:29', '2026-06-16 10:22:28'),(61, '81913210-62fe-4cf0-a7d3-caedf0df4b0d', '青蔷薇请问请问请问请问额我', 2, 1, 0, NULL, 1, '2026-06-16 14:30:19', '2026-06-16 14:30:18'),(62, '81913210-62fe-4cf0-a7d3-caedf0df4b0d', '企鹅翁请问请问请问qw', 1, 0, 0, NULL, 2, '2026-06-16 14:30:19', '2026-06-16 14:30:18'),(63, '81913210-62fe-4cf0-a7d3-caedf0df4b0d', '请问其味无穷', 0, 0, 0, NULL, 3, '2026-06-16 14:30:19', '2026-06-16 14:30:18')
 ;
 UNLOCK TABLES;
 COMMIT;
@@ -487,23 +496,29 @@ COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`duty_schedule` WRITE;
 DELETE FROM `rbac`.`duty_schedule`;
-INSERT INTO `rbac`.`duty_schedule` (`id`,`schedule_date`,`ecc_day_personnel_id`,`ecc_night_personnel_id`,`sys_ops_personnel_id`,`net_ops_personnel_id`,`pm_personnel_id`,`created_by`,`created_time`,`updated_by`,`updated_time`) VALUES (1, '2026-05-25', 'wangwu', 'lisi', 'qianwencai', 'wangweiwei', 'xushimin', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(2, '2026-05-26', 'zhaoliu', 'wangwu', 'wangxue', 'majilong', 'wengchao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(3, '2026-05-27', 'zhangsan', 'zhaoliu', 'liuliang', 'zhangkexin', 'liutao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(4, '2026-05-28', 'lisi', 'zhangsan', 'weiyangyang', 'wangweiwei', 'xushimin', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(5, '2026-05-29', 'wangwu', 'lisi', 'qianwencai', 'majilong', 'wengchao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(6, '2026-05-30', 'zhaoliu', 'wangwu', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(7, '2026-05-31', 'zhangsan', 'zhaoliu', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(8, '2026-06-01', 'lisi', 'zhangsan', 'wangxue', 'zhangkexin', 'liutao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(9, '2026-06-02', 'wangwu', 'lisi', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:44:50'),(10, '2026-06-03', 'zhaoliu', 'wangwu', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:44:50'),(11, '2026-06-04', 'zhangsan', 'zhaoliu', 'qianwencai', 'zhangkexin', 'liutao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(12, '2026-06-05', NULL, NULL, 'wangxue', 'wangweiwei', 'xushimin', 'system', '2026-06-04 10:43:59', NULL, '2026-06-05 11:29:48'),(13, '2026-06-06', 'wangwu', 'lisi', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(14, '2026-06-07', 'zhaoliu', 'wangwu', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(15, '2026-06-08', 'zhangsan', 'zhaoliu', 'liuliang', 'majilong', 'wengchao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(16, '2026-06-09', 'lisi', 'zhangsan', 'weiyangyang', 'zhangkexin', 'liutao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(17, '2026-06-10', 'wangwu', 'lisi', 'qianwencai', 'wangweiwei', 'xushimin', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(18, '2026-06-11', 'zhaoliu', 'wangwu', 'wangxue', 'majilong', 'wengchao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(19, '2026-06-12', 'zhangsan', 'zhaoliu', 'liuliang', 'zhangkexin', 'liutao', 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(20, '2026-06-13', 'lisi', 'zhangsan', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(21, '2026-06-14', 'wangwu', 'lisi', NULL, NULL, NULL, 'system', '2026-06-04 10:43:59', NULL, '2026-06-04 10:43:59'),(22, '2026-06-15', 'zhangsan', 'lisi', 'weiyangyang', 'majilong', 'liutao', 'weiyangyang', '2026-06-15 08:37:50', 'weiyangyang', '2026-06-15 08:37:50'),(23, '2026-06-16', 'lisi', 'wangwu', 'qianwencai', 'zhangkexin', 'wengchao', 'weiyangyang', '2026-06-15 08:38:03', 'weiyangyang', '2026-06-15 08:38:03'),(24, '2026-06-17', 'wangwu', 'zhaoliu', 'wangxue', 'zhangkexin', 'liutao', 'weiyangyang', '2026-06-15 08:38:13', 'weiyangyang', '2026-06-15 08:38:13'),(25, '2026-06-18', 'zhaoliu', 'zhangsan', 'weiyangyang', 'zhangkexin', 'wengchao', 'weiyangyang', '2026-06-15 08:38:24', 'weiyangyang', '2026-06-15 08:38:24')
+INSERT INTO `rbac`.`duty_schedule` (`id`,`schedule_date`,`ecc_day_personnel_id`,`ecc_night_personnel_id`,`sys_ops_personnel_id`,`net_ops_personnel_id`,`pm_personnel_id`,`created_by`,`created_time`,`updated_by`,`updated_time`) VALUES (1, '2026-06-15', 'zhouhoukui', 'fangyongjun', 'qianwencai', 'wangweiwei', 'xushimin', 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22'),(2, '2026-06-16', 'lirunsheng', 'zhouhoukui', 'zhangkexin', 'wangzhiwen', 'wengchao', 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22'),(3, '2026-06-17', 'guobing', 'lirunsheng', 'majilong', 'wangfan', 'liutao', 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22'),(4, '2026-06-18', 'fangyongjun', 'guobing', 'weiyangyang', 'zegnxingyan', 'chenqiao', 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22'),(5, '2026-06-19', 'zhouhoukui', 'fangyongjun', NULL, NULL, NULL, 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22'),(6, '2026-06-20', 'lirunsheng', 'zhouhoukui', NULL, NULL, NULL, 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22'),(7, '2026-06-21', 'guobing', 'lirunsheng', NULL, NULL, NULL, 'system', '2026-06-15 18:15:22', NULL, '2026-06-15 18:15:22')
 ;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`other_duty` WRITE;
 DELETE FROM `rbac`.`other_duty`;
+INSERT INTO `rbac`.`other_duty` (`id`,`schedule_date`,`batch_A`,`batch_A_id`,`batch_B`,`batch_B_id`,`service_A`,`service_A_id`,`service_B`,`service_B_id`,`service_C`,`service_C_id`,`create_user`,`create_user_nickname`,`create_time`,`update_time`,`deleted`) VALUES (1, '2026-06-15', '马继龙', 'majilong', '张可心', 'zhangkexin', '余飞', 'yufei', '王翠琼', 'wangcuiqiong', '王伟', 'wangwei', 'system', 'system', '2026-06-15 18:12:05', '2026-06-16 06:55:21', 0),(2, '2026-06-16', '马继龙', 'majilong', '张可心', 'zhangkexin', '余飞', 'yufei', '王翠琼', 'wangcuiqiong', '王伟', 'wangwei', 'system', 'system', '2026-06-15 18:12:05', '2026-06-15 18:12:04', 0),(3, '2026-06-17', '张可心', 'zhangkexin', '马继龙', 'majilong', '包伟峰', 'baoweifeng', '谢婉晴', 'xiewanqing', '孙阳', 'sunyang', 'system', 'system', '2026-06-15 18:12:05', '2026-06-15 18:12:04', 0),(4, '2026-06-18', '马继龙', 'majilong', '张可心', 'zhangkexin', '杨阳', 'yangyang', '王甜甜', 'wangtiantian', '许和颖', 'xuheying', 'system', 'system', '2026-06-15 18:12:05', '2026-06-15 18:12:04', 0),(5, '2026-06-19', '张可心', 'zhangkexin', '马继龙', 'majilong', '李磊', 'lilei', '黄冠', 'huangguan', '王伟', 'wangwei', 'system', 'system', '2026-06-15 18:12:05', '2026-06-15 18:12:04', 0),(6, '2026-06-20', '马继龙', 'majilong', '张可心', 'zhangkexin', '余飞', 'yufei', '王翠琼', 'wangcuiqiong', '孙阳', 'sunyang', 'system', 'system', '2026-06-15 18:12:05', '2026-06-15 18:12:04', 0),(7, '2026-06-21', '张可心', 'zhangkexin', '马继龙', 'majilong', '包伟峰', 'baoweifeng', '谢婉晴', 'xiewanqing', '许和颖', 'xuheying', 'system', 'system', '2026-06-15 18:12:05', '2026-06-15 18:12:04', 0)
+;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`remote_record` WRITE;
 DELETE FROM `rbac`.`remote_record`;
+INSERT INTO `rbac`.`remote_record` (`id`,`record_date`,`apply_user`,`apply_user_username`,`reason`,`permission_type`,`start_time`,`end_time`,`ecc_duty_person`,`ecc_duty_person_username`,`approver`,`approver_username`,`email`,`remark`,`created_by`,`created_at`,`updated_by`,`updated_at`) VALUES (1, '2026-06-15', '', '', '', 'VPN', '', '', '', '', '', '', '', '', '', '2026-06-16 07:08:39', '', '2026-06-16 07:08:39'),(2, '2026-06-16', '魏阳阳', 'weiyangyang', '', 'RA', '', '', '李润生', 'lirunsheng', '徐世民', 'xushimin', '未补发', '', '', '2026-06-16 10:20:05', '', '2026-06-16 10:35:15')
+;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
 LOCK TABLES `rbac`.`security_device_monitor` WRITE;
 DELETE FROM `rbac`.`security_device_monitor`;
+INSERT INTO `rbac`.`security_device_monitor` (`id`,`record_date`,`alert_content`,`ecc_duty_person`,`ecc_duty_person_username`,`ops_confirm_person`,`ops_confirm_person_username`,`remark`,`created_by`,`created_at`,`updated_by`,`updated_at`) VALUES (1, '2026-06-16', '', '周厚奎', 'zhouhoukui', '魏阳阳', 'weiyangyang', '', '', '2026-06-16 10:22:07', '', '2026-06-16 10:46:53')
+;
 UNLOCK TABLES;
 COMMIT;
 BEGIN;
