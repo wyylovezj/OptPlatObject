@@ -32,16 +32,19 @@ const getLocalDateStr = (date = new Date()) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-// 默认日期范围：0:00~8:00 时为 [昨天, 今天]，其他时间为 [今天, 今天]
+// 默认日期范围：0:00~8:00 时为 [前天, 昨天]，其他时间为 [昨天, 今天]
 const getDefaultDateRange = () => {
   const now = new Date()
   const today = getLocalDateStr(now)
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = getLocalDateStr(yesterday)
   if (now.getHours() < 8) {
-    const yesterday = new Date(now)
-    yesterday.setDate(yesterday.getDate() - 1)
-    return [getLocalDateStr(yesterday), today]
+    const dayBeforeYesterday = new Date(now)
+    dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2)
+    return [getLocalDateStr(dayBeforeYesterday), today]
   }
-  return [today, today]
+  return [yesterdayStr, today]
 }
 const filterDate = ref(getDefaultDateRange())
 

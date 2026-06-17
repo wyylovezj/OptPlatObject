@@ -245,9 +245,23 @@ const getLocalDateStr = (date = new Date()) => {
 const tableWrapperRef = ref(null)
 const tableMaxHeight = ref(0)
 
+// 默认日期范围：0:00~8:00 时为 [前天, 昨天]，其他时间为 [昨天, 今天]
+const getDefaultDateRange = () => {
+  const now = new Date()
+  const today = getLocalDateStr(now)
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = getLocalDateStr(yesterday)
+  if (now.getHours() < 8) {
+    const dayBeforeYesterday = new Date(now)
+    dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2)
+    return [getLocalDateStr(dayBeforeYesterday), today]
+  }
+  return [yesterdayStr, today]
+}
+
 // 日期范围选择器
-const today = getLocalDateStr()
-const dateRange = ref([today, today])
+const dateRange = ref(getDefaultDateRange())
 
 // 快捷日期导航
 const dateShortcuts = [
@@ -405,9 +419,9 @@ const handleDateRangeChange = () => {
   loadData()
 }
 
-// 点击清除按钮重置为当天
+// 点击清除按钮重置为默认日期范围
 const handleClear = () => {
-  dateRange.value = [today, today]
+  dateRange.value = getDefaultDateRange()
   handleDateRangeChange()
 }
 
