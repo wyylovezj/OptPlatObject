@@ -6,6 +6,13 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "8979635",
+      "name": "运维监控",
+      "font_class": "yunweijiankong",
+      "unicode": "e688",
+      "unicode_decimal": 59016
+    },
+    {
       "icon_id": "7841308",
       "name": "周报管理",
       "font_class": "zhoubaoguanli",
