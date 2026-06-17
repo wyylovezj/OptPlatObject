@@ -868,7 +868,7 @@ const loadEccContactData = async () => {
     return
   }
   isLoadingData.value = true
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getEccContactException(eccContactDateRange.value)
     if (res.status === 'success' && res.data) {
