@@ -123,7 +123,12 @@ const tableRef = ref(null)
 const tableMaxHeight = ref(0)
 
 // 日期快捷选项
-const today = new Date().toISOString().split('T')[0]
+const getLocalDateStr = () => {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+const today = getLocalDateStr()
+const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') })()
 const dateShortcuts = [
   {
     text: '本月',
@@ -145,7 +150,7 @@ const dateShortcuts = [
 ]
 
 // 数据
-const dateRange = ref([today, today])
+const dateRange = ref([yesterday, today])
 const tableData = ref([])
 const selectedRows = ref([])
 
@@ -252,7 +257,7 @@ const pageTitle = computed(() => {
 
 const handleSelectionChange = (rows) => { selectedRows.value = rows }
 const handleDateChange = () => { loadData() }
-const handleClear = () => { dateRange.value = [today, today]; loadData() }
+const handleClear = () => { dateRange.value = [yesterday, today]; loadData() }
 
 const handleAddRow = () => {
   tableData.value.push({
@@ -376,23 +381,30 @@ const loadData = async () => {
   } catch (e) { msg('error', e.message || '加载数据失败') }
 }
 
-// 根据行日期加载ECC值班人员
+// 根据行日期加载ECC值班人员（前一天 + 当天，合并去重）
 const fetchEccDutyForDate = async (date) => {
   try {
-    const data = await getDuty([date, date])
+    const d = new Date(date + 'T00:00:00')
+    d.setDate(d.getDate() - 1)
+    const pad = n => String(n).padStart(2, '0')
+    const prevDay = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+    const data = await getDuty([prevDay, date])
+    const list = []
+    const seen = new Set()
     if (data && data.length > 0) {
-      const schedule = data[0]
-      const list = []
-      if (schedule.eccDayPersonnelName && schedule.eccDayPersonnelId) {
-        list.push({ name: schedule.eccDayPersonnelName, userCode: schedule.eccDayPersonnelId })
+      for (const schedule of data) {
+        if (schedule.eccDayPersonnelName && schedule.eccDayPersonnelId && !seen.has(schedule.eccDayPersonnelId)) {
+          seen.add(schedule.eccDayPersonnelId)
+          list.push({ name: schedule.eccDayPersonnelName, userCode: schedule.eccDayPersonnelId })
+        }
+        if (schedule.eccNightPersonnelName && schedule.eccNightPersonnelId && !seen.has(schedule.eccNightPersonnelId)) {
+          seen.add(schedule.eccNightPersonnelId)
+          list.push({ name: schedule.eccNightPersonnelName, userCode: schedule.eccNightPersonnelId })
+        }
       }
-      if (schedule.eccNightPersonnelName && schedule.eccNightPersonnelId) {
-        list.push({ name: schedule.eccNightPersonnelName, userCode: schedule.eccNightPersonnelId })
-      }
-      eccDutyMap.value[date] = list
-    } else {
-      eccDutyMap.value[date] = []
     }
+    eccDutyMap.value[date] = list
   } catch (e) { console.error('加载ECC排班失败', e) }
 }
 

@@ -102,6 +102,9 @@ const openCreateDialog = (parent) => {
     } else if (childLevel >= 3) {
       defaultType = 3  // 按钮
     }
+  } else {
+    // 新增根菜单，排序根据已有的根菜单数量递增
+    defaultOrder = menuTree.value.length
   }
 
   formData.value = {

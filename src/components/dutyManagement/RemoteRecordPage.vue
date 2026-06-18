@@ -103,14 +103,14 @@
                   </el-select>
                 </template>
               </el-table-column>
-              <el-table-column label="开始时间" width="110">
+              <el-table-column label="开始时间" width="140">
                 <template #default="{ row }">
-                  <el-time-picker v-model="row.start_time" format="HH:mm" value-format="HH:mm" placeholder="开始" size="small" style="width: 100%" />
+                  <el-date-picker v-model="row.start_time" type="datetime" format="MM-DD HH:mm" value-format="MM-DD HH:mm" placeholder="开始" size="small" style="width: 100%" />
                 </template>
               </el-table-column>
-              <el-table-column label="结束时间" width="110">
+              <el-table-column label="结束时间" width="140">
                 <template #default="{ row }">
-                  <el-time-picker v-model="row.end_time" format="HH:mm" value-format="HH:mm" placeholder="结束" size="small" style="width: 100%" />
+                  <el-date-picker v-model="row.end_time" type="datetime" format="MM-DD HH:mm" value-format="MM-DD HH:mm" placeholder="结束" size="small" style="width: 100%" />
                 </template>
               </el-table-column>
               <el-table-column label="ECC值班人" width="110">
@@ -304,8 +304,12 @@ const eccContactTableRef = ref(null)
 const tableMaxHeight = ref(0)
 
 // 日期快捷选项
-const today = new Date().toISOString().split('T')[0]
-const lastWeek = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0] })()
+const getLocalDateStr = () => {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+const today = getLocalDateStr()
+const lastWeek = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') })()
 const dateShortcuts = [
   {
     text: '本月',
@@ -629,15 +633,15 @@ const loadPmList = async () => {
   } catch (e) { console.error('加载PM列表失败', e) }
 }
 
-// 加载ECC排班人员（当天 + 下一天，合并去重）
+// 加载ECC排班人员（前一天 + 当天，合并去重）
 const fetchEccDutyForDate = async (date) => {
   try {
     const d = new Date(date + 'T00:00:00')
-    d.setDate(d.getDate() + 1)
+    d.setDate(d.getDate() - 1)
     const pad = n => String(n).padStart(2, '0')
-    const nextDay = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const prevDay = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-    const data = await getDuty([date, nextDay])
+    const data = await getDuty([prevDay, date])
     const list = []
     const seen = new Set()
     if (data && data.length > 0) {

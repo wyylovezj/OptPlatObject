@@ -22,6 +22,10 @@ const customStart = ref('')
 const customEnd = ref('')
 const tableTitle = ref('')
 
+const formatDateStr = (d) => {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+
 const getWeekRange = () => {
   const now = new Date()
   const dayOfWeek = now.getDay()
@@ -49,8 +53,8 @@ const getWeekRange = () => {
     label: formatDt(monday) + ' ~ ' + formatDt(sunday) + '  第' + weekNum + '周',
     startShort: fmtShort(monday),
     endShort: fmtShort(sunday),
-    startFull: monday.toISOString().split('T')[0],
-    endFull: sunday.toISOString().split('T')[0],
+    startFull: formatDateStr(monday),
+    endFull: formatDateStr(sunday),
   }
 }
 
@@ -88,10 +92,6 @@ const shiftCustomWeek = (dir) => {
   customEnd.value = formatDateStr(end)
 }
 
-const formatDateStr = (d) => {
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-}
-
 const applyCustomRange = () => {
   ElMessage.closeAll()
   tableTitle.value = '排班明细 (' + customStart.value + ' 至 ' + customEnd.value + ')'
@@ -106,7 +106,12 @@ const todayStr = computed(() => {
   return d.getMonth() + 1 + '月' + d.getDate() + '日 星期' + weekNames[d.getDay()]
 })
 
-const todayDateStr = computed(() => new Date().toISOString().split('T')[0])
+const getLocalDateStr = () => {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+
+const todayDateStr = computed(() => getLocalDateStr())
 
 const todayDayType = computed(() => getDayType(todayDateStr.value))
 
@@ -129,7 +134,7 @@ const fetchScheduleData = async (startDate, endDate) => {
     const result = await getDuty([range.startFull, range.endFull])
 
     if (result && Array.isArray(result)) {
-      const todayStr = new Date().toISOString().split('T')[0]
+      const todayStr = getLocalDateStr()
 
       // 仅本周模式清空并更新今日值班
       if (isWeekMode) {
@@ -643,7 +648,7 @@ const addDutyModalVisible = ref(false)
 const addDutyTab = ref('excel')
 const manualFormRef = ref(null)
 const manualForm = reactive({
-  date: new Date().toISOString().split('T')[0], // 默认当天日期
+  date: getLocalDateStr(), // 默认当天日期
   eccDay: '',
   eccNight: '',
   sysOps: '',
@@ -716,7 +721,7 @@ const disabledScheduleDate = (time) => {
 const excelDateRangeText = computed(() => {
   const base = latestScheduleDate.value
   if (!base) {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateStr()
     return `当前暂无排班数据，新增排班日期可从 ${today} 开始`
   }
   const nextDate = new Date(base)
@@ -740,7 +745,7 @@ const openAddDutyModal = async () => {
       if (allDates.length > 0) {
         allDates.sort()
         const latestDate = allDates[allDates.length - 1]
-        const today = new Date().toISOString().split('T')[0]
+        const today = getLocalDateStr()
 
         latestScheduleDate.value = latestDate
 
@@ -756,14 +761,14 @@ const openAddDutyModal = async () => {
         // 没有排班数据
         latestScheduleDate.value = ''
         scheduledDateSet.value = new Set()
-        manualForm.date = new Date().toISOString().split('T')[0]
+        manualForm.date = getLocalDateStr()
       }
     }
   } catch (error) {
     console.error('获取排班数据失败:', error)
     latestScheduleDate.value = ''
     scheduledDateSet.value = new Set()
-    manualForm.date = new Date().toISOString().split('T')[0]
+    manualForm.date = getLocalDateStr()
   }
 }
 
@@ -903,7 +908,7 @@ const closeAddDutyModal = () => {
     nextDate.setDate(nextDate.getDate() + 1)
     manualForm.date = formatDateStr(nextDate)
   } else {
-    manualForm.date = new Date().toISOString().split('T')[0]
+    manualForm.date = getLocalDateStr()
   }
   manualForm.eccDay = ''
   manualForm.eccNight = ''
