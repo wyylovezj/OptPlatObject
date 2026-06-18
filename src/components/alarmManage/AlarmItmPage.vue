@@ -10,7 +10,7 @@
 import { closeAlert, getUserGroup, searchData, creatOrder, suspendAlarm, unSuspendAlarm } from '@/api/interface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
-import { Edit, Plus, Minus } from '@element-plus/icons-vue'
+import { Edit, Plus, Minus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, ref, onMounted, watch, onUnmounted, h } from 'vue'
 import {
@@ -44,6 +44,84 @@ import * as XLSX from 'xlsx'
 const permissionStore = usePermissionStore()
 // 每页条数：默认为10
 const pageSize = ref(10)
+
+// 前端本地搜索（不向后端发送请求，在已获取的数据中检索）
+const localSearchText = ref('')
+
+// 清空本地搜索
+const clearLocalSearch = () => {
+  localSearchText.value = ''
+}
+
+// 过滤后的显示数据：在 tableData 基础上按本地搜索关键字进行模糊检索
+const displayData = computed(() => {
+  const keyword = localSearchText.value.trim().toLowerCase()
+  if (!keyword) return tableData.value
+
+  return tableData.value.filter(row => {
+    if (row.__spacer__) return true
+
+    if (isAggregate.value && row.hasChildren) {
+      // 聚合模式：根节点自身字段匹配 或 任意子节点匹配
+      const rootMatch = matchesRow(row, keyword)
+      const children = row.children || row._cachedChildren || []
+      const childMatch = children.some(child => matchesRow(child, keyword))
+      return rootMatch || childMatch
+    }
+
+    return matchesRow(row, keyword)
+  })
+})
+
+// 判断单行数据是否匹配搜索关键字
+const matchesRow = (row, keyword) => {
+  if (!row || row.__spacer__) return false
+  const fields = [
+    row.event_id, row.alarm_details, row.severity, row.state,
+    row.system_name, row.category, row.object, row.ip,
+    row.occurrenceTime, row.processingTime, row.source, row.alart_remarks
+  ]
+  return fields.some(field => field && String(field).toLowerCase().includes(keyword))
+}
+
+// 搜索文本变化时重置分页到第一页
+watch(localSearchText, () => {
+  currentPage.value = 1
+  startIndex.value = 0
+})
+
+// 高亮搜索匹配文本：将关键字在文本中的匹配部分用 <mark> 标签包裹
+const highlightText = (text) => {
+  if (!text) return '-'
+  const keyword = localSearchText.value.trim()
+  if (!keyword) return String(text)
+  // 转义 HTML 特殊字符防止 XSS
+  const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escapedText = escapeHtml(String(text))
+  // 转义正则特殊字符
+  const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escapedKeyword})`, 'gi')
+  return escapedText.replace(regex, '<mark class="search-highlight">$1</mark>')
+}
+
+// JS 驱动的全局同步闪烁：所有严重告警圆点绑定同一个 opacity 值，避免 CSS animation 因 DOM 重建导致闪烁不同步
+const blinkOpacity = ref(1)
+let blinkTimer = null
+const startBlinkTimer = () => {
+  if (blinkTimer) return
+  blinkTimer = setInterval(() => {
+    blinkOpacity.value = blinkOpacity.value === 1 ? 0.2 : 1
+  }, 500)
+}
+const stopBlinkTimer = () => {
+  if (blinkTimer) {
+    clearInterval(blinkTimer)
+    blinkTimer = null
+    blinkOpacity.value = 1
+  }
+}
+// 组件挂载时启动闪烁定时器
+startBlinkTimer()
 
 // 批量关闭功能
 const batchClose = async () => {
@@ -175,11 +253,21 @@ const currentPageData = computed(() => {
   const end = start + pageSize.value
   // 返回当前页的数据的切片
   console.log('end', new Date().getTime())
-  return tableData.value.slice(start, end)
+  return displayData.value.slice(start, end)
 })
 // 虚拟滚动相关变量
 const rowHeight = 45 // 每行高度（包括边框），根据实际测量调整
-const visibleRowCount = 12 // 可见区域显示的行数（固定渲染12条）
+
+// 动态计算可见行数：根据表格容器实际高度 ÷ 行高 + 缓冲，避免写死导致底部行渲染不到
+const getVisibleRowCount = () => {
+  const tableEl = tableRef.value?.$el
+  if (tableEl) {
+    const bodyWrapper = tableEl.querySelector('.el-table__body-wrapper')
+    const viewportHeight = bodyWrapper?.clientHeight || tableEl.clientHeight || 540
+    return Math.ceil(viewportHeight / rowHeight) + 3 // +3 作为缓冲，防止行高微小偏差导致末尾行缺失
+  }
+  return 15 // 默认值（兼容 DOM 未就绪时）
+}
 
 // 计算需要渲染的数据片段（仅用于非聚合模式）
 const virtualData = computed(() => {
@@ -190,15 +278,16 @@ const virtualData = computed(() => {
 
   // 当 pageSize <= 10 时，渲染所有数据（不启用虚拟滚动）
   if (pageSize.value <= 10) {
-    return tableData.value.slice(start, end)
+    return displayData.value.slice(start, end)
   }
 
-  // 当 pageSize > 10 时，启用虚拟滚动，只渲染12条数据
+  // 当 pageSize > 10 时，启用虚拟滚动，只渲染可视区域 + 缓冲行数
   // startIndex.value 表示当前可视区域的起始索引（相对于当前页）
+  const visibleCount = getVisibleRowCount()
   const renderStart = start + startIndex.value
-  const renderEnd = Math.min(renderStart + visibleRowCount, end)
+  const renderEnd = Math.min(renderStart + visibleCount, end)
 
-  return tableData.value.slice(renderStart, renderEnd)
+  return displayData.value.slice(renderStart, renderEnd)
 })
 
 // 计算带空白行的虚拟数据（用于保持滚动条高度）
@@ -216,7 +305,7 @@ const virtualDataWithSpacers = computed(() => {
 
     // 添加后置空白行
     const start = (currentPage.value - 1) * pageSize.value
-    const totalRows = Math.min(pageSize.value, tableData.value.length - start)
+    const totalRows = Math.min(pageSize.value, displayData.value.length - start)
     const renderedRows = virtualData.value.length
     const remainingRows = totalRows - startIndex.value - renderedRows
 
@@ -239,7 +328,8 @@ const handleTableScroll = (event) => {
     const newIndex = Math.floor(scrollTop / rowHeight)
 
     // 计算最大允许的起始索引（确保不会超出范围）
-    const maxStartIndex = Math.min(pageSize.value, tableData.value.length - (currentPage.value - 1) * pageSize.value) - visibleRowCount
+    const visibleCount = getVisibleRowCount()
+    const maxStartIndex = Math.min(pageSize.value, displayData.value.length - (currentPage.value - 1) * pageSize.value) - visibleCount
 
     // 限制起始索引在合理范围内
     const clampedIndex = Math.max(0, Math.min(newIndex, maxStartIndex))
@@ -261,8 +351,8 @@ const handleTableScroll = (event) => {
 const getRealRowIndex = (row) => {
   if (!row || row.__spacer__) return ''
 
-  // 在tableData中查找该行的实际索引
-  const realIndex = tableData.value.findIndex(item => item.event_id === row.event_id)
+  // 在displayData中查找该行的实际索引（支持本地搜索过滤后的数据）
+  const realIndex = displayData.value.findIndex(item => item.event_id === row.event_id)
 
   if (realIndex === -1) return ''
 
@@ -1847,6 +1937,7 @@ const handleClick = (tab, event) => {
   console.log(tab, event)
 }
 onUnmounted(() => {
+  stopBlinkTimer()
   clearExpandStates()
   // 清空当前选择行
   selectedRows.value = []
@@ -1870,16 +1961,26 @@ onUnmounted(() => {
         <el-button type="info" plain @click="handleReverseSelection">反选</el-button>
       </div>
 
-      <!-- 中间：聚合开关 -->
-      <el-switch
-        v-model="isAggregate"
-        v-if="permissionStore.hasPermission('alarm:aggregation')"
-        class="ml-2"
-        inline-prompt
-        width="60"
-        active-text="聚合"
-        inactive-text="不聚合"
-      />
+      <!-- 中间：搜索框 + 聚合开关 -->
+      <div style="display: flex; align-items: center; gap: 12px">
+        <el-input
+          v-model="localSearchText"
+          placeholder="搜索告警内容、系统、主机、IP..."
+          clearable
+          :prefix-icon="Search"
+          style="width: 280px"
+          @clear="clearLocalSearch"
+        />
+        <el-switch
+          v-model="isAggregate"
+          v-if="permissionStore.hasPermission('alarm:aggregation')"
+          class="ml-2"
+          inline-prompt
+          width="60"
+          active-text="聚合"
+          inactive-text="不聚合"
+        />
+      </div>
 
       <!-- 右侧：操作按钮 -->
       <div style="display: flex; align-items: center; gap: 10px">
@@ -1991,12 +2092,11 @@ onUnmounted(() => {
               class="alarm-content-cell"
               :title="row.alarm_details"
               :style="{
-                color: row.severity === '严重' ? '#dc2626' : row.severity === '重要' ? '#ea580c' : 'inherit',
-                fontWeight: row.severity === '严重' || row.severity === '重要' ? '600' : '400'
+                color: row.severity === '严重' ? '#dc2626' : 'inherit',
+                fontWeight: row.severity === '严重' ? '600' : '400'
               }"
-            >
-              {{ row.alarm_details || '-' }}
-            </div>
+              v-html="highlightText(row.alarm_details)"
+            ></div>
           </template>
         </el-table-column>
         <el-table-column prop="severity" label="级别" :sortable="false" min-width="8%" :resizable="false">
@@ -2017,8 +2117,10 @@ onUnmounted(() => {
             >
               <span
                 class="severity-indicator-small"
-                :class="{ 'severity-blink': blinkTrigger && scope.row.severity === '严重' && scope.row.state !== '已关闭' }"
-                :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
+                :style="{
+                  backgroundColor: getSeverityColor(scope.row.severity),
+                  opacity: (blinkTrigger && scope.row.severity === '严重' && scope.row.state !== '已关闭') ? blinkOpacity : 1
+                }"
               ></span>
               {{ scope.row.severity }}
             </el-tag>
@@ -2043,14 +2145,14 @@ onUnmounted(() => {
           <template #default="{ row }">
             <!-- 空白行不显示内容 -->
             <span v-if="row.__spacer__"></span>
-            <span v-else>{{ row.system_name || '-' }}</span>
+            <span v-else v-html="highlightText(row.system_name)"></span>
           </template>
         </el-table-column>
         <el-table-column prop="category" label="分类" show-overflow-tooltip min-width="5%" :resizable="false">
           <template #default="{ row }">
             <!-- 空白行不显示内容 -->
             <span v-if="row.__spacer__"></span>
-            <span v-else>{{ row.category || '-' }}</span>
+            <span v-else v-html="highlightText(row.category)"></span>
           </template>
         </el-table-column>
         <el-table-column prop="object" label="主机名" min-width="8%" show-overflow-tooltip :resizable="false">
@@ -2058,7 +2160,7 @@ onUnmounted(() => {
             <!-- 空白行不显示内容 -->
             <div v-if="row.__spacer__"></div>
             <el-button v-else type="primary" class="truncate-button" plain @click="handleView(row)" style="max-width: 100%; overflow: hidden; padding: 4px 8px; font-size: 12px; min-height: 28px; height: 28px">
-              {{ row.object || '-' }}
+              <span v-html="highlightText(row.object)"></span>
             </el-button>
           </template>
         </el-table-column>
@@ -2066,21 +2168,21 @@ onUnmounted(() => {
           <template #default="{ row }">
             <!-- 空白行不显示内容 -->
             <span v-if="row.__spacer__"></span>
-            <span v-else>{{ row.ip || '-' }}</span>
+            <span v-else v-html="highlightText(row.ip)"></span>
           </template>
         </el-table-column>
         <el-table-column prop="occurrenceTime" label="发生时间" min-width="10%" :resizable="false">
           <template #default="{ row }">
             <!-- 空白行不显示内容 -->
             <span v-if="row.__spacer__"></span>
-            <span v-else>{{ row.occurrenceTime || '-' }}</span>
+            <span v-else v-html="highlightText(row.occurrenceTime)"></span>
           </template>
         </el-table-column>
         <el-table-column prop="processingTime" label="处理时间" min-width="10%" :resizable="false">
           <template #default="{ row }">
             <!-- 空白行不显示内容 -->
             <span v-if="row.__spacer__"></span>
-            <span v-else>{{ row.processingTime || '-' }}</span>
+            <span v-else v-html="highlightText(row.processingTime)"></span>
           </template>
         </el-table-column>
         <el-table-column prop="operation" label="操作" min-width="5%" :resizable="false">
@@ -2126,7 +2228,7 @@ onUnmounted(() => {
     <div style="display: flex; justify-content: space-between; align-items: center; user-select: none">
       <!--  显示总数  -->
       <div style="display: flex; align-items: center">
-        <span style="line-height: 20px">共 {{ tableData.length }} 条</span>
+        <span style="line-height: 20px">共 {{ displayData.length }} 条</span>
       </div>
       <div style="display: flex; align-items: center">
         <!--  每页条数  -->
@@ -2142,7 +2244,7 @@ onUnmounted(() => {
             background
             v-model:current-page="currentPage"
             :page-size="pageSize"
-            :total="tableData.length"
+            :total="displayData.length"
             layout="prev, pager, next"
             @current-change="handleCurrentChange"
           />
@@ -2202,8 +2304,10 @@ onUnmounted(() => {
                 >
                   <span
                     class="severity-indicator-small"
-                    :class="{ 'severity-blink': scope.row.severity === '严重' && scope.row.state !== '已关闭' }"
-                    :style="{ backgroundColor: getSeverityColor(scope.row.severity) }"
+                    :style="{
+                      backgroundColor: getSeverityColor(scope.row.severity),
+                      opacity: (scope.row.severity === '严重' && scope.row.state !== '已关闭') ? blinkOpacity : 1
+                    }"
                   ></span>
                   {{ scope.row.severity }}
                 </el-tag>
@@ -2478,7 +2582,7 @@ onUnmounted(() => {
   position: relative; /* 添加相对定位,用于切换聚合模式时遮罩层定位 */
 }
 
-/* 空白行样式 */
+/* 空白行（虚拟滚动占位行）样式 */
 :deep(.el-table__body tr.spacer-row) {
   pointer-events: none;
 }
@@ -2487,6 +2591,11 @@ onUnmounted(() => {
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
+}
+
+/* 隐藏占位行中的复选框 */
+:deep(.el-table__body tr.spacer-row .el-checkbox) {
+  visibility: hidden !important;
 }
 
 /* 关键修复：强制统一聚合模式子节点的内容高度，与非聚合模式保持一致 */
@@ -2501,14 +2610,14 @@ onUnmounted(() => {
   height: 33px !important;
 }
 
-/* 告警图形样式和闪烁动画 - 与HTML样例保持一致 */
+/* 告警图形样式 - 闪烁由 JS setInterval 驱动，transition 仅用于快速平滑 opacity 变化 */
 .severity-indicator {
   display: inline-block;
   width: 20px;
   height: 20px;
   border-radius: 50%;
   vertical-align: middle;
-  transition: all 0.5s ease;
+  transition: opacity 0.15s ease;
   margin: 5px 0;
 }
 
@@ -2520,21 +2629,7 @@ onUnmounted(() => {
   border-radius: 50%;
   flex-shrink: 0;
   margin-right: 5px;
-  transition: all 0.5s ease;
-}
-
-/* 严重告警点的闪烁动画 - 透明度变化 */
-.severity-blink {
-  animation: dotBlink 1s ease-in-out infinite;
-}
-
-@keyframes dotBlink {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.2;
-  }
+  transition: opacity 0.15s ease;
 }
 /* 告警状态颜色 */
 .status-unprocessed {
@@ -2803,5 +2898,14 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
+}
+
+/* 搜索结果高亮样式 - v-html 渲染的内容需要用 :deep 穿透 scoped */
+:deep(.search-highlight) {
+  background-color: #fef08a;
+  color: #854d0e;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: inherit;
 }
 </style>
