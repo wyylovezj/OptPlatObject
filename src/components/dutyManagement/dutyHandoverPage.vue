@@ -178,8 +178,8 @@ const mapBackendToCard = (item) => {
     editingTo: false,
   }
 
-  // 对于ECC夜班(personnelType=1, shiftType=2)的记录，从otherDuty中提取跑批和服务台人员数据
-  if (item.personnelType === 1 && shiftType === 2 && item.otherDuty) {
+  // 对于ECC记录（白班和夜班），从otherDuty中提取跑批和服务台人员数据
+  if (item.personnelType === 1 && item.otherDuty) {
     const od = item.otherDuty
     if (od.batch_A) {
       card.batchPersonA = od.batch_A
@@ -600,33 +600,68 @@ const fillPersonnel = (card) => {
     }
   }
 
-  // 填充跑批和服务台人员：优先从今日 other_duty 排班中获取
-  const od = todayOtherDuty.value
-  if (od) {
-    if (od.batchA) {
-      card.batchPersonA = od.batchA
-      card.batchPersonACode = od.batchAId || ''
-      card.batchPersonASurname = od.batchA.charAt(0) || '—'
+  // 填充跑批和服务台人员：优先从同日期另一班次已配置的卡片中获取
+  const otherShiftCard = handoverList.value.find(c =>
+    c.roleValue === 'ecc' &&
+    c.date === card.date &&
+    c.shiftType !== card.shiftType &&
+    (c.batchPersonA && c.batchPersonA !== '未排班' && c.batchPersonA !== '—' && c.batchPersonA !== '' ||
+     c.servicePerson1 && c.servicePerson1 !== '未排班' && c.servicePerson1 !== '—' && c.servicePerson1 !== '')
+  )
+
+  const hasBatchFromOther = otherShiftCard && otherShiftCard.batchPersonA && otherShiftCard.batchPersonA !== '未排班' && otherShiftCard.batchPersonA !== '—' && otherShiftCard.batchPersonA !== ''
+  const hasServiceFromOther = otherShiftCard && otherShiftCard.servicePerson1 && otherShiftCard.servicePerson1 !== '未排班' && otherShiftCard.servicePerson1 !== '—' && otherShiftCard.servicePerson1 !== ''
+
+  if (hasBatchFromOther || hasServiceFromOther) {
+    // 从同日期另一班次已配置的卡片中复制人员
+    if (hasBatchFromOther) {
+      card.batchPersonA = otherShiftCard.batchPersonA
+      card.batchPersonACode = otherShiftCard.batchPersonACode || ''
+      card.batchPersonASurname = otherShiftCard.batchPersonASurname || '—'
+      card.batchPersonB = otherShiftCard.batchPersonB
+      card.batchPersonBCode = otherShiftCard.batchPersonBCode || ''
+      card.batchPersonBSurname = otherShiftCard.batchPersonBSurname || '—'
     }
-    if (od.batchB) {
-      card.batchPersonB = od.batchB
-      card.batchPersonBCode = od.batchBId || ''
-      card.batchPersonBSurname = od.batchB.charAt(0) || '—'
+    if (hasServiceFromOther) {
+      card.servicePerson1 = otherShiftCard.servicePerson1
+      card.servicePerson1Code = otherShiftCard.servicePerson1Code || ''
+      card.servicePerson1Surname = otherShiftCard.servicePerson1Surname || '—'
+      card.servicePerson2 = otherShiftCard.servicePerson2
+      card.servicePerson2Code = otherShiftCard.servicePerson2Code || ''
+      card.servicePerson2Surname = otherShiftCard.servicePerson2Surname || '—'
+      card.servicePerson3 = otherShiftCard.servicePerson3
+      card.servicePerson3Code = otherShiftCard.servicePerson3Code || ''
+      card.servicePerson3Surname = otherShiftCard.servicePerson3Surname || '—'
     }
-    if (od.serviceA) {
-      card.servicePerson1 = od.serviceA
-      card.servicePerson1Code = od.serviceAId || ''
-      card.servicePerson1Surname = od.serviceA.charAt(0) || '—'
-    }
-    if (od.serviceB) {
-      card.servicePerson2 = od.serviceB
-      card.servicePerson2Code = od.serviceBId || ''
-      card.servicePerson2Surname = od.serviceB.charAt(0) || '—'
-    }
-    if (od.serviceC) {
-      card.servicePerson3 = od.serviceC
-      card.servicePerson3Code = od.serviceCId || ''
-      card.servicePerson3Surname = od.serviceC.charAt(0) || '—'
+  } else {
+    // 兜底：从今日 other_duty 排班中获取
+    const od = todayOtherDuty.value
+    if (od) {
+      if (od.batchA) {
+        card.batchPersonA = od.batchA
+        card.batchPersonACode = od.batchAId || ''
+        card.batchPersonASurname = od.batchA.charAt(0) || '—'
+      }
+      if (od.batchB) {
+        card.batchPersonB = od.batchB
+        card.batchPersonBCode = od.batchBId || ''
+        card.batchPersonBSurname = od.batchB.charAt(0) || '—'
+      }
+      if (od.serviceA) {
+        card.servicePerson1 = od.serviceA
+        card.servicePerson1Code = od.serviceAId || ''
+        card.servicePerson1Surname = od.serviceA.charAt(0) || '—'
+      }
+      if (od.serviceB) {
+        card.servicePerson2 = od.serviceB
+        card.servicePerson2Code = od.serviceBId || ''
+        card.servicePerson2Surname = od.serviceB.charAt(0) || '—'
+      }
+      if (od.serviceC) {
+        card.servicePerson3 = od.serviceC
+        card.servicePerson3Code = od.serviceCId || ''
+        card.servicePerson3Surname = od.serviceC.charAt(0) || '—'
+      }
     }
   }
 }
@@ -1295,8 +1330,8 @@ const saveDraftCard = async (card) => {
     })),
   }
 
-  // 仅ECC夜班保存时上传跑批和运维服务台人员
-  if (card.roleValue === 'ecc' && card.shiftType === 2) {
+  // 所有ECC卡片保存时上传跑批和运维服务台人员
+  if (card.roleValue === 'ecc') {
     handoverDataModel.otherDuty = {
       batch_A_id: card.batchPersonACode || '',
       batch_A: card.batchPersonA || '',
@@ -1929,15 +1964,15 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <!-- 跑批人员（仅ECC夜班显示） -->
+            <!-- 跑批人员（ECC卡片均显示） -->
             <!-- 跑批人员标题 - 全宽 -->
-            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-content-block" style="margin-top: 0; margin-bottom: 0; padding-bottom: 0;">
+            <div v-if="item.roleValue === 'ecc'" class="handover-content-block" style="margin-top: 0; margin-bottom: 0; padding-bottom: 0;">
               <div class="handover-section-title">
                 <el-icon><UserFilled /></el-icon> 跑批人员
               </div>
             </div>
             <!-- 跑批A角 -->
-            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-col">
+            <div v-if="item.roleValue === 'ecc'" class="handover-col">
               <div class="handover-person-row">
                 <div class="handover-person-avatar" style="background: var(--purple);">{{ item.batchPersonASurname || '—' }}</div>
                 <div class="handover-person-info">
@@ -1970,7 +2005,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <!-- 跑批B角 -->
-            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-col">
+            <div v-if="item.roleValue === 'ecc'" class="handover-col">
               <div class="handover-person-row">
                 <div class="handover-person-avatar" style="background: var(--purple);">{{ item.batchPersonBSurname || '—' }}</div>
                 <div class="handover-person-info">
@@ -2002,14 +2037,14 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <!-- 运维服务台（仅ECC夜班显示） -->
-            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="handover-content-block" style="margin-top: 0; margin-bottom: 0; padding-bottom: 0;">
+            <!-- 运维服务台 - ECC卡片均显示 -->
+            <div v-if="item.roleValue === 'ecc'" class="handover-content-block" style="margin-top: 0; margin-bottom: 0; padding-bottom: 0;">
               <div class="handover-section-title">
                 <el-icon><UserFilled /></el-icon> 运维服务台
               </div>
             </div>
             <!-- 服务台1/2/3 - flex行三列 -->
-            <div v-if="item.roleValue === 'ecc' && item.shiftType === 2" class="service-row">
+            <div v-if="item.roleValue === 'ecc'" class="service-row">
               <!-- 服务台1 -->
               <div class="service-col">
                 <div class="handover-person-row">
