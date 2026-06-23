@@ -4,13 +4,15 @@ import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List,
 import { ElMessage } from 'element-plus'
 import { HolidayUtil } from 'lunar-javascript'
 import * as XLSX from 'xlsx'
-import { getEcc, getSys, getNet, getPM, saveDuty, getDuty, updateDuty } from '@/api/dutyPageInterface.js'
+import { getEcc, getSys, getNet, getPM, saveDuty, getDuty, updateDuty, getOtherDuty, getBatch, getService } from '@/api/dutyPageInterface.js'
 import {
   eccDayPersonnel,
   eccNightPersonnel,
   sysOpsPersonnel,
   netOpsPersonnel,
   pmPersonnel,
+  batchPersonnel,
+  serviceDeskPersonnel,
   resetDutyScheduleData,
 } from '@/utils/dutyPageData.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
@@ -122,6 +124,8 @@ const todayEccPersons = ref([])
 const todaySysPersons = ref([])
 const todayNetPersons = ref([])
 const todayPmPersons = ref([])
+const todayBatchPersons = ref([])
+const todayServiceDeskPersons = ref([])
 
 // 从后端获取指定范围排班数据，同时更新排班表格和今日值班展示
 const fetchScheduleData = async (startDate, endDate) => {
@@ -297,6 +301,11 @@ const fetchScheduleData = async (startDate, endDate) => {
             : []
         }
       })
+
+      // 仅本周模式时，加载今日跑批和服务台数据
+      if (isWeekMode) {
+        await loadTodayOtherDuty(todayStr)
+      }
 
       // 填充查询范围内缺失的日期（无排班数据的天数也显示在表格中）
       const existingDates = new Set(tableRows.map(r => r.date))
@@ -783,6 +792,8 @@ watch(() => manualForm.date, async (newDate) => {
     loadSysPersonnel(),
     loadNetPersonnel(),
     loadPmPersonnel(),
+    loadBatchPersonnel(),
+    loadServiceDeskPersonnel(),
   ])
 
   try {
@@ -849,8 +860,112 @@ const loadPmPersonnel = async () => {
       const data = await getPM()
       pmPersonnel.value = data || []
     } catch {
-      ElMessage.error('获取甲方PM值班人员失败')
+      ElMessage.error('获取甲方 PM 值班人员失败')
     }
+  }
+}
+
+const loadBatchPersonnel = async () => {
+  if (batchPersonnel.value.length === 0) {
+    try {
+      const data = await getBatch()
+      batchPersonnel.value = data || []
+      console.log('跑批人员数据：', data)
+    } catch {
+      ElMessage.error('获取跑批人员失败')
+    }
+  }
+}
+
+const loadServiceDeskPersonnel = async () => {
+  if (serviceDeskPersonnel.value.length === 0) {
+    try {
+      const data = await getService()
+      serviceDeskPersonnel.value = data || []
+      console.log('运维服务台人员数据：', data)
+    } catch {
+      ElMessage.error('获取运维服务台人员失败')
+    }
+  }
+}
+
+// 加载今日跑批和服务台值班数据
+const loadTodayOtherDuty = async (todayStr) => {
+  try {
+    console.log('=== 开始加载今日其他值班数据 ===')
+    console.log('今日日期:', todayStr)
+    const otherDutyResult = await getOtherDuty(todayStr)
+    console.log('后端返回数据:', otherDutyResult)
+
+    if (otherDutyResult) {
+      // 清空之前的数据
+      todayBatchPersons.value = []
+      todayServiceDeskPersons.value = []
+
+      // 跑批 A 角
+      if (otherDutyResult.batchA) {
+        todayBatchPersons.value.push({
+          name: otherDutyResult.batchA,
+          surname: getSurname(otherDutyResult.batchA),
+          avatarColor: 'var(--success)',
+          shiftClass: 'shift-day',
+          shiftLabel: 'A',
+          time: '18:00 - 08:30',
+        })
+      }
+      // 跑批 B 角
+      if (otherDutyResult.batchB) {
+        todayBatchPersons.value.push({
+          name: otherDutyResult.batchB,
+          surname: getSurname(otherDutyResult.batchB),
+          avatarColor: 'var(--success)',
+          shiftClass: 'shift-day',
+          shiftLabel: 'B',
+          time: '18:00 - 08:30',
+        })
+      }
+
+      // 运维服务台 - 按组显示
+      const groups = ['a', 'b', 'c'] // A 组、B 组、C 组
+      const groupNameMap = {
+        a: '业务组',
+        b: '财务组',
+        c: '办公组'
+      }
+      const fieldKeyMap = {
+        a: 'serviceA',
+        b: 'serviceB',
+        c: 'serviceC'
+      }
+
+      groups.forEach(group => {
+        const personnelName = otherDutyResult[fieldKeyMap[group]]
+        console.log(`处理${groupNameMap[group]}，字段：${fieldKeyMap[group]}, 值：`, personnelName)
+        if (personnelName) {
+          todayServiceDeskPersons.value.push({
+            name: personnelName,
+            surname: getSurname(personnelName),
+            avatarColor: 'var(--cyan)',
+            shiftClass: 'shift-day',
+            shiftLabel: groupNameMap[group],
+            time: '18:00 - 08:30',
+          })
+        }
+      })
+
+      console.log('最终跑批人员:', todayBatchPersons.value)
+      console.log('最终运维服务台人员:', todayServiceDeskPersons.value)
+      console.log('=== 今日其他值班数据加载完成 ===\n')
+    } else {
+      console.log('无排班数据')
+      // 无排班数据时显示默认状态
+      todayBatchPersons.value = []
+      todayServiceDeskPersons.value = []
+    }
+  } catch (error) {
+    console.error('获取今日跑批/服务台值班数据失败:', error)
+    todayBatchPersons.value = []
+    todayServiceDeskPersons.value = []
   }
 }
 
@@ -971,10 +1086,10 @@ const isNextSunday = (dateStr) => {
   // 获取当前 UTC 时间
   const now = new Date()
   const nowUTC = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  
+
   // 使用 UTC 方法创建目标日期，避免时区问题
   const targetUTC = new Date(Date.UTC(year, month - 1, day))
-  
+
   console.log('当前 UTC 日期:', nowUTC.toISOString().split('T')[0])
   console.log('目标 UTC 日期:', targetUTC.toISOString().split('T')[0])
 
@@ -1007,6 +1122,8 @@ const startEdit = async (row) => {
     loadSysPersonnel(),
     loadNetPersonnel(),
     loadPmPersonnel(),
+    loadBatchPersonnel(),
+    loadServiceDeskPersonnel(),
   ])
 
   const dayRow = scheduleTableData.value.find(r => r.date === row.date && r.shift === 'day')
@@ -1481,6 +1598,100 @@ onMounted(async () => {
             </div>
           </template>
         </div>
+
+        <div class="duty-role-card">
+          <div class="role-header r-batch">
+            <span class="role-name"
+              ><el-icon><Monitor /></el-icon> 跑批</span
+            >
+          </div>
+          <template v-if="todayBatchPersons.length > 0">
+            <div class="person-item" v-for="p in todayBatchPersons" :key="p.name">
+              <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
+              <div class="p-info">
+                <div class="p-name">
+                  {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+                </div>
+                <div class="p-time">{{ p.time }}</div>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">A</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
+              </div>
+            </div>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">B</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="duty-role-card">
+          <div class="role-header r-service">
+            <span class="role-name"
+              ><el-icon><User /></el-icon> 运维服务台</span
+            >
+          </div>
+          <template v-if="todayServiceDeskPersons.length > 0">
+            <div class="service-desk-grid">
+              <div class="person-item" v-for="(p, index) in todayServiceDeskPersons" :key="p.name" :class="{'col-2': index >= 2}">
+                <div class="p-avatar" :style="{ background: p.avatarColor }">{{ p.surname }}</div>
+                <div class="p-info">
+                  <div class="p-name">
+                    {{ p.name }} <span :class="['badge-shift', p.shiftClass]">{{ p.shiftLabel }}</span>
+                  </div>
+                  <div class="p-time">{{ p.time }}</div>
+                </div>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">业务组</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
+              </div>
+            </div>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">财务组</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
+              </div>
+            </div>
+            <div class="person-item">
+              <div class="p-avatar" style="background: var(--text-4);">—</div>
+              <div class="p-info">
+                <div class="p-name">
+                  <span style="color: var(--text-4);">未排班</span>
+                  <span class="badge-shift shift-day">办公组</span>
+                </div>
+                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
+              </div>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -1928,8 +2139,8 @@ onMounted(async () => {
 /* 今日值班卡片 */
 .today-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
   padding: 12px 16px;
 }
 .duty-role-card {
@@ -1970,6 +2181,12 @@ onMounted(async () => {
 .r-pm {
   color: var(--warning);
 }
+.r-batch {
+  color: var(--success);
+}
+.r-service {
+  color: var(--cyan);
+}
 .person-item {
   display: flex;
   align-items: center;
@@ -2004,6 +2221,24 @@ onMounted(async () => {
   color: var(--text-3);
   font-family: monospace;
   margin-top: 2px;
+}
+
+/* 运维服务台两列布局 */
+.service-desk-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.service-desk-grid .person-item.col-2 {
+  grid-column: span 2;
+}
+@media (min-width: 768px) {
+  .service-desk-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .service-desk-grid .person-item.col-2 {
+    grid-column: span 1;
+  }
 }
 
 /* 班次标签 */
