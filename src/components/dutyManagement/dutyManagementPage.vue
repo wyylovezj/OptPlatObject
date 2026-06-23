@@ -952,11 +952,35 @@ const getEditSelectWidth = (value, options, placeholder) => {
   return { width: total + 'px', minWidth: total + 'px' }
 }
 
-// 判断该日期是否有排班数据（用于控制调班按钮是否可点击）
+// 判断该日期是否有排班数据 (用于控制调班按钮是否可点击)
 const hasDutyData = (row) => {
   if (!row) return false
   const nightRow = scheduleTableData.value.find(r => r.date === row.date && r.shift === 'night')
   return !!(row.ecc || row.sysOps || row.netOps || row.pm || nightRow?.ecc)
+}
+
+// 判断指定日期是否为下周日
+const isNextSunday = (dateStr) => {
+  if (!dateStr) return false
+  
+  // 解析目标日期字符串 (格式：YYYY-MM-DD)
+  const [year, month, day] = dateStr.split('-').map(Number)
+  
+  // 获取当前 UTC 时间
+  const now = new Date()
+  const nowUTC = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const targetUTC = new Date(year, month - 1, day)
+  
+  // 检查目标日期是否是周日
+  const utcDayOfWeek = targetUTC.getUTCDay() // 0=周日，1=周一，..., 6=周六
+  if (utcDayOfWeek !== 0) return false
+  
+  // 计算目标日期和今天的差值（天数）
+  const diffTime = targetUTC.getTime() - nowUTC.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  // 如果是下周日，应该在 7-13 天之后
+  return diffDays >= 7 && diffDays < 14
 }
 
 // 开始编辑指定日期的排班
@@ -1556,7 +1580,7 @@ onMounted(async () => {
               </template>
               <template v-else>
                 <el-tooltip content="账号无调班权限" :disabled="permissionStore.hasPermission('duty:edit')" placement="top">
-                  <el-button type="warning" size="small" round plain :disabled="!permissionStore.hasPermission('duty:edit') || !hasDutyData(row)" @click="startEdit(row)">
+                  <el-button type="warning" size="small" round plain :disabled="!permissionStore.hasPermission('duty:edit') || !hasDutyData(row) || isNextSunday(row.date)" @click="startEdit(row)">
                     调班
                   </el-button>
                 </el-tooltip>
