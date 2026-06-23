@@ -1,4 +1,4 @@
-<script setup>
+将<script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List, UploadFilled, Download, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -961,26 +961,42 @@ const hasDutyData = (row) => {
 
 // 判断指定日期是否为下周日
 const isNextSunday = (dateStr) => {
+  console.log('检查日期:', dateStr)
   if (!dateStr) return false
-  
+
   // 解析目标日期字符串 (格式：YYYY-MM-DD)
   const [year, month, day] = dateStr.split('-').map(Number)
-  
+  console.log('解析结果 - 年:', year, '月:', month, '日:', day)
+
   // 获取当前 UTC 时间
   const now = new Date()
   const nowUTC = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  const targetUTC = new Date(year, month - 1, day)
   
+  // 使用 UTC 方法创建目标日期，避免时区问题
+  const targetUTC = new Date(Date.UTC(year, month - 1, day))
+  
+  console.log('当前 UTC 日期:', nowUTC.toISOString().split('T')[0])
+  console.log('目标 UTC 日期:', targetUTC.toISOString().split('T')[0])
+
   // 检查目标日期是否是周日
   const utcDayOfWeek = targetUTC.getUTCDay() // 0=周日，1=周一，..., 6=周六
-  if (utcDayOfWeek !== 0) return false
-  
+  console.log('目标星期 (UTC):', utcDayOfWeek, '(0=周日)')
+
+  if (utcDayOfWeek !== 0) {
+    console.log('不是周日，返回 false')
+    return false
+  }
+
   // 计算目标日期和今天的差值（天数）
   const diffTime = targetUTC.getTime() - nowUTC.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  
-  // 如果是下周日，应该在 7-13 天之后
-  return diffDays >= 7 && diffDays < 14
+  console.log('距离今天天数:', diffDays)
+
+  // 如果是下周日，应该在 7-20 天之后
+  const result = diffDays >= 7 && diffDays < 20
+  console.log('是否下周日:', result, '(条件：diffDays>=7 && diffDays<20)')
+
+  return result
 }
 
 // 开始编辑指定日期的排班
