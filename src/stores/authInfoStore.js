@@ -90,6 +90,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
   // 登录时存储登录信息
   const loginInfoStorage = async (username, status) => {
+    // 每次登录都强制加载用户权限信息，确保切换用户时权限正确刷新
+    await loadUserPermissions(username)
     // 存储用户名
     user.value = username
     // 存储登录状态
@@ -101,10 +103,6 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.setItem('status', state.value)
     sessionStorage.setItem('userType', userType.value)
 
-    // 只有在权限未加载时才加载用户权限信息，避免重复加载
-    if (!permissionsLoaded.value && !isLoadingPermissions.value) {
-      await loadUserPermissions(username)
-    }
 
     if (isSsoLogin.value) {
       // 登录成功后，设置标记表示这是登录重定向
