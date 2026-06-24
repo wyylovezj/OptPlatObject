@@ -103,6 +103,10 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.setItem('status', state.value)
     sessionStorage.setItem('userType', userType.value)
 
+    // 只有在权限未加载时才加载用户权限信息，避免重复加载
+    // if (!permissionsLoaded.value && !isLoadingPermissions.value) {
+    //   await loadUserPermissions(username)
+    // }
 
     if (isSsoLogin.value) {
       // 登录成功后，设置标记表示这是登录重定向
