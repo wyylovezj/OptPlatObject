@@ -1,10 +1,10 @@
-将<script setup>
+<script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { Plus, ArrowLeft, ArrowRight, Calendar, Monitor, Connection, User, List, UploadFilled, Download, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { HolidayUtil } from 'lunar-javascript'
 import * as XLSX from 'xlsx'
-import { getEcc, getSys, getNet, getPM, saveDuty, getDuty, updateDuty, getOtherDuty, getBatch, getService } from '@/api/dutyPageInterface.js'
+import { getEcc, getSys, getNet, getPM, saveDuty, getDuty, updateDuty, getOtherDuty, getOtherDutyByRange, getBatch, getService } from '@/api/dutyPageInterface.js'
 import {
   eccDayPersonnel,
   eccNightPersonnel,
@@ -135,7 +135,35 @@ const fetchScheduleData = async (startDate, endDate) => {
     const range = isWeekMode
       ? getWeekRange()
       : { startFull: startDate, endFull: endDate }
-    const result = await getDuty([range.startFull, range.endFull])
+
+    // 同时加载排班数据、所有人员列表和 other_duty 数据
+    const [result, batchData, serviceData, otherDutyRecords] = await Promise.all([
+      getDuty([range.startFull, range.endFull]),
+      getBatch(),
+      getService(),
+      getOtherDutyByRange([range.startFull, range.endFull])
+    ])
+
+    // 构建人员 ID 到姓名的映射
+    const batchNameMap = new Map()
+    batchData?.forEach(user => {
+      batchNameMap.set(user.userCode, user.name)
+    })
+
+    const serviceNameMap = new Map()
+    serviceData?.forEach(user => {
+      serviceNameMap.set(user.userCode, user.name)
+    })
+
+    // 构建 other_duty 日期 -> 记录 映射
+    const otherDutyMap = new Map()
+    if (otherDutyRecords && Array.isArray(otherDutyRecords)) {
+      otherDutyRecords.forEach(record => {
+        if (record.scheduleDate) {
+          otherDutyMap.set(record.scheduleDate, record)
+        }
+      })
+    }
 
     if (result && Array.isArray(result)) {
       const todayStr = getLocalDateStr()
@@ -178,6 +206,41 @@ const fetchScheduleData = async (startDate, endDate) => {
         const pmName = record.pmPersonnelName || ''
         const pmId = record.pmPersonnelId || record.pm_personnel_id || ''
 
+        // 从 other_duty 获取跑批和服务台人员（优先于 ecc 值班表）
+        const otherDuty = otherDutyMap.get(dateStr)
+
+        // 跑批人员
+        let batchAName = otherDuty?.batchA || ''
+        const batchAId = otherDuty?.batchAId || ''
+        if (!batchAName && batchAId) {
+          batchAName = batchNameMap.get(batchAId) || ''
+        }
+
+        let batchBName = otherDuty?.batchB || ''
+        const batchBId = otherDuty?.batchBId || ''
+        if (!batchBName && batchBId) {
+          batchBName = batchNameMap.get(batchBId) || ''
+        }
+
+        // 服务台人员
+        let serviceAName = otherDuty?.serviceA || ''
+        const serviceAId = otherDuty?.serviceAId || ''
+        if (!serviceAName && serviceAId) {
+          serviceAName = serviceNameMap.get(serviceAId) || ''
+        }
+
+        let serviceBName = otherDuty?.serviceB || ''
+        const serviceBId = otherDuty?.serviceBId || ''
+        if (!serviceBName && serviceBId) {
+          serviceBName = serviceNameMap.get(serviceBId) || ''
+        }
+
+        let serviceCName = otherDuty?.serviceC || ''
+        const serviceCId = otherDuty?.serviceCId || ''
+        if (!serviceCName && serviceCId) {
+          serviceCName = serviceNameMap.get(serviceCId) || ''
+        }
+
         // 白班行
         tableRows.push({
           id: dateStr + '-D',
@@ -209,6 +272,26 @@ const fetchScheduleData = async (startDate, endDate) => {
           pmColor: pmName ? 'var(--warning)' : '',
           pmId: pmId,
           isPmMaster: !!pmName,
+          batchA: batchAName,
+          batchASurname: batchAName ? getSurname(batchAName) : '',
+          batchAColor: batchAName ? 'var(--success)' : '',
+          batchAId: batchAId,
+          batchB: batchBName,
+          batchBSurname: batchBName ? getSurname(batchBName) : '',
+          batchBColor: batchBName ? 'var(--success)' : '',
+          batchBId: batchBId,
+          serviceA: serviceAName,
+          serviceASurname: serviceAName ? getSurname(serviceAName) : '',
+          serviceAColor: serviceAName ? 'var(--cyan)' : '',
+          serviceAId: serviceAId,
+          serviceB: serviceBName,
+          serviceBSurname: serviceBName ? getSurname(serviceBName) : '',
+          serviceBColor: serviceBName ? 'var(--cyan)' : '',
+          serviceBId: serviceBId,
+          serviceC: serviceCName,
+          serviceCSurname: serviceCName ? getSurname(serviceCName) : '',
+          serviceCColor: serviceCName ? 'var(--cyan)' : '',
+          serviceCId: serviceCId,
         })
 
         // 夜班行
@@ -239,6 +322,21 @@ const fetchScheduleData = async (startDate, endDate) => {
           pmSurname: pmName ? getSurname(pmName) : '',
           pmColor: pmName ? 'var(--warning)' : '',
           isPmMaster: false,
+          batchA: batchAName,
+          batchASurname: batchAName ? getSurname(batchAName) : '',
+          batchAColor: batchAName ? 'var(--success)' : '',
+          batchB: batchBName,
+          batchBSurname: batchBName ? getSurname(batchBName) : '',
+          batchBColor: batchBName ? 'var(--success)' : '',
+          serviceA: serviceAName,
+          serviceASurname: serviceAName ? getSurname(serviceAName) : '',
+          serviceAColor: serviceAName ? 'var(--cyan)' : '',
+          serviceB: serviceBName,
+          serviceBSurname: serviceBName ? getSurname(serviceBName) : '',
+          serviceBColor: serviceBName ? 'var(--cyan)' : '',
+          serviceC: serviceCName,
+          serviceCSurname: serviceCName ? getSurname(serviceCName) : '',
+          serviceCColor: serviceCName ? 'var(--cyan)' : '',
         })
 
         // 仅本周模式更新今日值班
@@ -343,6 +441,26 @@ const fetchScheduleData = async (startDate, endDate) => {
             pmColor: '',
             pmId: '',
             isPmMaster: false,
+            batchA: '',
+            batchASurname: '',
+            batchAColor: '',
+            batchAId: '',
+            batchB: '',
+            batchBSurname: '',
+            batchBColor: '',
+            batchBId: '',
+            serviceA: '',
+            serviceASurname: '',
+            serviceAColor: '',
+            serviceAId: '',
+            serviceB: '',
+            serviceBSurname: '',
+            serviceBColor: '',
+            serviceBId: '',
+            serviceC: '',
+            serviceCSurname: '',
+            serviceCColor: '',
+            serviceCId: '',
           }
 
           // 白班行
@@ -446,7 +564,7 @@ const getDayHolidayNameByDateStr = (dateStr) => {
 const scheduleTableData = ref([])
 
 const scheduleSpanMethod = ({ row, columnIndex }) => {
-  // 列顺序：日期(0), 班次(1), ECC(2), 系统运维(3), 网络运维(4), PM(5), 操作(6)
+  // 列顺序：日期 (0), 班次 (1), ECC(2), 系统运维 (3), 网络运维 (4), PM(5), 跑批 A(6), 跑批 B(7), 服务台 A(8), 服务台 B(9), 服务台 C(10), 操作 (11)
   if (columnIndex === 0) {
     // 日期列：白班和夜班合并
     const pairRows = scheduleTableData.value.filter((r) => r.date === row.date)
@@ -454,18 +572,18 @@ const scheduleSpanMethod = ({ row, columnIndex }) => {
     if (pairRows.length === 2 && pairRows[1].id === row.id) return { rowspan: 0, colspan: 0 }
     return { rowspan: 1, colspan: 1 }
   }
-  if (columnIndex === 3 || columnIndex === 4 || columnIndex === 5) {
-    // 系统运维、网络运维、PM列：白班和夜班合并，只在白班行显示
+  if (columnIndex === 3 || columnIndex === 4 || columnIndex === 5 || columnIndex >= 6) {
+    // 系统运维、网络运维、PM、跑批、服务台列：白班和夜班合并，只在白班行显示
     const pairRows = scheduleTableData.value.filter((r) => r.date === row.date)
     if (pairRows.length === 2) {
-      // 白班行（第一行）合并2行
+      // 白班行（第一行）合并 2 行
       if (pairRows[0].id === row.id) return { rowspan: 2, colspan: 1 }
       // 夜班行（第二行）隐藏
       if (pairRows[1].id === row.id) return { rowspan: 0, colspan: 0 }
     }
     return { rowspan: 1, colspan: 1 }
   }
-  if (columnIndex === 6) {
+  if (columnIndex === 11) {
     // 操作列：白班和夜班合并
     const pairRows = scheduleTableData.value.filter((r) => r.date === row.date)
     if (pairRows.length === 2) {
@@ -663,6 +781,11 @@ const manualForm = reactive({
   sysOps: '',
   netOps: '',
   pm: '',
+  batchA: '',
+  batchB: '',
+  serviceA: '',
+  serviceB: '',
+  serviceC: '',
 })
 
 // 判断当前选择的日期是否为非工作日（休息日或法定节假日）
@@ -694,6 +817,17 @@ const eccUserOptions = computed(() => eccDayPersonnel.value)
 const sysUserOptions = computed(() => sysOpsPersonnel.value)
 const netUserOptions = computed(() => netOpsPersonnel.value)
 const pmUserOptions = computed(() => pmPersonnel.value)
+
+// 服务台按分组过滤（service_group: 1-业务组, 2-财务组, 3-办公组）
+const serviceG1Options = computed(() =>
+  serviceDeskPersonnel.value.filter(u => u.serviceGroup === 1)
+)
+const serviceG2Options = computed(() =>
+  serviceDeskPersonnel.value.filter(u => u.serviceGroup === 2)
+)
+const serviceG3Options = computed(() =>
+  serviceDeskPersonnel.value.filter(u => u.serviceGroup === 3)
+)
 
 // 最新排班日期（用于控制手动排班日期可选范围）
 const latestScheduleDate = ref('')
@@ -736,7 +870,7 @@ const excelDateRangeText = computed(() => {
   const nextDate = new Date(base)
   nextDate.setDate(nextDate.getDate() + 1)
   const nextStr = formatDateStr(nextDate)
-  return `当前值班已排班至 ${base}，新增排班日期从 ${nextStr} 开始，可覆盖已有排班！`
+  return `当前已配置自动轮转排班，新增排班会导致自动轮转排班顺序混乱，请谨慎操作！当前值班已排班至 ${base}，新增排班日期从 ${nextStr} 开始，可覆盖已有排班！`
 })
 
 const openAddDutyModal = async () => {
@@ -797,7 +931,12 @@ watch(() => manualForm.date, async (newDate) => {
   ])
 
   try {
-    const result = await getDuty([newDate, newDate])
+    const [result, otherDutyResult] = await Promise.all([
+      getDuty([newDate, newDate]),
+      getOtherDuty(newDate)
+    ])
+
+    // 从 ecc 值班表填充 ECC、系统运维、网络运维、PM 字段
     if (result && Array.isArray(result) && result.length > 0) {
       const record = result[0]
       manualForm.eccDay = record.eccDayPersonnelId || record.ecc_day_personnel_id || ''
@@ -806,12 +945,26 @@ watch(() => manualForm.date, async (newDate) => {
       manualForm.netOps = record.netOpsPersonnelId || record.net_ops_personnel_id || ''
       manualForm.pm = record.pmPersonnelId || record.pm_personnel_id || ''
     } else {
-      // 当天没有排班数据，清空表单
       manualForm.eccDay = ''
       manualForm.eccNight = ''
       manualForm.sysOps = ''
       manualForm.netOps = ''
       manualForm.pm = ''
+    }
+
+    // 从 other_duty 表填充跑批和服务台字段
+    if (otherDutyResult) {
+      manualForm.batchA = otherDutyResult.batchAId || ''
+      manualForm.batchB = otherDutyResult.batchBId || ''
+      manualForm.serviceA = otherDutyResult.serviceAId || ''
+      manualForm.serviceB = otherDutyResult.serviceBId || ''
+      manualForm.serviceC = otherDutyResult.serviceCId || ''
+    } else {
+      manualForm.batchA = ''
+      manualForm.batchB = ''
+      manualForm.serviceA = ''
+      manualForm.serviceB = ''
+      manualForm.serviceC = ''
     }
   } catch (error) {
     console.error('获取当日排班数据失败:', error)
@@ -969,6 +1122,13 @@ const loadTodayOtherDuty = async (todayStr) => {
   }
 }
 
+// 从人员列表中根据 userCode 查找名称
+const getPersonnelNameById = (list, userCode) => {
+  if (!userCode || !list || !list.length) return ''
+  const user = list.find(u => u.userCode === userCode)
+  return user ? user.name : ''
+}
+
 // 保存排班
 const saveManualDuty = async () => {
   if (addDutyTab.value !== 'manual') return
@@ -986,7 +1146,21 @@ const saveManualDuty = async () => {
   // 获取当前登录用户名
   const currentUser = authStore.user || ''
 
-  // 将表单数据转换为数组格式,每条对象是一天的排班数据
+  // 构建 otherDuty 数据（跑批+服务台）
+  const otherDutyData = {
+    batch_A: getPersonnelNameById(batchPersonnel.value, manualForm.batchA),
+    batch_A_id: manualForm.batchA || '',
+    batch_B: getPersonnelNameById(batchPersonnel.value, manualForm.batchB),
+    batch_B_id: manualForm.batchB || '',
+    service_A: getPersonnelNameById(serviceDeskPersonnel.value, manualForm.serviceA),
+    service_A_id: manualForm.serviceA || '',
+    service_B: getPersonnelNameById(serviceDeskPersonnel.value, manualForm.serviceB),
+    service_B_id: manualForm.serviceB || '',
+    service_C: getPersonnelNameById(serviceDeskPersonnel.value, manualForm.serviceC),
+    service_C_id: manualForm.serviceC || '',
+  }
+
+  // 将表单数据转换为数组格式，每条对象是一天的排班数据
   const dutyScheduleArray = [
     {
       schedule_date: manualForm.date || '',
@@ -997,6 +1171,7 @@ const saveManualDuty = async () => {
       pm_personnel_id: manualForm.pm || '',
       created_by: currentUser,
       updated_by: currentUser,
+      otherDuty: otherDutyData,
     },
   ]
 
@@ -1030,6 +1205,11 @@ const closeAddDutyModal = () => {
   manualForm.sysOps = ''
   manualForm.netOps = ''
   manualForm.pm = ''
+  manualForm.batchA = ''
+  manualForm.batchB = ''
+  manualForm.serviceA = ''
+  manualForm.serviceB = ''
+  manualForm.serviceC = ''
   // 清除表单验证状态
   if (manualFormRef.value) {
     manualFormRef.value.clearValidate()
@@ -1051,6 +1231,11 @@ const editForm = reactive({
   sys_ops_personnel_id: '',
   net_ops_personnel_id: '',
   pm_personnel_id: '',
+  batch_a_personnel_id: '',
+  batch_b_personnel_id: '',
+  service_a_personnel_id: '',
+  service_b_personnel_id: '',
+  service_c_personnel_id: '',
 })
 
 // 根据选中选项文本动态计算下拉框宽度
@@ -1071,7 +1256,7 @@ const getEditSelectWidth = (value, options, placeholder) => {
 const hasDutyData = (row) => {
   if (!row) return false
   const nightRow = scheduleTableData.value.find(r => r.date === row.date && r.shift === 'night')
-  return !!(row.ecc || row.sysOps || row.netOps || row.pm || nightRow?.ecc)
+  return !!(row.ecc || row.sysOps || row.netOps || row.pm || row.batchA || row.batchB || row.serviceA || row.serviceB || row.serviceC || nightRow?.ecc)
 }
 
 // 判断指定日期是否为下周日
@@ -1137,6 +1322,11 @@ const startEdit = async (row) => {
   editForm.sys_ops_personnel_id = dayRow.sysId || dayRow.sysOps || ''
   editForm.net_ops_personnel_id = dayRow.netId || dayRow.netOps || ''
   editForm.pm_personnel_id = dayRow.pmId || dayRow.pm || ''
+  editForm.batch_a_personnel_id = dayRow.batchAId || ''
+  editForm.batch_b_personnel_id = dayRow.batchBId || ''
+  editForm.service_a_personnel_id = dayRow.serviceAId || ''
+  editForm.service_b_personnel_id = dayRow.serviceBId || ''
+  editForm.service_c_personnel_id = dayRow.serviceCId || ''
 }
 
 // 取消编辑
@@ -1148,6 +1338,21 @@ const cancelEdit = () => {
 const saveEdit = async () => {
   try {
     const currentUser = authStore.user || ''
+
+    // 构建 otherDuty 数据（跑批+服务台）
+    const otherDutyData = {
+      batch_A: getPersonnelNameById(batchPersonnel.value, editForm.batch_a_personnel_id),
+      batch_A_id: editForm.batch_a_personnel_id || '',
+      batch_B: getPersonnelNameById(batchPersonnel.value, editForm.batch_b_personnel_id),
+      batch_B_id: editForm.batch_b_personnel_id || '',
+      service_A: getPersonnelNameById(serviceDeskPersonnel.value, editForm.service_a_personnel_id),
+      service_A_id: editForm.service_a_personnel_id || '',
+      service_B: getPersonnelNameById(serviceDeskPersonnel.value, editForm.service_b_personnel_id),
+      service_B_id: editForm.service_b_personnel_id || '',
+      service_C: getPersonnelNameById(serviceDeskPersonnel.value, editForm.service_c_personnel_id),
+      service_C_id: editForm.service_c_personnel_id || '',
+    }
+
     const updateData = {
       schedule_date: editForm.schedule_date,
       ecc_day_personnel_id: editForm.ecc_day_personnel_id,
@@ -1156,6 +1361,7 @@ const saveEdit = async () => {
       net_ops_personnel_id: editForm.net_ops_personnel_id,
       pm_personnel_id: editForm.pm_personnel_id,
       updated_by: currentUser,
+      otherDuty: otherDutyData,
     }
 
     await updateDuty(updateData)
@@ -1192,11 +1398,16 @@ const exportDutyTable = () => {
     const { day, night } = dateMap[date]
     return {
       '日期': day?.date || date,
-      'ecc白班人员': day?.eccId || day?.ecc || '',
-      'ecc夜班人员': night?.eccId || night?.ecc || '',
-      '系统运维人员': day?.sysId || day?.sysOps || '',
-      '网络运维人员': day?.netId || day?.netOps || '',
-      '甲方PM': day?.pmId || day?.pm || '',
+      'ecc 白班人员': day?.ecc || '',
+      'ecc 夜班人员': night?.ecc || '',
+      '系统运维人员': day?.sysOps || '',
+      '网络运维人员': day?.netOps || '',
+      '甲方 PM': day?.pm || '',
+      '跑批 A 角': day?.batchA || '',
+      '跑批 B 角': day?.batchB || '',
+      '运维服务台_业务组': day?.serviceA || '',
+      '运维服务台_财务组': day?.serviceB || '',
+      '运维服务台_办公组': day?.serviceC || '',
     }
   })
 
@@ -1207,11 +1418,16 @@ const exportDutyTable = () => {
   // 设置列宽
   ws['!cols'] = [
     { wch: 16 }, // 日期
-    { wch: 20 }, // ecc白班人员
-    { wch: 20 }, // ecc夜班人员
+    { wch: 20 }, // ecc 白班人员
+    { wch: 20 }, // ecc 夜班人员
     { wch: 20 }, // 系统运维人员
     { wch: 20 }, // 网络运维人员
-    { wch: 20 }, // 甲方PM
+    { wch: 20 }, // 甲方 PM
+    { wch: 20 }, // 跑批 A 角
+    { wch: 20 }, // 跑批 B 角
+    { wch: 20 }, // 运维服务台_业务组
+    { wch: 20 }, // 运维服务台_财务组
+    { wch: 20 }, // 运维服务台_办公组
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, '排班明细')
@@ -1228,11 +1444,16 @@ const downloadExcelTemplate = () => {
   const templateData = [
     {
       日期: '格式:yyyy-mm-dd,例如:2026-01-01',
-      ecc白班人员: '域账号,如:wuyanzu',
-      ecc夜班人员: '域账号,如:wuyanzu',
+      'ecc 白班人员': '域账号,如:wuyanzu',
+      'ecc 夜班人员': '域账号,如:wuyanzu',
       系统运维人员: '域账号,如:wuyanzu',
       网络运维人员: '域账号,如:wuyanzu',
-      甲方PM: '域账号,如:wuyanzu',
+      '甲方 PM': '域账号,如:wuyanzu',
+      跑批A角: '域账号,如:zhangkexin',
+      跑批B角: '域账号,如:majilong',
+      运维服务台_业务组: '域账号,如:lixiaolong',
+      运维服务台_财务组: '域账号,如:chenhaoran',
+      运维服务台_办公组: '域账号,如:zhaowei',
     },
   ]
 
@@ -1242,11 +1463,16 @@ const downloadExcelTemplate = () => {
   // 设置列宽
   ws['!cols'] = [
     { wch: 35 }, // 日期
-    { wch: 25 }, // ecc白班人员
-    { wch: 25 }, // ecc夜班人员
+    { wch: 25 }, // ecc 白班人员
+    { wch: 25 }, // ecc 夜班人员
     { wch: 25 }, // 系统运维人员
     { wch: 25 }, // 网络运维人员
-    { wch: 25 }, // 甲方PM
+    { wch: 25 }, // 甲方 PM
+    { wch: 25 }, // 跑批 A 角
+    { wch: 25 }, // 跑批 B 角
+    { wch: 25 }, // 运维服务台_业务组
+    { wch: 25 }, // 运维服务台_财务组
+    { wch: 25 }, // 运维服务台_办公组
   ]
 
   // 设置标题行(第一行)的背景色为灰色,标识为说明行
@@ -1312,11 +1538,11 @@ const handleExcelFile = async (event) => {
       return
     }
 
-    // 验证必需的列（ECC为必填，系统运维、网络运维、甲方PM为非必填）
+    // 验证必需的列（ECC 为必填，系统运维、网络运维、甲方 PM、跑批、服务台为非必填）
     const requiredColumns = [
       '日期',
-      'ecc白班人员',
-      'ecc夜班人员',
+      'ecc 白班人员',
+      'ecc 夜班人员',
     ]
 
     const firstRow = jsonData[0]
@@ -1330,38 +1556,60 @@ const handleExcelFile = async (event) => {
     // 获取当前登录用户名
     const currentUser = authStore.user || ''
 
-    // 转换数据格式,添加created_by和updated_by
+    // 加载跑批和服务台人员列表（用于将域账号转中文名）
+    await Promise.all([
+      loadBatchPersonnel(),
+      loadServiceDeskPersonnel(),
+    ])
+
+    // 转换数据格式,添加created_by和updated_by,并构造otherDuty
     excelImportData.value = jsonData.map((row) => {
       // 处理日期格式
       let scheduleDate = row.日期 || ''
       if (typeof scheduleDate === 'number') {
-        // Excel日期序列号转换为日期字符串(按天计算,忽略时间)
-        // 使用标准公式: Unix时间戳 = (Excel序列号 - 25569) * 86400000
-        // 25569 是 1970-01-01 对应的Excel序列号(已修正1900年闰年bug)
         const days = Math.floor(scheduleDate)
         const jsDate = new Date((days - 25569) * 86400000)
-        // 使用UTC方法获取日期,避免时区问题
         scheduleDate = `${jsDate.getUTCFullYear()}-${String(jsDate.getUTCMonth() + 1).padStart(2, '0')}-${String(jsDate.getUTCDate()).padStart(2, '0')}`
       } else if (scheduleDate instanceof Date) {
-        // 如果是Date对象,使用UTC转换为字符串
         scheduleDate = `${scheduleDate.getUTCFullYear()}-${String(scheduleDate.getUTCMonth() + 1).padStart(2, '0')}-${String(scheduleDate.getUTCDate()).padStart(2, '0')}`
       } else if (typeof scheduleDate === 'string') {
-        // 如果是字符串,提取日期部分
         const dateMatch = scheduleDate.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
         if (dateMatch) {
           scheduleDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
         }
       }
 
+      // 解析跑批和服务台域账号
+      const batchAId = row['跑批A角'] || ''
+      const batchBId = row['跑批B角'] || ''
+      const serviceAId = row['运维服务台_业务组'] || ''
+      const serviceBId = row['运维服务台_财务组'] || ''
+      const serviceCId = row['运维服务台_办公组'] || ''
+
+      // 构建otherDuty数据（域账号转中文名）
+      const otherDutyData = {
+        batch_A: getPersonnelNameById(batchPersonnel.value, batchAId),
+        batch_A_id: batchAId,
+        batch_B: getPersonnelNameById(batchPersonnel.value, batchBId),
+        batch_B_id: batchBId,
+        service_A: getPersonnelNameById(serviceDeskPersonnel.value, serviceAId),
+        service_A_id: serviceAId,
+        service_B: getPersonnelNameById(serviceDeskPersonnel.value, serviceBId),
+        service_B_id: serviceBId,
+        service_C: getPersonnelNameById(serviceDeskPersonnel.value, serviceCId),
+        service_C_id: serviceCId,
+      }
+
       return {
         schedule_date: scheduleDate,
-        ecc_day_personnel_id: row.ecc白班人员 || '',
-        ecc_night_personnel_id: row.ecc夜班人员 || '',
-        sys_ops_personnel_id: row.系统运维人员 || '',
-        net_ops_personnel_id: row.网络运维人员 || '',
-        pm_personnel_id: row.甲方PM || '',
+        ecc_day_personnel_id: row['ecc 白班人员'] || '',
+        ecc_night_personnel_id: row['ecc 夜班人员'] || '',
+        sys_ops_personnel_id: row['系统运维人员'] || '',
+        net_ops_personnel_id: row['网络运维人员'] || '',
+        pm_personnel_id: row['甲方 PM'] || '',
         created_by: currentUser,
         updated_by: currentUser,
+        otherDuty: otherDutyData,
       }
     })
 
@@ -1660,34 +1908,36 @@ onMounted(async () => {
             </div>
           </template>
           <template v-else>
-            <div class="person-item">
-              <div class="p-avatar" style="background: var(--text-4);">—</div>
-              <div class="p-info">
-                <div class="p-name">
-                  <span style="color: var(--text-4);">未排班</span>
-                  <span class="badge-shift shift-day">业务组</span>
+            <div class="service-desk-grid">
+              <div class="person-item">
+                <div class="p-avatar" style="background: var(--text-4);">—</div>
+                <div class="p-info">
+                  <div class="p-name">
+                    <span style="color: var(--text-4);">未排班</span>
+                    <span class="badge-shift shift-day">业务组</span>
+                  </div>
+                  <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
                 </div>
-                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
               </div>
-            </div>
-            <div class="person-item">
-              <div class="p-avatar" style="background: var(--text-4);">—</div>
-              <div class="p-info">
-                <div class="p-name">
-                  <span style="color: var(--text-4);">未排班</span>
-                  <span class="badge-shift shift-day">财务组</span>
+              <div class="person-item">
+                <div class="p-avatar" style="background: var(--text-4);">—</div>
+                <div class="p-info">
+                  <div class="p-name">
+                    <span style="color: var(--text-4);">未排班</span>
+                    <span class="badge-shift shift-day">财务组</span>
+                  </div>
+                  <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
                 </div>
-                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
               </div>
-            </div>
-            <div class="person-item">
-              <div class="p-avatar" style="background: var(--text-4);">—</div>
-              <div class="p-info">
-                <div class="p-name">
-                  <span style="color: var(--text-4);">未排班</span>
-                  <span class="badge-shift shift-day">办公组</span>
+              <div class="person-item">
+                <div class="p-avatar" style="background: var(--text-4);">—</div>
+                <div class="p-info">
+                  <div class="p-name">
+                    <span style="color: var(--text-4);">未排班</span>
+                    <span class="badge-shift shift-day">办公组</span>
+                  </div>
+                  <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
                 </div>
-                <div class="p-time" style="color: var(--text-4);">18:00 - 08:30</div>
               </div>
             </div>
           </template>
@@ -1748,7 +1998,10 @@ onMounted(async () => {
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="系统运维 (白班)" :resizable="false" align="center" min-width="15%">
+          <el-table-column :resizable="false" align="center" min-width="15%">
+            <template #header>
+              <div class="table-header-wrap">系统运维<br>(白班)</div>
+            </template>
             <template #default="{ row }">
               <template v-if="editingDate === row.date && row.shift === 'day'">
                 <el-select class="edit-mode-select" v-model="editForm.sys_ops_personnel_id" :style="getEditSelectWidth(editForm.sys_ops_personnel_id, sysUserOptions, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadSysPersonnel">
@@ -1765,7 +2018,10 @@ onMounted(async () => {
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="网络运维 (白班)" :resizable="false" align="center" min-width="15%">
+          <el-table-column :resizable="false" align="center" min-width="15%">
+            <template #header>
+              <div class="table-header-wrap">网络运维<br>(白班)</div>
+            </template>
             <template #default="{ row }">
               <template v-if="editingDate === row.date && row.shift === 'day'">
                 <el-select class="edit-mode-select" v-model="editForm.net_ops_personnel_id" :style="getEditSelectWidth(editForm.net_ops_personnel_id, netUserOptions, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadNetPersonnel">
@@ -1782,7 +2038,7 @@ onMounted(async () => {
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="甲方 PM" :resizable="false" align="center" min-width="15%">
+          <el-table-column label="甲方 PM" :resizable="false" align="center" min-width="12%">
             <template #default="{ row }">
               <template v-if="editingDate === row.date && row.shift === 'day'">
                 <el-select class="edit-mode-select" v-model="editForm.pm_personnel_id" :style="getEditSelectWidth(editForm.pm_personnel_id, pmUserOptions, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadPmPersonnel">
@@ -1799,11 +2055,98 @@ onMounted(async () => {
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" :resizable="false" align="center" min-width="13%">
+          <el-table-column label="跑批 A 角" :resizable="false" align="center" min-width="12%">
+            <template #default="{ row }">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.batch_a_personnel_id" :style="getEditSelectWidth(editForm.batch_a_personnel_id, batchPersonnel, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadBatchPersonnel">
+                  <el-option v-for="u in batchPersonnel" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.batchA">
+                <div class="user-tag-avatar" :style="{ background: row.batchAColor }">{{ row.batchASurname }}</div>
+                {{ row.batchA }}
+              </div>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">未排班</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="跑批 B 角" :resizable="false" align="center" min-width="12%">
+            <template #default="{ row }">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.batch_b_personnel_id" :style="getEditSelectWidth(editForm.batch_b_personnel_id, batchPersonnel, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadBatchPersonnel">
+                  <el-option v-for="u in batchPersonnel" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.batchB">
+                <div class="user-tag-avatar" :style="{ background: row.batchBColor }">{{ row.batchBSurname }}</div>
+                {{ row.batchB }}
+              </div>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">未排班</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="运维服务台 - 业务组" :resizable="false" align="center" min-width="12%">
+            <template #default="{ row }">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.service_a_personnel_id" :style="getEditSelectWidth(editForm.service_a_personnel_id, serviceG1Options, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadServiceDeskPersonnel">
+                  <el-option v-for="u in serviceG1Options" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.serviceA">
+                <div class="user-tag-avatar" :style="{ background: row.serviceAColor }">{{ row.serviceASurname }}</div>
+                {{ row.serviceA }}
+              </div>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">未排班</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="运维服务台 - 财务组" :resizable="false" align="center" min-width="12%">
+            <template #default="{ row }">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.service_b_personnel_id" :style="getEditSelectWidth(editForm.service_b_personnel_id, serviceG2Options, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadServiceDeskPersonnel">
+                  <el-option v-for="u in serviceG2Options" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.serviceB">
+                <div class="user-tag-avatar" :style="{ background: row.serviceBColor }">{{ row.serviceBSurname }}</div>
+                {{ row.serviceB }}
+              </div>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">未排班</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="运维服务台 - 办公组" :resizable="false" align="center" min-width="12%">
+            <template #default="{ row }">
+              <template v-if="editingDate === row.date && row.shift === 'day'">
+                <el-select class="edit-mode-select" v-model="editForm.service_c_personnel_id" :style="getEditSelectWidth(editForm.service_c_personnel_id, serviceG3Options, '选择人员')" placeholder="选择人员" size="small" @visible-change="loadServiceDeskPersonnel">
+                  <el-option v-for="u in serviceG3Options" :key="u.userCode" :label="u.name" :value="u.userCode" />
+                </el-select>
+              </template>
+              <div class="user-tag" v-else-if="row.serviceC">
+                <div class="user-tag-avatar" :style="{ background: row.serviceCColor }">{{ row.serviceCSurname }}</div>
+                {{ row.serviceC }}
+              </div>
+              <div class="user-tag" v-else>
+                <div class="user-tag-avatar" style="background: var(--text-4);">—</div>
+                <span class="rest-text">未排班</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" :resizable="false" align="center" min-width="14%">
             <template #default="{ row }">
               <template v-if="editingDate === row.date">
-                <el-button type="info" size="small" round plain @click="cancelEdit">取消</el-button>
-                <el-button type="success" size="small" round plain @click="saveEdit">保存调班</el-button>
+                <div class="edit-btn-group">
+                  <el-button type="info" size="small" round plain @click="cancelEdit">取消</el-button>
+                  <el-button type="success" size="small" round plain @click="saveEdit">保存</el-button>
+                </div>
               </template>
               <template v-else>
                 <el-tooltip content="账号无调班权限" :disabled="permissionStore.hasPermission('duty:edit')" placement="top">
@@ -1920,6 +2263,26 @@ onMounted(async () => {
           <el-form-item label="甲方 PM" prop="pm"
             ><el-select v-model="manualForm.pm" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadPmPersonnel"
               ><el-option v-for="u in pmUserOptions" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
+          ></el-form-item>
+          <el-form-item label="跑批 A 角" prop="batchA"
+            ><el-select v-model="manualForm.batchA" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadBatchPersonnel"
+              ><el-option v-for="u in batchPersonnel" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
+          ></el-form-item>
+          <el-form-item label="跑批 B 角" prop="batchB"
+            ><el-select v-model="manualForm.batchB" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadBatchPersonnel"
+              ><el-option v-for="u in batchPersonnel" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
+          ></el-form-item>
+          <el-form-item label="运维服务台 - 业务组" prop="serviceA"
+            ><el-select v-model="manualForm.serviceA" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadServiceDeskPersonnel"
+              ><el-option v-for="u in serviceG1Options" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
+          ></el-form-item>
+          <el-form-item label="运维服务台 - 财务组" prop="serviceB"
+            ><el-select v-model="manualForm.serviceB" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadServiceDeskPersonnel"
+              ><el-option v-for="u in serviceG2Options" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
+          ></el-form-item>
+          <el-form-item label="运维服务台 - 办公组" prop="serviceC"
+            ><el-select v-model="manualForm.serviceC" clearable placeholder="请选择人员" style="width: 100%" @visible-change="loadServiceDeskPersonnel"
+              ><el-option v-for="u in serviceG3Options" :key="u.userCode" :label="u.name" :value="u.userCode" /></el-select
           ></el-form-item>
         </el-form>
       </div>
@@ -2215,6 +2578,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 .p-time {
   font-size: 11px;
@@ -2247,6 +2611,8 @@ onMounted(async () => {
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .shift-day {
   background: var(--warning-bg);
@@ -2312,6 +2678,10 @@ onMounted(async () => {
   background: #fafafa;
   white-space: nowrap;
   padding: 10px 16px;
+}
+.table-header-wrap {
+  text-align: center;
+  line-height: 1.4;
 }
 .duty-table :deep(.el-table__row) {
   height: 48px;
@@ -2403,6 +2773,14 @@ onMounted(async () => {
   color: var(--text-4);
   font-size: 12px;
 }
+.edit-btn-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
 .action-link {
   color: var(--primary);
   cursor: pointer;

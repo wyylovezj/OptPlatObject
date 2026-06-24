@@ -21,7 +21,7 @@ import {
   getAlertTrendData,
   getHandleTimeData,
 } from '@/api/homePage.js'
-import { getDuty,getEcc, getSys, getNet, getPM } from '@/api/dutyPageInterface.js'
+import { getDuty,getEcc, getSys, getNet, getPM, getBatch, getService, getOtherDuty } from '@/api/dutyPageInterface.js'
 
 // 计算环比变化
 const totalChange = computed(() => {
@@ -1115,24 +1115,38 @@ const allDutyPersonnel = ref([])
 const loadEccDuty = async () => {
   try {
     const today = new Date().toISOString().split('T')[0]
-    const [result, ecc, sys, net, pm] = await Promise.all([
+    const [dutyResult, ecc, sys, net, pm, batch, service] = await Promise.all([
       getDuty([today, today]),
       getEcc(), getSys(), getNet(), getPM(),
+      getBatch(), getService()
     ])
     allDutyPersonnel.value = [
       ...(ecc || []).map(p => ({ ...p, category: 'ecc' })),
       ...(sys || []).map(p => ({ ...p, category: 'sys' })),
       ...(net || []).map(p => ({ ...p, category: 'net' })),
       ...(pm || []).map(p => ({ ...p, category: 'pm' })),
+      ...(batch || []).map(p => ({ ...p, category: 'batch' })),
+      ...(service || []).map(p => ({ ...p, category: 'service' })),
     ]
-    if (result && Array.isArray(result) && result.length > 0) {
-      const record = result[0]
+
+    if (dutyResult && Array.isArray(dutyResult) && dutyResult.length > 0) {
+      const record = dutyResult[0]
       eccDutyData.value = {
         eccDay: record.eccDayPersonnelName || '',
         eccNight: record.eccNightPersonnelName || '',
         sysOps: record.sysOpsPersonnelName || '',
         netOps: record.netOpsPersonnelName || '',
         pm: record.pmPersonnelName || '',
+      }
+
+      // 获取今日跑批和服务台数据
+      const otherDutyResult = await getOtherDuty(today)
+      if (otherDutyResult) {
+        eccDutyData.value.batchA = otherDutyResult.batchA || ''
+        eccDutyData.value.batchB = otherDutyResult.batchB || ''
+        eccDutyData.value.serviceA = otherDutyResult.serviceA || '' // 业务组
+        eccDutyData.value.serviceB = otherDutyResult.serviceB || '' // 财务组
+        eccDutyData.value.serviceC = otherDutyResult.serviceC || '' // 办公组
       }
     }
   } catch (e) {
@@ -1590,7 +1604,7 @@ const getDutyPhone = (name) => {
             </div>
             <div class="ecc-duty-row">
               <span class="ecc-shift-badge ecc-shift-pm">全</span>
-              <span class="ecc-shift-label">甲方PM</span>
+              <span class="ecc-shift-label">甲方 PM</span>
               <span class="ecc-shift-time">08:30 - 18:00</span>
               <span class="ecc-person-info">
                 <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.pm }">{{ eccDutyData?.pm ? eccDutyData.pm.charAt(0) : '—' }}</span>
@@ -1599,6 +1613,81 @@ const getDutyPhone = (name) => {
               <span class="ecc-person-phone">
                 <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
                 {{ getDutyPhone(eccDutyData?.pm) || '-' }}
+              </span>
+            </div>
+
+            <!-- 跑批 A 角 -->
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-batch">A</span>
+              <span class="ecc-shift-label">跑批</span>
+              <span class="ecc-shift-time">18:00 - 08:30</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.batchA }">{{ eccDutyData?.batchA ? eccDutyData.batchA.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.batchA }">{{ eccDutyData?.batchA || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.batchA) || '-' }}
+              </span>
+            </div>
+
+            <!-- 跑批 B 角 -->
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-batch">B</span>
+              <span class="ecc-shift-label">跑批</span>
+              <span class="ecc-shift-time">18:00 - 08:30</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.batchB }">{{ eccDutyData?.batchB ? eccDutyData.batchB.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.batchB }">{{ eccDutyData?.batchB || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.batchB) || '-' }}
+              </span>
+            </div>
+
+            <!-- 运维服务台 - 业务组 -->
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-service">业务</span>
+              <span class="ecc-shift-label">服务台</span>
+              <span class="ecc-shift-time">18:00 - 08:30</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.serviceA }">{{ eccDutyData?.serviceA ? eccDutyData.serviceA.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.serviceA }">{{ eccDutyData?.serviceA || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.serviceA) || '-' }}
+              </span>
+            </div>
+
+            <!-- 运维服务台 - 财务组 -->
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-service">财务</span>
+              <span class="ecc-shift-label">服务台</span>
+              <span class="ecc-shift-time">18:00 - 08:30</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.serviceB }">{{ eccDutyData?.serviceB ? eccDutyData.serviceB.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.serviceB }">{{ eccDutyData?.serviceB || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.serviceB) || '-' }}
+              </span>
+            </div>
+
+            <!-- 运维服务台 - 办公组 -->
+            <div class="ecc-duty-row">
+              <span class="ecc-shift-badge ecc-shift-service">办公</span>
+              <span class="ecc-shift-label">服务台</span>
+              <span class="ecc-shift-time">18:00 - 08:30</span>
+              <span class="ecc-person-info">
+                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.serviceC }">{{ eccDutyData?.serviceC ? eccDutyData.serviceC.charAt(0) : '—' }}</span>
+                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.serviceC }">{{ eccDutyData?.serviceC || '未排班' }}</span>
+              </span>
+              <span class="ecc-person-phone">
+                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                {{ getDutyPhone(eccDutyData?.serviceC) || '-' }}
               </span>
             </div>
           </div>
@@ -2792,6 +2881,14 @@ const getDutyPhone = (name) => {
 
 .ecc-shift-pm {
   background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.ecc-shift-batch {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.ecc-shift-service {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
 }
 
 .ecc-shift-time {

@@ -31,7 +31,7 @@ const permissionStore = usePermissionStore()
 const visible = ref(false)
 // 控制告警图标提示框的隐藏与显示
 const alarmVisible = ref(false)
-const content = ref('')
+const content = ref(stopSpeaking.value ? '点击开启语音播报' : '点击关闭语音播报')
 // 顶部个人信息菜单后面的上下箭头翻转标志
 const direction = ref(false)
 // 面包屑过滤

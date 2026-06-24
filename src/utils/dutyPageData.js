@@ -51,8 +51,14 @@ export const sysOpsPersonnel = ref([])
 // 网络运维人员模型（用于存储网络运维人员下拉框的选项数据）
 export const netOpsPersonnel = ref([])
 
-// 甲方PM人员模型（用于存储甲方PM下拉框的选项数据）
+// 甲方 PM 人员模型（用于存储甲方 PM 下拉框的选项数据）
 export const pmPersonnel = ref([])
+
+// 跑批人员模型（用于存储跑批人员下拉框的选项数据，包含 AB 角色）
+export const batchPersonnel = ref([])
+
+// 运维服务台人员模型（用于存储运维服务台人员下拉框的选项数据，包含业务组、财务组、办公组）
+export const serviceDeskPersonnel = ref([])
 
 // 重置排班相关数据模型的函数
 export const resetDutyScheduleData = () => {
@@ -71,4 +77,6 @@ export const resetDutyScheduleData = () => {
   sysOpsPersonnel.value = []
   netOpsPersonnel.value = []
   pmPersonnel.value = []
+  batchPersonnel.value = []
+  serviceDeskPersonnel.value = []
 }

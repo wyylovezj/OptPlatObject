@@ -98,6 +98,20 @@ export const getOtherDuty = async (date) => {
 }
 
 /**
+ * 获取指定日期范围的 other_duty 排班数据（批量）
+ * @param {Array} dateRange - 日期范围数组 [开始日期, 结束日期], 格式: ['2026-06-01', '2026-06-07']
+ * @returns {Promise<Array>} - 返回排班数据数组
+ */
+export const getOtherDutyByRange = async (dateRange) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/getOtherDutyByRange`, dateRange)
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取other_duty排班数据失败')
+  }
+}
+
+/**
  * 新增排班
  * @param {Object} dutyData - 排班数据
  * @returns {Promise} - 返回响应数据
