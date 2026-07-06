@@ -1293,7 +1293,7 @@ const isNextSunday = (dateStr) => {
   console.log('距离今天天数:', diffDays)
 
   // 如果是下周日，应该在 7-20 天之后
-  const result = diffDays >= 7 && diffDays < 20
+  const result = diffDays >= 8 && diffDays <= 14
   console.log('是否下周日:', result, '(条件：diffDays>=7 && diffDays<20)')
 
   return result
