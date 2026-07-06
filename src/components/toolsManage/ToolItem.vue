@@ -478,10 +478,27 @@ const percentageInfo = ref({
   percentage: 0,
   status: '',
 })
+// 工单类型切换时清空开始时间和结束时间
+const handleOrderTypeClear = () => {
+  WorkOrderDataModel.value.OrderType = ''
+  WorkOrderDataModel.value.startTime = ''
+  WorkOrderDataModel.value.endTime = ''
+}
+const handleOrderTypeChange = () => {
+  WorkOrderDataModel.value.startTime = ''
+  WorkOrderDataModel.value.endTime = ''
+}
+
 // 限制开始时间 不能早于结束时间30天
 const disabledStartDate = (time) => {
   if (WorkOrderDataModel.value.endTime) {
     const endTime = new Date(WorkOrderDataModel.value.endTime)
+    // 发布工单允许190天范围
+    if (WorkOrderDataModel.value.OrderType === '3') {
+      const oneHundredNinetyOneDaysBefore = new Date(endTime)
+      oneHundredNinetyOneDaysBefore.setDate(oneHundredNinetyOneDaysBefore.getDate() - 191)
+      return time.getTime() < oneHundredNinetyOneDaysBefore.getTime() || time.getTime() > endTime.getTime()
+    }
     const thirtyOneDaysBefore = new Date(endTime)
     thirtyOneDaysBefore.setDate(thirtyOneDaysBefore.getDate() - 31) // 结束时间往前推31天
     return time.getTime() < thirtyOneDaysBefore.getTime() || time.getTime() > endTime.getTime()
@@ -494,8 +511,14 @@ const disabledEndDate = (time) => {
     const startTime = new Date(WorkOrderDataModel.value.startTime)
     // 将开始时间的时分秒设置为 0，只比较日期
     startTime.setHours(0, 0, 0, 0)
+    // 发布工单允许190天范围
+    if (WorkOrderDataModel.value.OrderType === '3') {
+      const oneHundredNinetyDaysAfter = new Date(startTime)
+      oneHundredNinetyDaysAfter.setDate(oneHundredNinetyDaysAfter.getDate() + 190)
+      return time.getTime() > oneHundredNinetyDaysAfter.getTime() || time.getTime() < startTime.getTime()
+    }
     const thirtyOneDaysAfter = new Date(startTime)
-    thirtyOneDaysAfter.setDate(thirtyOneDaysAfter.getDate() + 30) // 结束时间往前推31天
+    thirtyOneDaysAfter.setDate(thirtyOneDaysAfter.getDate() + 30)
     return time.getTime() > thirtyOneDaysAfter.getTime() || time.getTime() < startTime.getTime()
   }
   return false // 如果没有设置结束时间，则不禁用任何日期
@@ -3194,7 +3217,8 @@ onBeforeUnmount(() => {
             clearable
             placeholder="请选择"
             style="width: 250px"
-            @clear="WorkOrderDataModel.OrderType = ''"
+            @clear="handleOrderTypeClear"
+            @change="handleOrderTypeChange"
           >
             <el-option v-for="item in OrderTypeModel" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
