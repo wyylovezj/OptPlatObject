@@ -22,6 +22,13 @@ import DutyLogPage from '@/components/dutyManagement/dutyLogPage.vue'
 import DailyHandoverPage from '@/components/dutyManagement/DailyHandoverPage.vue'
 import RemoteRecordPage from '@/components/dutyManagement/RemoteRecordPage.vue'
 import SecurityDeviceMonitorPage from '@/components/dutyManagement/SecurityDeviceMonitorPage.vue'
+import MonitorDashboard from '@/components/homePage/MonitorDashboard.vue'
+import ReportFillPage from '@/components/weekyReportPM/ReportFillPage.vue'
+import ReportSummaryPage from '@/components/weekyReportPM/ReportSummaryPage.vue'
+import ReportModulesPage from '@/components/weekyReportPM/ReportModulesPage.vue'
+import ReportExportPage from '@/components/weekyReportPM/ReportExportPage.vue'
+import ReportPersonnelPage from '@/components/weekyReportPM/ReportPersonnelPage.vue'
+import WeekManagePage from '@/components/weekyReportPM/WeekManagePage.vue'
 
 
 // 创建路由实例
@@ -311,6 +318,111 @@ const router = createRouter({
           },
         },
       ],
+    },
+    /**
+     * 周报管理模块路由
+     * @path /weeklyReport
+     * @name WeeklyReport
+     * @requiresAuth true
+     * @title 报表管理
+     * @breadcrumb 报表管理
+     */
+    {
+      path: '/weeklyReport',
+      name: 'WeeklyReport',
+      redirect: (to) => {
+        return to.path + '/reportFill'
+      },
+      meta: {
+        requiresAuth: true,
+        title: '报表管理',
+        breadcrumb: '报表管理',
+        permission: 'report:manage',
+      },
+      children: [
+        {
+          path: 'reportFill',
+          name: 'ReportFill',
+          component: ReportFillPage,
+          meta: {
+            requiresAuth: true,
+            title: '运维周报填写',
+            breadcrumb: '运维周报填写',
+            permission: 'report:fill',
+          },
+        },
+        {
+          path: 'reportSummary',
+          name: 'ReportSummary',
+          component: ReportSummaryPage,
+          meta: {
+            requiresAuth: true,
+            title: '周报汇总',
+            breadcrumb: '周报汇总',
+            permission: 'report:summary',
+          },
+        },
+        {
+          path: 'reportModules',
+          name: 'ReportModules',
+          component: ReportModulesPage,
+          meta: {
+            requiresAuth: true,
+            title: '模块管理',
+            breadcrumb: '模块管理',
+            permission: 'report:modules',
+          },
+        },
+        {
+          path: 'reportExport',
+          name: 'ReportExport',
+          component: ReportExportPage,
+          meta: {
+            requiresAuth: true,
+            title: '周报导出',
+            breadcrumb: '周报导出',
+            permission: 'report:export',
+          },
+        },
+        {
+          path: 'reportPersonnel',
+          name: 'ReportPersonnel',
+          component: ReportPersonnelPage,
+          meta: {
+            requiresAuth: true,
+            title: '人员管理',
+            breadcrumb: '人员管理',
+            permission: 'report:personnel',
+          },
+        },
+        {
+          path: 'weekManage',
+          name: 'WeekManage',
+          component: WeekManagePage,
+          meta: {
+            requiresAuth: true,
+            title: '周管理',
+            breadcrumb: '周管理',
+            permission: 'report:weekManage',
+          },
+        },
+      ],
+    },
+    /**
+     * 监控大屏路由
+     * @path /monitorDashboard
+     * @name MonitorDashboard
+     * @requiresAuth true
+     */
+    {
+      path: '/monitorDashboard',
+      name: 'MonitorDashboard',
+      component: MonitorDashboard,
+      meta: {
+        requiresAuth: true,
+        title: '监控大屏',
+        breadcrumb: '监控大屏',
+      },
     },
     /**
      * 404页面路由

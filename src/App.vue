@@ -18,12 +18,37 @@ import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 import { ElMessage, ElMessageBox, ElNotification, ElScrollbar } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, watch, h } from 'vue'
 import { useRoute } from 'vue-router'
+import { useNotificationSSE } from '@/utils/useNotificationSSE'
+import axios from 'axios'
+import { RBAC_IP } from '@/utils/dutyPageData.js'
 
 // 获取store实例
 const authStore = useAuthStore()
 const alarmStore = useSpeakStore()
 // 获取当前路由实例
 const route = useRoute()
+
+// SSE 通知推送（全局，实时接收管理员一键提醒等服务端推送）
+const sseUsername = computed(() => sessionStorage.getItem('user') || '')
+const { connect: connectSSE, disconnect: disconnectSSE } = useNotificationSSE(sseUsername)
+
+// 检查当前用户是否为甲方，只有 personnel_type=4 需要连接 SSE
+const checkServiceDeskAndConnect = async () => {
+  const username = sessionStorage.getItem('user')
+  if (!username) return
+  try {
+    const res = await axios.get(`${RBAC_IP.value}/checkServiceDesk`, {
+      params: { username }
+    })
+    if (res.data?.isServiceDesk) {
+      connectSSE()
+    } else {
+      console.log(`[SSE] 用户 ${username} 非甲方，跳过 SSE 连接`)
+    }
+  } catch (e) {
+    console.warn('[SSE] 检查服务台身份失败，默认不连接', e)
+  }
+}
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 // 全局定时器
@@ -346,6 +371,8 @@ onMounted(() => {
     () => authStore.isAuthenticated,
     (newValue) => {
       if (newValue) {
+        // 先判断当前用户是否为运维服务台人员（只有 personnel_type=5 才需要 SSE）
+        checkServiceDeskAndConnect()
         // 检查是否是登录重定向，如果不是才启动定时器
         const wasLoginRedirect = sessionStorage.getItem('isLoginRedirect')
         // 检测页面是否是通过刷新加载的
@@ -408,11 +435,15 @@ onMounted(() => {
         // 监听手动刷新事件，重置定时器
         // 需要在全局范围内暴露重置函数
         window.resetRefreshTimer = restartTimer
-      } else if (searchTimer) {
-        clearInterval(searchTimer)
+      } else {
+        // 用户登出时断开 SSE
+        disconnectSSE()
+        if (searchTimer) {
+          clearInterval(searchTimer)
+          searchTimer = null
+        }
         // 停止待办检查定时器
         stopTodoCheckTimer()
-        searchTimer = null
         window.resetRefreshTimer = null
       }
     },
@@ -448,6 +479,8 @@ onBeforeUnmount(() => {
   }
   // 停止待办检查定时器
   stopTodoCheckTimer()
+  // 断开 SSE 连接
+  disconnectSSE()
   alarmStore.persistAlreadySpeakQueue()
 })
 </script>
