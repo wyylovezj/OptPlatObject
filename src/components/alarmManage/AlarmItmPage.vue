@@ -1196,11 +1196,6 @@ const suspend = async (row) => {
         center: true,
       },
     )
-    // 等待 MessageBox 完全关闭后再刷新数据
-    await nextTick()
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    // 刷新数据
-    refresh()
     // 用户点击确认后执行
     const resultMessageText = isSuspended ? '告警已取消挂起！' : '告警已挂起！'
 
@@ -1210,7 +1205,12 @@ const suspend = async (row) => {
     } else {
       await suspendAlarm(selectedEventIds.value)
     }
-    // // 清空选中行数组
+    // 等待接口完成后刷新数据
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    // 刷新数据
+    refresh()
+    // 清空选中行数组
     selectedRows.value = []
     // 接口成功后显示成功提示
     if (messageInstance.value) {
