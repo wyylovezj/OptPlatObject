@@ -6,7 +6,7 @@
     </div>
 
     <!-- Tab 切换 -->
-    <el-tabs v-model="activeTab" class="report-tabs" @tab-click="handleTabClick">
+    <el-tabs v-model="activeTab" class="report-tabs" @tab-change="handleTabChange">
       <el-tab-pane label="填写周报" name="fill" />
       <el-tab-pane label="周报记录" name="history" />
     </el-tabs>
@@ -770,8 +770,8 @@ const handleDeleteRecord = async (reportId) => {
 }
 
 // Tab 切换
-const handleTabClick = () => {
-  if (activeTab.value === 'history') loadHistory()
+const handleTabChange = (tabName) => {
+  if (tabName === 'history') loadHistory()
 }
 
 // 历史统计
@@ -798,32 +798,35 @@ const historyStats = computed(() => {
   ]
 })
 
-// 加载历史数据
+// 加载历史数据（并行请求所有周次）
 const loadHistory = async () => {
   if (!username.value) return
   try {
-    const allHistory = []
+    const weekPromises = []
     for (let w = currentWeek; w >= 1; w--) {
-      try {
-        const data = await getMyReports(w, username.value)
-        const recs = data?.records || []
-        if (recs.length > 0) {
-          const { monday, sunday } = getWeekDateRange(currentYear, w)
-          const hasSubmitted = recs.some(r => r.status === 'submitted')
-          const latestSubmit = recs
-            .filter(r => r.submitTime)
-            .sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime))[0]?.submitTime || ''
-          allHistory.push({
-            weekNum: w,
-            dateRange: `${fmtDateCN(monday)} 至 ${fmtDateCN(sunday)}`,
-            records: recs,
-            hasSubmitted,
-            submitTime: latestSubmit,
+      weekPromises.push(
+        getMyReports(w, username.value)
+          .then(data => {
+            const recs = data?.records || []
+            if (recs.length === 0) return null
+            const { monday, sunday } = getWeekDateRange(currentYear, w)
+            const hasSubmitted = recs.some(r => r.status === 'submitted')
+            const latestSubmit = recs
+              .filter(r => r.submitTime)
+              .sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime))[0]?.submitTime || ''
+            return {
+              weekNum: w,
+              dateRange: `${fmtDateCN(monday)} 至 ${fmtDateCN(sunday)}`,
+              records: recs,
+              hasSubmitted,
+              submitTime: latestSubmit,
+            }
           })
-        }
-      } catch { /* 某些周可能没有数据 */ }
+          .catch(() => null)
+      )
     }
-    historyList.value = allHistory
+    const results = await Promise.all(weekPromises)
+    historyList.value = results.filter(r => r !== null).sort((a, b) => b.weekNum - a.weekNum)
   } catch (e) {
     console.warn('加载历史周报失败', e)
   }
