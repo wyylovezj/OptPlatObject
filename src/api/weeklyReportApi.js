@@ -36,7 +36,7 @@ export const addReportModule = async (moduleData) => {
  */
 export const updateReportModule = async (moduleId, moduleData) => {
   try {
-    const response = await axios.put(`${RBAC_IP.value}/reportModules/${moduleId}`, moduleData)
+    const response = await axios.post(`${RBAC_IP.value}/reportModules/${moduleId}`, moduleData)
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '更新模块失败')
@@ -50,7 +50,7 @@ export const updateReportModule = async (moduleId, moduleData) => {
  */
 export const deleteReportModule = async (moduleId) => {
   try {
-    const response = await axios.delete(`${RBAC_IP.value}/reportModules/${moduleId}`)
+    const response = await axios.post(`${RBAC_IP.value}/reportModules/${moduleId}/delete`)
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '删除模块失败')
@@ -79,7 +79,7 @@ export const updateModuleSortOrder = async (sortData) => {
  */
 export const toggleModuleStatus = async (moduleId, active) => {
   try {
-    const response = await axios.put(`${RBAC_IP.value}/reportModules/${moduleId}/status`, { active })
+    const response = await axios.post(`${RBAC_IP.value}/reportModules/${moduleId}/status`, { active })
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '切换模块状态失败')
@@ -123,7 +123,7 @@ export const saveReport = async (reportData) => {
  */
 export const updateReport = async (reportId, updateData) => {
   try {
-    const response = await axios.put(`${RBAC_IP.value}/updateReport/${reportId}`, updateData)
+    const response = await axios.post(`${RBAC_IP.value}/updateReport/${reportId}`, updateData)
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '更新周报失败')
@@ -137,7 +137,7 @@ export const updateReport = async (reportId, updateData) => {
  */
 export const deleteReport = async (reportId) => {
   try {
-    const response = await axios.delete(`${RBAC_IP.value}/deleteReport/${reportId}`)
+    const response = await axios.post(`${RBAC_IP.value}/deleteReport/${reportId}`)
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '删除周报失败')
@@ -165,7 +165,7 @@ export const getSummaryReports = async (weekNum) => {
  */
 export const editSummaryContent = async (editData) => {
   try {
-    const response = await axios.put(`${RBAC_IP.value}/summaryReports/edit`, editData)
+    const response = await axios.post(`${RBAC_IP.value}/summaryReports/edit`, editData)
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '编辑周报内容失败')
@@ -308,7 +308,7 @@ export const addReportPersonnel = async (data) => {
  */
 export const togglePersonnelStatus = async (personId, active) => {
   try {
-    const response = await axios.put(`${RBAC_IP.value}/reportPersonnel/${personId}/status`, { active })
+    const response = await axios.post(`${RBAC_IP.value}/reportPersonnel/${personId}/status`, { active })
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '切换状态失败')
@@ -342,7 +342,7 @@ export const getWeekConfig = async (weekNum, year) => {
  */
 export const saveWeekConfig = async (weekNum, startDate, endDate) => {
   try {
-    const response = await axios.put(`${RBAC_IP.value}/weekConfig`, { weekNum, startDate, endDate })
+    const response = await axios.post(`${RBAC_IP.value}/weekConfig`, { weekNum, startDate, endDate })
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '保存周配置失败')
@@ -356,7 +356,7 @@ export const saveWeekConfig = async (weekNum, startDate, endDate) => {
  */
 export const clearWeekConfig = async (weekNum) => {
   try {
-    const response = await axios.delete(`${RBAC_IP.value}/weekConfig`, { data: { weekNum } })
+    const response = await axios.post(`${RBAC_IP.value}/weekConfig/clear`, { weekNum })
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '清除周配置失败')
