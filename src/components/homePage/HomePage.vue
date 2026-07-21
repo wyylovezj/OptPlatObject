@@ -167,9 +167,9 @@ onMounted(() => {
     console.log('首页加载完成，触发待办检查')
   }, 500)
 
-  // 延迟触发 lunar-javascript 更新提示
+  // 延迟触发日历库年度更新提醒
   setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('check-lunar-update'))
+    window.dispatchEvent(new CustomEvent('check-calendar-update'))
   }, 100)
 
   // 检测是否是登录成功后跳转，立刻显示成功提示

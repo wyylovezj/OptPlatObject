@@ -3,8 +3,8 @@
  * - 建立 EventSource 连接，实时接收服务端推送的通知
  * - 支持自动重连、断线缓存拉取
  */
-import { ref, onUnmounted } from 'vue'
-import { ElNotification } from 'element-plus'
+import { ref, onUnmounted, h } from 'vue'
+import { ElNotification, ElScrollbar } from 'element-plus'
 import { RBAC_IP } from '@/utils/dutyPageData.js'
 import axios from 'axios'
 
@@ -55,31 +55,147 @@ export function useNotificationSSE(usernameRef) {
       }
       currentRemindNotification = ElNotification({
         title: data.title || '周报提交提醒',
-        message: data.htmlMessage || data.message,
+        message: h(ElScrollbar, { maxHeight: '300px' }, {
+          default: () => h('div', { innerHTML: data.htmlMessage || data.message })
+        }),
         type: 'warning',
         duration: 0, // 不自动关闭，需用户手动点击
         position: 'top-right',
-        dangerouslyUseHTMLString: true,
       })
     } else if (data.type === 'weekly_report_status_change') {
-      // 周报状态变更（提交/保存草稿/打回）：派发自定义事件，由各页面监听后自动刷新
-      // 不弹窗，仅触发数据刷新
+      // 周报状态变更（提交/保存草稿/打回）：
+      // 提交时弹窗展示提交人和模块表格 + 派发事件触发页面刷新
+      if (data.action === 'submitted' && data.name && data.modules && data.modules.length > 0) {
+        // 按模块名排序，便于父模块合并
+        const sorted = [...data.modules].sort((a, b) => {
+          if (a.moduleName < b.moduleName) return -1
+          if (a.moduleName > b.moduleName) return 1
+          return (a.subModuleName || '').localeCompare(b.subModuleName || '')
+        })
+        // 计算每个模块的出现次数
+        const modCount = {}
+        sorted.forEach(m => {
+          modCount[m.moduleName] = (modCount[m.moduleName] || 0) + 1
+        })
+        // 构建表格行，父模块合并
+        const seenMods = new Set()
+        const moduleRows = sorted.map(m => {
+          const subName = m.subModuleName || '-'
+          let modCell = ''
+          if (!seenMods.has(m.moduleName)) {
+            seenMods.add(m.moduleName)
+            const rs = modCount[m.moduleName]
+            modCell = `<td rowspan="${rs}" style="padding:4px 10px;border:1px solid #e4e7ed;text-align:center;font-size:12px;color:#303133;vertical-align:middle;">${m.moduleName}</td>`
+          }
+          return `<tr>${modCell}<td style="padding:4px 10px;border:1px solid #e4e7ed;text-align:center;font-size:12px;color:#303133;">${subName}</td></tr>`
+        }).join('')
+        const tableHtml = `
+          <div style="font-size:13px;margin-bottom:6px;color:#303133;">${data.name} 提交了以下模块：</div>
+          <table style="border-collapse:collapse;width:100%;">
+            <thead><tr style="background:#f5f7fa;">
+              <th style="padding:5px 10px;border:1px solid #e4e7ed;text-align:center;font-size:12px;color:#606266;">运维模块</th>
+              <th style="padding:5px 10px;border:1px solid #e4e7ed;text-align:center;font-size:12px;color:#606266;">子模块</th>
+            </tr></thead>
+            <tbody>${moduleRows}</tbody>
+          </table>`
+        ElNotification({
+          title: '周报提交通知',
+          message: h(ElScrollbar, { maxHeight: '300px' }, {
+            default: () => h('div', { innerHTML: tableHtml })
+          }),
+          type: 'success',
+          duration: 5000,
+          position: 'top-right',
+        })
+      }
+      // 派发事件触发页面刷新
       window.dispatchEvent(new CustomEvent('weekly-report-status-change', { detail: data }))
     } else if (data.type === 'weekly_report_returned') {
-      // 周报被打回：弹窗提醒填报人 + 派发事件触发页面刷新
+      // 周报被退回：弹窗提醒填报人 + 派发事件触发页面刷新
       if (currentRemindNotification) {
         currentRemindNotification.close()
         currentRemindNotification = null
       }
       currentRemindNotification = ElNotification({
-        title: data.title || '周报被打回',
-        message: data.htmlMessage || data.message || '您的周报已被打回，请重新编辑后提交。',
+        title: data.title || '周报已被退回',
+        message: h(ElScrollbar, { maxHeight: '300px' }, {
+          default: () => h('div', { innerHTML: data.htmlMessage || data.message || '您的周报已被退回，请重新编辑后提交。' })
+        }),
         type: 'warning',
         duration: 0,
         position: 'top-right',
-        dangerouslyUseHTMLString: true,
       })
       window.dispatchEvent(new CustomEvent('weekly-report-returned', { detail: data }))
+    } else if (data.type === 'system_notification') {
+      // 系统通知：从管理员后台发送，不自动关闭，手动关闭
+      ElNotification({
+        title: '📢 ' + (data.title || '系统通知'),
+        message: data.message || '',
+        type: data.notificationType || 'info',
+        duration: 0,
+        position: 'top-right',
+        showClose: true,
+        dangerouslyUseHTMLString: false,
+      })
+    } else if (data.type === 'report_module_change') {
+      // 模块/子模块变更（新增/编辑/删除/启停/排序）：
+      // 弹出变更通知 + 触发填写页和汇总页响应式更新
+      const { action, moduleName, subModuleName, statusText } = data
+      // 构建清晰的描述文本
+      let descText = ''
+      let notifType = 'info'
+      if (action === 'sorted') {
+        // 排序：直接使用 moduleName（如"模块排序已更新"）
+        descText = `${moduleName}已更新`
+      } else if (subModuleName) {
+        // 子模块操作
+        const actionText = {
+          'created': '已创建',
+          'updated': '有更新',
+          'deleted': '已删除',
+        }[action] || action
+        descText = `模块「${moduleName}」&gt; 子模块「${subModuleName}」${actionText}`
+      } else if (action === 'status_changed') {
+        descText = `模块「${moduleName}」已${statusText || '变更状态'}`
+        notifType = statusText === '启用' ? 'success' : 'warning'
+      } else {
+        const actionText = {
+          'created': '已创建',
+          'updated': '有更新',
+          'deleted': '已删除',
+        }[action] || action
+        descText = `模块「${moduleName}」${actionText}`
+      }
+      if (action === 'deleted') notifType = 'warning'
+      else if (action === 'created') notifType = 'success'
+      else if (action !== 'status_changed') notifType = 'info'
+      const borderColor = notifType === 'success' ? '#67c23a' : notifType === 'warning' ? '#e6a23c' : '#409eff'
+      const notifMsg = h(ElScrollbar, { maxHeight: '300px' }, {
+        default: () => h('div', {
+          style: 'font-size:13px;color:#303133;line-height:1.6;padding:2px 0;',
+          innerHTML: `<span style="display:inline-block;width:4px;height:14px;border-radius:2px;background:${borderColor};vertical-align:middle;margin-right:8px;"></span>${descText}`
+        })
+      })
+      ElNotification({
+        title: '运维模块变更',
+        message: notifMsg,
+        type: notifType,
+        duration: 4000,
+        position: 'top-right',
+      })
+      window.dispatchEvent(new CustomEvent('weekly-report-module-change', { detail: data }))
+    } else if (data.type === 'summary_filler_changed') {
+      // 综述填写开关变更：更新共享状态 + 弹窗提示
+      import('@/utils/weeklyReportData').then(mod => {
+        mod.summaryFillerEnabled.value = data.enabled
+      })
+      ElNotification({
+        title: '综述填写开关',
+        message: `综述填写功能已${data.enabled ? '开启' : '关闭'}`,
+        type: data.enabled ? 'success' : 'warning',
+        duration: 3000,
+        position: 'top-right',
+      })
     } else {
       // 通用通知
       ElNotification({
