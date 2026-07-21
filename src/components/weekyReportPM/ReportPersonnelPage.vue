@@ -27,11 +27,11 @@
           <template #default="{ $index }">{{ $index + 1 }}</template>
         </el-table-column>
 
-        <el-table-column prop="name" label="姓名" width="120" align="center" />
+        <el-table-column prop="name" label="姓名" align="center" />
 
-        <el-table-column prop="userCode" label="域账号" min-width="160" align="center" />
+        <el-table-column prop="userCode" label="域账号" align="center" />
 
-        <el-table-column label="人员类型" width="130" align="center">
+        <el-table-column label="人员类型" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.personnelType === 1 ? 'primary' : 'success'" effect="plain">
               {{ row.personnelType === 1 ? '普通成员' : '领导' }}
@@ -39,7 +39,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="90" align="center">
+        <el-table-column label="状态" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status ? 'success' : 'info'" size="small" effect="light">
               {{ row.status ? '启用' : '停用' }}
@@ -47,12 +47,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="160" align="center">
+        <el-table-column prop="createdTime" label="创建时间" align="center" />
+
+        <el-table-column label="操作" align="center">
           <template #default="{ row }">
             <el-button :type="row.status ? 'warning' : 'success'" link size="small"
               :loading="togglingId === row.id"
               @click="handleToggleStatus(row)">
               {{ row.status ? '停用' : '启用' }}
+            </el-button>
+            <el-button type="danger" link size="small"
+              :loading="deletingId === row.id"
+              @click="handleDelete(row)">
+              {{ deletingId === row.id ? '删除中...' : '删除' }}
             </el-button>
           </template>
         </el-table-column>
@@ -97,11 +104,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, User } from '@element-plus/icons-vue'
 import {
   getReportPersonnel, getPersonnelCandidates,
-  addReportPersonnel, togglePersonnelStatus
+  addReportPersonnel, togglePersonnelStatus, deleteReportPersonnel
 } from '@/api/weeklyReportApi'
 
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
@@ -110,6 +117,7 @@ const personnelList = ref([])
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const togglingId = ref('')
+const deletingId = ref('')
 const loadingCandidates = ref(false)
 const candidates = ref([])
 
@@ -206,6 +214,33 @@ const handleToggleStatus = async (row) => {
     msg('error', e.message || '操作失败')
   } finally {
     togglingId.value = ''
+  }
+}
+
+// 删除人员（逻辑删除）
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除人员「${row.name}（${row.userCode}）」吗？删除后该人员将不再出现在周报人员列表中。`,
+      '删除确认',
+      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return // 用户取消
+  }
+  deletingId.value = row.id
+  try {
+    const res = await deleteReportPersonnel(row.id)
+    if (res.status === 'success') {
+      msg('success', '人员已删除')
+      await loadPersonnel()
+    } else {
+      msg('error', res.message || '删除失败')
+    }
+  } catch (e) {
+    msg('error', e.message || '删除失败')
+  } finally {
+    deletingId.value = ''
   }
 }
 

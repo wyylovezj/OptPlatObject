@@ -2,12 +2,28 @@ import { RBAC_IP } from '@/utils/dutyPageData.js'
 import axios from 'axios'
 
 /**
+ * 获取服务端当前周次，避免用户修改本地时间的绕过风险
+ * @returns {Promise<{weekNum: number, year: number}>}
+ */
+export const getServerCurrentWeek = async () => {
+  try {
+    const response = await axios.get(`${RBAC_IP.value}/currentWeek`)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取当前周次失败')
+  }
+}
+
+/**
  * 获取所有运维模块列表
+ * @param {number} [weekNum] - 可选，指定周次时返回该周结束前创建的所有模块（含已删除）
  * @returns {Promise<Array>} - 返回模块数组
  */
-export const getReportModules = async () => {
+export const getReportModules = async (weekNum) => {
   try {
-    const response = await axios.get(`${RBAC_IP.value}/reportModules`)
+    const params = {}
+    if (weekNum) params.weekNum = weekNum
+    const response = await axios.get(`${RBAC_IP.value}/reportModules`, { params })
     return response.data.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '获取运维模块列表失败')
@@ -182,7 +198,21 @@ export const returnReport = async (reportId) => {
     const response = await axios.post(`${RBAC_IP.value}/returnReport`, { reportId })
     return response.data
   } catch (error) {
-    throw new Error(error.response?.data?.message || '打回周报失败')
+    throw new Error(error.response?.data?.message || '退回周报失败')
+  }
+}
+
+/**
+ * 批量退回指定人员的所有周报（合并推送一条通知给被退回人）
+ * @param {number[]} reportIds - 周报 ID 数组
+ * @returns {Promise}
+ */
+export const batchReturnReports = async (reportIds) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/batchReturn`, { reportIds })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '批量退回失败')
   }
 }
 
@@ -228,6 +258,23 @@ export const exportReportText = async (params) => {
     return response.data.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '导出文本失败')
+  }
+}
+
+/**
+ * 导出周报 DOCX（调用后端 docxtpl 渲染）
+ * @param {number} weekNum - 周次
+ * @returns {Promise<AxiosResponse>} - 返回 response（blob），由调用方处理下载
+ */
+export const exportReportDocx = async (weekNum) => {
+  try {
+    const response = await axios.get(`${RBAC_IP.value}/exportReport/docx`, {
+      params: { weekNum },
+      responseType: 'blob'
+    })
+    return response
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '导出 DOCX 失败')
   }
 }
 
@@ -315,6 +362,20 @@ export const togglePersonnelStatus = async (personId, active) => {
   }
 }
 
+/**
+ * 删除周报人员（逻辑删除）
+ * @param {number} personId
+ * @returns {Promise}
+ */
+export const deleteReportPersonnel = async (personId) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/reportPersonnel/${personId}/delete`)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '删除人员失败')
+  }
+}
+
 
 /**
  * 获取指定周的配置（自定义起止日期）
@@ -360,5 +421,131 @@ export const clearWeekConfig = async (weekNum) => {
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '清除周配置失败')
+  }
+}
+
+/**
+ * 获取指定年份所有有效周的日期范围（节假日感知）
+ * @param {number} [year] - 年份，默认当前年
+ * @returns {Promise<Array<{weekNum, startDate, endDate}>>}
+ */
+export const getWeekDateRanges = async (year) => {
+  try {
+    const params = {}
+    if (year) params.year = year
+    const response = await axios.get(`${RBAC_IP.value}/weekDateRanges`, { params })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取有效周范围失败')
+  }
+}
+
+// ============================================================
+//  子模块管理接口（report_sub_module 表）
+// ============================================================
+
+/**
+ * 获取子模块列表
+ * @param {number} [moduleId] - 按模块筛选
+ * @param {number} [weekNum] - 可选，指定周次时返回该周结束前创建的所有子模块（含已删除）
+ * @returns {Promise<Array>}
+ */
+export const getReportSubModules = async (moduleId, weekNum) => {
+  try {
+    const params = {}
+    if (moduleId) params.moduleId = moduleId
+    if (weekNum) params.weekNum = weekNum
+    const response = await axios.get(`${RBAC_IP.value}/reportSubModules`, { params })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取子模块列表失败')
+  }
+}
+
+/**
+ * 新增子模块
+ * @param {Object} data - { moduleId, name, desc }
+ * @returns {Promise}
+ */
+export const addReportSubModule = async (data) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/reportSubModules`, data)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '新增子模块失败')
+  }
+}
+
+/**
+ * 更新子模块
+ * @param {number} subId
+ * @param {Object} data - { name, desc }
+ * @returns {Promise}
+ */
+export const updateReportSubModule = async (subId, data) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/reportSubModules/${subId}`, data)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '更新子模块失败')
+  }
+}
+
+/**
+ * 删除子模块
+ * @param {number} subId
+ * @returns {Promise}
+ */
+export const deleteReportSubModule = async (subId) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/reportSubModules/${subId}/delete`)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '删除子模块失败')
+  }
+}
+
+/**
+ * 更新子模块排序
+ * @param {Array} sortData - [{ id, order }]
+ * @returns {Promise}
+ */
+export const updateSubModuleSortOrder = async (sortData) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/reportSubModules/sort`, sortData)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '更新子模块排序失败')
+  }
+}
+
+// ============================================================
+//  系统配置接口
+// ============================================================
+
+/**
+ * 获取综述填写开关状态
+ * @returns {Promise<{enabled: boolean}>}
+ */
+export const getSummaryFillerConfig = async () => {
+  try {
+    const response = await axios.get(`${RBAC_IP.value}/systemConfig/summaryFiller`)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取综述填写开关失败')
+  }
+}
+
+/**
+ * 设置综述填写开关状态
+ * @param {boolean} enabled
+ * @returns {Promise}
+ */
+export const updateSummaryFillerConfig = async (enabled) => {
+  try {
+    const response = await axios.post(`${RBAC_IP.value}/systemConfig/summaryFiller`, { enabled })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '设置综述填写开关失败')
   }
 }
