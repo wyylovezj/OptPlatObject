@@ -3,10 +3,15 @@
     <!-- 标题栏 -->
     <div class="page-header">
       <h2 class="page-title">周报汇总</h2>
-      <el-button @click="goExportPage">
-        <el-icon><Download /></el-icon>
-        &nbsp;导出周报
-      </el-button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <el-button size="small" class="help-btn" @click="openHelpDoc">
+          <span class="btn-icon">📖</span>操作指南
+        </el-button>
+        <el-button @click="goExportPage">
+          <el-icon><Download /></el-icon>
+          &nbsp;导出周报
+        </el-button>
+      </div>
     </div>
 
     <!-- 筛选栏 -->
@@ -37,10 +42,10 @@
 
     <!-- 提交统计 -->
     <div class="summary-stats">
-      <el-card 
-        v-for="stat in statsCards" 
-        :key="stat.label" 
-        shadow="never" 
+      <el-card
+        v-for="stat in statsCards"
+        :key="stat.label"
+        shadow="never"
         class="stat-card"
         :class="{ 'clickable': true }"
         @click="showStatDialog(stat.label)"
@@ -52,7 +57,7 @@
         <div class="stat-sub">{{ stat.sub }}</div>
       </el-card>
     </div>
-    
+
     <!-- 人员名单对话框 -->
     <el-dialog v-model="peopleDialogVisible" :title="peopleDialogTitle" :width="peopleDialogType === '草稿' ? '900px' : '1050px'" :close-on-click-modal="true">
       <el-empty v-if="peopleList.length === 0" description="暂无数据" :image-size="80" />
@@ -259,7 +264,7 @@
                   <!-- 查看态：合并显示（无序号） -->
                   <template v-else-if="sec.parentEntries && sec.parentEntries.some(e => parseLines(e.content).length > 0)">
                     <div class="doc-viewer">
-                      <div v-for="(line, li) in getMergedLines(sec.parentEntries)" :key="'pml-'+si+'-'+li" class="content-line is-idle">
+                      <div v-for="(line, li) in getMergedLines(sec.parentEntries)" :key="'pml-'+si+'-'+li" class="content-line is-idle" @dblclick="onViewLineDblClick(sec.parentEntries, sec.moduleId, 'parent', li)">
                         <div class="line-content">
                           <span class="line-text">{{ line.text }}</span>
                         </div>
@@ -348,7 +353,7 @@
                     <!-- 查看态：合并显示 -->
                     <template v-else-if="sec.entries.some(e => parseLines(e.content).length > 0)">
                     <div class="doc-viewer">
-                      <div v-for="(line, li) in getMergedLines(sec.entries)" :key="'ml-'+si+'-'+li" class="content-line is-idle">
+                      <div v-for="(line, li) in getMergedLines(sec.entries)" :key="'ml-'+si+'-'+li" class="content-line is-idle" @dblclick="onViewLineDblClick(sec.entries, sec.moduleId, undefined, li)">
                         <div class="line-content">
                           <span class="line-num" v-if="getMergedLines(sec.entries).length > 1">({{ li + 1 }})</span>
                           <span class="line-text">{{ line.text }}</span>
@@ -448,7 +453,7 @@
                   <!-- 查看态：合并显示（无序号） -->
                   <template v-else-if="sec.parentEntries && sec.parentEntries.some(e => parseLines(e.content).length > 0)">
                     <div class="doc-viewer">
-                      <div v-for="(line, li) in getMergedLines(sec.parentEntries)" :key="'pml-'+si+'-'+li" class="content-line is-idle">
+                      <div v-for="(line, li) in getMergedLines(sec.parentEntries)" :key="'pml-'+si+'-'+li" class="content-line is-idle" @dblclick="onViewLineDblClick(sec.parentEntries, sec.moduleId, 'parent', li)">
                         <div class="line-content">
                           <span class="line-text">{{ line.text }}</span>
                         </div>
@@ -547,7 +552,7 @@
                   </template>
                   <template v-else-if="sub.summaryEntries && sub.summaryEntries.some(e => parseLines(e.content).length > 0)">
                     <div class="doc-viewer">
-                      <div v-for="(line, li) in getMergedLines(sub.summaryEntries)" :key="'sms-'+si+'-'+sj+'-'+li" class="content-line is-idle">
+                      <div v-for="(line, li) in getMergedLines(sub.summaryEntries)" :key="'sms-'+si+'-'+sj+'-'+li" class="content-line is-idle" @dblclick="onViewLineDblClick(sub.summaryEntries, sec.moduleId, sj+'-summary', li)">
                         <div class="line-content">
                           <span class="line-text">{{ line.text }}</span>
                         </div>
@@ -632,7 +637,7 @@
                     </template>
                     <template v-else-if="sub.entries.some(e => parseLines(e.content).length > 0)">
                       <div class="doc-viewer">
-                        <div v-for="(line, li) in getMergedLines(sub.entries)" :key="'ml-'+si+'-'+sj+'-'+li" class="content-line is-idle">
+                        <div v-for="(line, li) in getMergedLines(sub.entries)" :key="'ml-'+si+'-'+sj+'-'+li" class="content-line is-idle" @dblclick="onViewLineDblClick(sub.entries, sec.moduleId, sj, li)">
                           <div class="line-content">
                             <span class="line-num" v-if="getMergedLines(sub.entries).length > 1">({{ li + 1 }})</span>
                             <span class="line-text">{{ line.text }}</span>
@@ -654,7 +659,7 @@
       </div>
       </template>
       <div v-else-if="loaded" class="empty-summary">
-        <el-empty description="本周暂无已提交的周报数据" :image-size="80" />
+        <el-empty description="本周无已提交的周报数据" :image-size="80" />
       </div>
     </div>
   </div>
@@ -671,6 +676,7 @@ import { reportModules, getCurrentWeek, getWeekDateRange, fmtDateCN, setWeekConf
 
 const router = useRouter()
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
+const openHelpDoc = () => window.open('/运维周报模块操作文档.html')
 const permissionStore = usePermissionStore()
 const username = computed(() => permissionStore.userInfo?.username || '')
 const nickname = computed(() => permissionStore.userInfo?.nickname || '')
@@ -856,33 +862,35 @@ const buildModuleEntriesFromDetails = (details) => {
 const showStatDialog = (label) => {
   peopleDialogType.value = label
   const rawList = []
-  const unsubmittedData = summaryData.value?.unsubmitted || []
 
   if (label === '未提交') {
-    unsubmittedData.filter(u => u.status === 'pending').forEach(u => rawList.push({
-      id: u.id, name: u.name, userCode: u.userCode, status: 'pending',
+    ;(summaryData.value?.pendingList || []).forEach(u => rawList.push({
+      engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: 'pending',
       submitTime: u.submitTime, updateTime: u.updateTime, moduleEntries: []
     }))
   } else if (label === '草稿') {
-    unsubmittedData.filter(u => u.status === 'draft').forEach(u => rawList.push({
-      id: u.id, name: u.name, userCode: u.userCode, status: 'draft',
+    ;(summaryData.value?.draftList || []).forEach(u => rawList.push({
+      engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: 'draft',
       submitTime: u.submitTime, updateTime: u.updateTime,
       moduleEntries: buildModuleEntriesFromDetails(u.statusDetails)
     }))
   } else if (label === '部分提交') {
-    unsubmittedData.filter(u => u.status === 'partial').forEach(u => rawList.push({
-      id: u.id, name: u.name, userCode: u.userCode, status: 'partial',
+    ;(summaryData.value?.partialList || []).forEach(u => rawList.push({
+      engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: 'partial',
       submitTime: u.submitTime, updateTime: u.updateTime,
       moduleEntries: buildModuleEntriesFromDetails(u.statusDetails)
     }))
   } else if (label === '已退回') {
-    unsubmittedData.filter(u => u.status === 'returned').forEach(u => rawList.push({
-      id: u.engineerId, name: u.name, userCode: u.userCode, status: 'returned',
+    ;(summaryData.value?.returnedList || []).forEach(u => rawList.push({
+      engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: 'returned',
       submitTime: u.submitTime, updateTime: u.updateTime,
       moduleEntries: buildModuleEntriesFromDetails(u.statusDetails)
     }))
   } else if (label === '已提交') {
-    const excludedNames = new Set(unsubmittedData.filter(u => u.status === 'returned' || u.status === 'partial').map(u => u.name))
+    // 排除有退回或部分提交记录的人员
+    const returnedNames = new Set((summaryData.value?.returnedList || []).map(u => u.name))
+    const partialNames = new Set((summaryData.value?.partialList || []).map(u => u.name))
+    const excludedNames = new Set([...returnedNames, ...partialNames])
     const personMap = new Map()
     if (summaryData.value?.moduleGroups) {
       summaryData.value.moduleGroups.forEach(group => {
@@ -892,7 +900,7 @@ const showStatDialog = (label) => {
             personMap.set(entry.name, { engineerId: entry.engineerId, name: entry.name, userCode: entry.userCode || '', entries: [] })
           }
           const person = personMap.get(entry.name)
-          if (!person.entries.some(e => e.moduleName === entry.moduleName)) {
+          if (!person.entries.some(e => e.moduleName === entry.moduleName && (e.subModuleName || '') === (entry.subModuleName || ''))) {
             person.entries.push({ moduleName: entry.moduleName, subModuleName: entry.subModuleName || '', moduleColor: entry.color || '', moduleStatus: 'submitted', submitTime: entry.submitTime || null, moduleUpdateTime: entry.updateTime || null, moduleReturnedTime: entry.returnedTime || null })
           }
         })
@@ -902,6 +910,7 @@ const showStatDialog = (label) => {
       rawList.push({ id: person.engineerId, name: person.name, userCode: person.userCode, status: 'submitted', submitTime: null, updateTime: null, moduleEntries: person.entries })
     })
   } else if (label === '团队成员') {
+    const unsubmittedData = summaryData.value?.unsubmitted || []
     const seen = new Set()
     unsubmittedData.forEach(u => {
       if (!seen.has(u.name)) {
@@ -917,7 +926,7 @@ const showStatDialog = (label) => {
             rawList.push({ engineerId: entry.engineerId, name: entry.name, userCode: entry.userCode || '', status: entry.status, submitTime: entry.submitTime, updateTime: entry.updateTime, moduleEntries: entry.moduleName ? [{moduleName: entry.moduleName, subModuleName: entry.subModuleName || '', moduleColor: entry.color || '', moduleStatus: entry.status, submitTime: entry.submitTime || null, moduleUpdateTime: entry.updateTime || null, moduleReturnedTime: entry.returnedTime || null}] : [] })
           } else if (entry.moduleName) {
             const existing = rawList.find(e => e.name === entry.name)
-            if (existing && !existing.moduleEntries.some(e => e.moduleName === entry.moduleName)) {
+            if (existing && !existing.moduleEntries.some(e => e.moduleName === entry.moduleName && (e.subModuleName || '') === (entry.subModuleName || ''))) {
               existing.moduleEntries.push({moduleName: entry.moduleName, subModuleName: entry.subModuleName || '', moduleColor: entry.color || '', moduleStatus: entry.status, submitTime: entry.submitTime || null, moduleUpdateTime: entry.updateTime || null, moduleReturnedTime: entry.returnedTime || null})
             }
           }
@@ -1377,9 +1386,9 @@ const focusLine = (idx) => {
 }
 const onEditableInput = (idx, e) => {
   const el = e.target
-  let text = (el.innerText || '').replace(/\u200B/g, '')
+  let text = (el.innerText || '').replace(/​/g, '').replace(/(\r?\n)+$/, '')
   editLines.value[idx].text = text
-  if (!text && !el.textContent.replace(/\u200B/g, '')) {
+  if (!text && !el.textContent.replace(/​/g, '')) {
     el.textContent = '\u200B'
   }
 }
@@ -1406,6 +1415,35 @@ const onLineContentClick = (idx, e) => {
     sel.addRange(range)
   }
 }
+
+// 双击查看态行，进入编辑态并定位光标到该行
+const onViewLineDblClick = (entries, moduleId, subIdx, lineIdx) => {
+  if (getSummaryWeek.value !== currentWeek) return
+  if (!entries || entries.length === 0) return
+  startBatchEdit(entries, moduleId, subIdx)
+  editingLineIdx.value = lineIdx
+  nextTick(() => {
+    const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
+    if (inputs.length > lineIdx) {
+      const el = inputs[lineIdx]
+      el.focus()
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      range.collapse(false)
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
+  })
+}
+// 阻止浏览器默认粘贴行为，用 execCommand 以纯文本插入，避免 DOM 块级拆分且支持 Ctrl+Z 撤销
+const handleContentEditablePaste = (e) => {
+  e.preventDefault()
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain')
+  if (!text) return
+  document.execCommand('insertText', false, text)
+}
+
 const cancelEdit = () => { destroySortable(); document.removeEventListener('keydown', handleKeydownSave); editingKey.value = ''; editingModuleId.value = null; editingLineIdx.value = null; editingReportIds.value = []; editingSubModuleId.value = null; editingIsSummary.value = false; editLines.value = []; originalContentLines.value = [] }
 
 // 批量编辑：将子模块下所有提交人的内容合并编辑
@@ -1786,11 +1824,15 @@ onUnmounted(() => {
 const vContenteditable = {
   mounted(el, binding) {
     el.textContent = binding.value
+    el.addEventListener('paste', handleContentEditablePaste)
   },
   updated(el, binding) {
     if (document.activeElement !== el) {
       el.textContent = binding.value
     }
+  },
+  unmounted(el) {
+    el.removeEventListener('paste', handleContentEditablePaste)
   }
 }
 
@@ -1802,6 +1844,31 @@ const nowStr = () => {
 </script>
 
 <style scoped>
+.report-summary-container .help-btn {
+  background: linear-gradient(135deg, #455a64 0%, #607d8b 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 20px !important;
+  padding: 6px 20px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 15px rgba(79,172,254,0.4) !important;
+  transition: all 0.3s ease !important;
+  font-size: 13px;
+}
+.report-summary-container .help-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(79,172,254,0.55) !important;
+}
+.report-summary-container .help-btn:active {
+  transform: translateY(0);
+}
+.report-summary-container .help-btn .btn-icon {
+  font-size: 16px;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
 .report-summary-container { width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; overflow: hidden; padding: 20px; box-sizing: border-box; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0; }
 .page-title { font-size: 20px; font-weight: 700; color: #303133; margin: 0; }
@@ -1833,10 +1900,10 @@ const nowStr = () => {
 .content-line.editing.is-active { background: #f0f7ff; }
 .line-content { flex: 1; min-width: 0; max-width: 40em; text-indent: 2em; overflow: hidden; position: relative; }
 .line-right { flex-shrink: 0; display: flex; align-items: center; gap: 6px; margin-left: 12px; position: relative; z-index: 1; padding-top: 2px; }
-.line-num { color: #909399; font-weight: 600; min-width: 24px; text-align: right; flex-shrink: 0; line-height: 1.6; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; margin-right: 6px; }
-.line-text { color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; min-height: 22px; }
+.line-num { color: #909399; font-weight: 600; min-width: 24px; text-align: right; flex-shrink: 0; line-height: 1.6; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; margin-right: 6px; }
+.line-text { color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; min-height: 22px; }
 .line-text.empty-hint { color: #c0c4cc; font-style: italic; }
-.line-input-editable { display: inline; outline: none; color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; }
+.line-input-editable { display: inline; outline: none; color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; }
 .line-input-editable:empty::before { content: '请输入内容'; color: #c0c4cc; }
 .drag-handle { position: absolute; left: 0.1em; top: 5px; cursor: grab; color: #c0c4cc; font-size: 14px; z-index: 1; display: inline-flex; align-items: center; user-select: none; }
 .drag-handle:active { cursor: grabbing; }
@@ -1863,7 +1930,7 @@ const nowStr = () => {
 .original-ref-panel { position: absolute; top: 8px; right: 0; width: 670px; z-index: 10; background: rgba(255,255,255,0.78); backdrop-filter: blur(6px); border: 1px solid #e8eaed; border-left: 3px solid #bcc0c4; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 .original-ref-header { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #909399; padding: 3px 8px; background: #f5f7fa; border-bottom: 1px solid #ebeef5; }
 .original-ref-body { padding: 4px 8px; }
-.ref-content-line { padding: 1px 0; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; color: #606266; max-width: 40em; text-indent: 2em; }
+.ref-content-line { padding: 1px 0; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; color: #606266; max-width: 40em; text-indent: 2em; }
 .ref-content-line > span { vertical-align: middle; }
 .ref-content-line > span:last-child { margin-left: 10px !important; }
 .ref-content-line .line-num { color: #c0c4cc; margin-right: 6px; display: inline; user-select: none; }
@@ -1873,7 +1940,7 @@ const nowStr = () => {
 :deep(.el-scrollbar__wrap) { overflow-x: hidden; }
 :deep(.el-scrollbar__view) { overflow-x: hidden; }
 .doc-layout { flex: 1; min-height: 0; display: flex; gap: 16px; overflow: hidden; }
-.doc-toc { width: 240px; flex-shrink: 0; border-right: 1px solid #e4e7ed; overflow: hidden; }
+.doc-toc { width: 240px; flex-shrink: 0; border-right: 1px solid #e4e7ed; overflow: hidden; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; }
 .toc-title { font-size: 14px; font-weight: 700; color: #303133; padding: 8px 4px 12px; border-bottom: 2px solid #409eff; margin-bottom: 8px; letter-spacing: 4px; }
 .toc-block { margin-bottom: 4px; }
 .toc-parent { font-size: 12px; font-weight: 600; color: #303133; padding: 6px 4px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 4px; transition: all 0.15s; white-space: nowrap; }
@@ -1890,14 +1957,21 @@ const nowStr = () => {
 .doc-pages { flex: 1; background: #fff; }
 .doc-pages-view { max-width: 21cm; margin: 0 auto; padding: 0 2.6cm 40px 2.8cm; }
 .doc-section { margin-bottom: 24px; }
-.doc-h2 { font-size: 16px; font-weight: 700; color: #303133; margin: 0 0 12px; padding: 8px 0 8px 12px; border-left: 4px solid #409eff; line-height: 1.4; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; scroll-margin-top: 16px; }
+.doc-h2 { font-size: 16px; font-weight: 700; color: #303133; margin: 0 0 12px; padding: 8px 0 8px 12px; border-left: 4px solid #409eff; line-height: 1.4; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; scroll-margin-top: 16px; }
 .doc-h2-with-actions { display: flex; align-items: center; gap: 12px; }
 .doc-h2-btns { display: flex; align-items: center; gap: 2px; }
 .doc-sub-section { margin-bottom: 16px; padding-left: 16px; }
 .doc-sub-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .doc-sub-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.doc-h3 { font-size: 14px; font-weight: 600; color: #606266; margin: 0; padding: 4px 0; line-height: 1.5; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; scroll-margin-top: 16px; }
-.empty-summary { text-align: center; padding: 40px; }
+.doc-h3 { font-size: 14px; font-weight: 600; color: #606266; margin: 0; padding: 4px 0; line-height: 1.5; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; scroll-margin-top: 16px; }
+.empty-summary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+}
 .loading-mask { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #909399; font-size: 14px; }
 .loading-icon { animation: rotating 1.5s linear infinite; }
 @keyframes rotating { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

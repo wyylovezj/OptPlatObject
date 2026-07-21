@@ -3,6 +3,9 @@
     <!-- 标题栏 -->
     <div class="page-header">
       <h2 class="page-title">运维周报填写</h2>
+      <el-button size="small" class="help-btn" @click="openHelpDoc">
+        <span class="btn-icon">📖</span>操作指南
+      </el-button>
     </div>
 
     <!-- Tab 切换 -->
@@ -40,7 +43,7 @@
 
       <!-- 文档内容区：展示所有模块，未选模块置灰不可跳转 -->
       <div v-if="activeModules.length === 0" class="doc-empty-hint">
-        <el-empty description="暂无可用模块，请联系管理员配置" :image-size="80" />
+        <el-empty description="本周无已保存的数据" :image-size="80" />
       </div>
 
       <div v-else-if="loading" class="loading-mask">
@@ -55,7 +58,7 @@
             <div class="toc-parent"
                  :class="{ active: activeSectionKey === 'p'+si, disabled: !sec.hasRecord }"
                  @click="scrollTo('p'+si)">
-              <!-- 无子模块的父模块：两者都提交才显示提交色，否则草稿色 -->
+              <!-- 无子模块的父模块：综述开启时两者都提交才显示提交色，否则按仅详细内容 -->
               <template v-if="!sec.hasSubModules">
                 <template v-if="sec.record || sec.parentRecord">
                   <el-tooltip placement="right" trigger="hover" popper-class="toc-status-tip">
@@ -199,7 +202,7 @@
                       </div>
                       <div v-else class="doc-viewer">
                         <template v-if="parseLines(sec.parentRecord.content).length > 0">
-                          <div v-for="(line, li) in parseLines(sec.parentRecord.content)" :key="li" class="content-line is-idle">
+                          <div v-for="(line, li) in parseLines(sec.parentRecord.content)" :key="li" class="content-line is-idle" @dblclick="onViewLineDblClick(sec.parentRecord, li)">
                             <div class="line-content">
                               <span class="line-text">{{ line.text }}</span>
                             </div>
@@ -273,7 +276,7 @@
                       </div>
                       <div v-else class="doc-viewer">
                         <template v-if="parseLines(sec.record.content).length > 0">
-                          <div v-for="(line, li) in parseLines(sec.record.content)" :key="li" class="content-line is-idle">
+                          <div v-for="(line, li) in parseLines(sec.record.content)" :key="li" class="content-line is-idle" @dblclick="onViewLineDblClick(sec.record, li)">
                             <div class="line-content">
                               <span class="line-num" v-if="parseLines(sec.record.content).length > 1">({{ li + 1 }})</span>
                               <span class="line-text">{{ line.text }}</span>
@@ -365,7 +368,7 @@
                       <!-- 非编辑态（无序号） -->
                       <div v-else class="doc-viewer">
                         <template v-if="parseLines(sec.parentRecord.content).length > 0">
-                          <div v-for="(line, li) in parseLines(sec.parentRecord.content)" :key="li" class="content-line is-idle">
+                          <div v-for="(line, li) in parseLines(sec.parentRecord.content)" :key="li" class="content-line is-idle" @dblclick="onViewLineDblClick(sec.parentRecord, li)">
                             <div class="line-content">
                               <span class="line-text">{{ line.text }}</span>
                             </div>
@@ -454,7 +457,7 @@
                         </div>
                         <div v-else class="doc-viewer">
                           <template v-if="parseLines(sub.summaryRecord.content).length > 0">
-                            <div v-for="(line, li) in parseLines(sub.summaryRecord.content)" :key="li" class="content-line is-idle">
+                            <div v-for="(line, li) in parseLines(sub.summaryRecord.content)" :key="li" class="content-line is-idle" @dblclick="onViewLineDblClick(sub.summaryRecord, li)">
                               <div class="line-content">
                                 <span class="line-text">{{ line.text }}</span>
                               </div>
@@ -530,7 +533,7 @@
 
                         <div v-else class="doc-viewer">
                           <template v-if="parseLines(sub.record.content).length > 0">
-                            <div v-for="(line, li) in parseLines(sub.record.content)" :key="li" class="content-line is-idle">
+                            <div v-for="(line, li) in parseLines(sub.record.content)" :key="li" class="content-line is-idle" @dblclick="onViewLineDblClick(sub.record, li)">
                               <div class="line-content">
                                 <span class="line-num" v-if="parseLines(sub.record.content).length > 1">({{ li + 1 }})</span>
                                 <span class="line-text">{{ line.text }}</span>
@@ -657,7 +660,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import Sortable from 'sortablejs'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, Clock, CopyDocument, DocumentCopy, Select, Close, ArrowLeft, ArrowRight, Rank, Loading } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Clock, CopyDocument, DocumentCopy, Select, Close, ArrowLeft, ArrowRight, Rank, Loading, Reading } from '@element-plus/icons-vue'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { getReportModules, saveReport, getMyReports, updateReport, deleteReport, submitAllDrafts, getWeekConfig, getReportSubModules, getServerCurrentWeek } from '@/api/weeklyReportApi'
 import { reportModules, getCurrentWeek, getWeekDateRange, fmtDateCN, setWeekConfig, serverCurrentWeek, fetchWeekDateRanges, summaryFillerEnabled } from '@/utils/weeklyReportData'
@@ -665,6 +668,7 @@ import { getSummaryFillerConfig } from '@/api/weeklyReportApi'
 import { onBeforeRouteLeave } from 'vue-router'
 
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
+const openHelpDoc = () => window.open('/运维周报模块操作文档.html')
 const permissionStore = usePermissionStore()
 const username = computed(() => permissionStore.userInfo?.username || '')
 const nickname = computed(() => permissionStore.userInfo?.nickname || '')
@@ -1426,6 +1430,35 @@ const onLineContentClick = (idx, e) => {
   }
 }
 
+// 双击查看态行，进入编辑态并定位光标到该行
+const onViewLineDblClick = async (rec, lineIdx) => {
+  if (fillWeekKey.value !== 'current') return
+  if (rec.status === 'submitted') return
+  await startInlineEdit(rec)
+  editingLineIdx.value = lineIdx
+  nextTick(() => {
+    const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
+    if (inputs.length > lineIdx) {
+      const el = inputs[lineIdx]
+      el.focus()
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      range.collapse(false)
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
+  })
+}
+
+// 阻止浏览器默认粘贴行为，用 execCommand 以纯文本插入，避免 DOM 块级拆分且支持 Ctrl+Z 撤销
+const handleContentEditablePaste = (e) => {
+  e.preventDefault()
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain')
+  if (!text) return
+  document.execCommand('insertText', false, text)
+}
+
 const activateLine = (idx) => { editingLineIdx.value = idx; setTimeout(() => focusLine(idx), 0) }
 const focusLine = (idx) => {
   const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
@@ -1453,9 +1486,9 @@ const focusLine = (idx) => {
 const onEditableInput = (idx, e) => {
   const el = e.target
   // 用户输入后将零宽空格清理掉，同时确保空输入框保留光标占位
-  let text = (el.innerText || '').replace(/\u200B/g, '')
+  let text = (el.innerText || '').replace(/​/g, '').replace(/(\r?\n)+$/, '')
   editLines.value[idx].text = text
-  if (!text && !el.textContent.replace(/\u200B/g, '')) {
+  if (!text && !el.textContent.replace(/​/g, '')) {
     el.textContent = '\u200B'
   }
 }
@@ -1498,7 +1531,15 @@ const getParentModuleTocColor = (sec) => {
     return '#909399'
   }
 
-  // 无子模块：详细内容和综述都提交才显示提交色，否则草稿色
+  // 无子模块：根据综述开关状态分情况处理
+  if (!summaryFillerEnabled.value) {
+    // 综述关闭：只按详细内容的状态决定色点
+    if (!hasRecord) return 'transparent'
+    const r = sec.record?.status
+    if (r === 'returned') return '#e6a23c'
+    return r === 'submitted' ? '#67c23a' : '#909399'
+  }
+  // 综述开启：详细内容和综述都提交才显示提交色，否则草稿色
   if (!hasRecord && !hasParentRecord) return 'transparent'
   const rStatus = sec.record?.status
   const pStatus = sec.parentRecord?.status
@@ -1788,11 +1829,15 @@ onBeforeRouteLeave(async (to, from, next) => {
 const vContenteditable = {
   mounted(el, binding) {
     el.textContent = binding.value
+    el.addEventListener('paste', handleContentEditablePaste)
   },
   updated(el, binding) {
     if (document.activeElement !== el) {
       el.textContent = binding.value
     }
+  },
+  unmounted(el) {
+    el.removeEventListener('paste', handleContentEditablePaste)
   }
 }
 
@@ -1838,7 +1883,31 @@ onUnmounted(() => {
 
 <style scoped>
 .report-fill-container { width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; overflow: hidden; padding: 20px; box-sizing: border-box; }
-.page-header { margin-bottom: 12px; flex-shrink: 0; }
+.page-header { margin-bottom: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
+.help-btn {
+  background: linear-gradient(135deg, #455a64 0%, #607d8b 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 20px !important;
+  padding: 6px 20px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 15px rgba(79,172,254,0.4) !important;
+  transition: all 0.3s ease !important;
+  font-size: 13px;
+}
+.help-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(79,172,254,0.55) !important;
+}
+.help-btn:active {
+  transform: translateY(0);
+}
+.help-btn .btn-icon {
+  font-size: 16px;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
 .page-title { font-size: 20px; font-weight: 700; color: #303133; margin: 0; }
 .report-tabs { flex-shrink: 0; }
 .tab-content { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding-bottom: 16px; }
@@ -1848,13 +1917,13 @@ onUnmounted(() => {
 .week-tag { font-weight: 600; }
 .deadline-hint { font-size: 12px; color: #909399; white-space: nowrap; }
 
-.record-content-lines { min-height: 0; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; color: #606266; }
+.record-content-lines { min-height: 0; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; color: #606266; }
 
 /* 共享基础：flex 布局，文本区 + 右侧按钮区完全分离 */
 .content-line { display: flex; align-items: flex-start; padding: 4px 6px; border-radius: 4px; transition: background 0.15s; min-height: 32px; }
 
 /* 文本内容区：flex占满，首行缩进 */
-.line-content { flex: 1; min-width: 0; max-width: 40em; text-indent: 2em; overflow: hidden; position: relative; }
+.line-content { flex: 1; min-width: 0; max-width: 60em; text-indent: 2em; overflow: hidden; position: relative; }
 
 /* 拖拽手柄 */
 .drag-handle { position: absolute; left: 0.1em; top: 5px; cursor: grab; color: #c0c4cc; font-size: 14px; z-index: 1; display: inline-flex; align-items: center; user-select: none; }
@@ -1875,14 +1944,14 @@ onUnmounted(() => {
 .content-line.editing.is-active { background: #f0f7ff; }
 
 /* contenteditable 编辑区：样式匹配查看态文本 */
-.line-input-editable { display: inline; outline: none; color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; }
+.line-input-editable { display: inline; outline: none; color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; }
 .line-input-editable:empty::before { content: '请输入内容'; color: #c0c4cc; }
 
 /* 序号 */
-.line-num { color: #909399; font-weight: 600; line-height: 1.6; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; }
+.line-num { color: #909399; font-weight: 600; line-height: 1.6; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; }
 
 /* 查看态文本 */
-.line-text { color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; min-height: 22px; }
+.line-text { color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; min-height: 22px; }
 .line-text.empty-hint { color: #c0c4cc; font-style: italic; margin-right: 10px; }
 
 /* 修改时间 */
@@ -1906,7 +1975,14 @@ onUnmounted(() => {
 /* 编辑态操作按钮 */
 .active-line-actions { display: flex; align-items: center; gap: 0; }
 .active-line-actions .el-button { padding: 2px; }
-.doc-empty-hint { text-align: center; padding: 40px; }
+.doc-empty-hint {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+}
 .loading-mask { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #909399; font-size: 14px; }
 .loading-icon { animation: rotating 1.5s linear infinite; }
 @keyframes rotating { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1949,7 +2025,7 @@ onUnmounted(() => {
 .history-content-block { margin-bottom: 10px; padding: 10px 14px; background: #f5f7fa; border-radius: 8px; border-left: 3px solid #e4e7ed; }
 .history-content-block:last-child { margin-bottom: 0; }
 .history-content-module { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-.history-content-text { font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16pt; color: #606266; line-height: 1.7; white-space: pre-wrap; }
+.history-content-text { font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16pt; color: #606266; line-height: 1.7; white-space: pre-wrap; }
 .history-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
 .history-time { font-size: 11px; color: #c0c4cc; }
 .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
@@ -1960,7 +2036,7 @@ onUnmounted(() => {
 .toc-child.disabled:hover { background: #f0f7ff; color: #d0d4d8; }
 .doc-h2.no-record { color: #d0d4d8; border-left-color: #e4e7ed !important; }
 .doc-h3.no-record { color: #d0d4d8; }
-.doc-toc { width: 240px; flex-shrink: 0; border-right: 1px solid #e4e7ed; overflow: hidden; }
+.doc-toc { width: 240px; flex-shrink: 0; border-right: 1px solid #e4e7ed; overflow: hidden; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; }
 .toc-title { font-size: 14px; font-weight: 700; color: #303133; padding: 8px 4px 12px; border-bottom: 2px solid #409eff; margin-bottom: 8px; letter-spacing: 4px; }
 .toc-block { margin-bottom: 4px; }
 .toc-parent { font-size: 12px; font-weight: 600; color: #303133; padding: 6px 4px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 4px; transition: all 0.15s; white-space: nowrap; }
@@ -1977,13 +2053,13 @@ onUnmounted(() => {
 .doc-pages { flex: 1; background: #fff; }
 .doc-pages-view { max-width: 21cm; margin: 0 auto; padding: 0 2.6cm 40px 2.8cm; }
 .doc-section { margin-bottom: 24px; }
-.doc-h2 { font-size: 16px; font-weight: 700; color: #303133; margin: 0 0 12px; padding: 8px 0 8px 12px; border-left: 4px solid #409eff; line-height: 1.4; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; scroll-margin-top: 16px; }
+.doc-h2 { font-size: 16px; font-weight: 700; color: #303133; margin: 0 0 12px; padding: 8px 0 8px 12px; border-left: 4px solid #409eff; line-height: 1.4; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; scroll-margin-top: 16px; }
 .doc-h2-with-actions { display: flex; align-items: center; gap: 12px; }
 .doc-h2-btns { display: flex; align-items: center; gap: 2px; }
 .doc-sub-section { margin-bottom: 16px; padding-left: 16px; }
 .doc-sub-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .doc-sub-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.doc-h3 { font-size: 14px; font-weight: 600; color: #606266; margin: 0; padding: 4px 0; line-height: 1.5; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; scroll-margin-top: 16px; }
+.doc-h3 { font-size: 14px; font-weight: 600; color: #606266; margin: 0; padding: 4px 0; line-height: 1.5; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; scroll-margin-top: 16px; }
 .doc-content-area { min-height: 40px; }
 .doc-editor { min-height: 32px; padding: 4px 0; }
 .doc-viewer { min-height: 32px; padding: 4px 0; }

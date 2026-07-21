@@ -443,8 +443,14 @@ const handleExportDocx = async () => {
     let filename = `\u8fd0\u7ef4\u4e2d\u5fc3\u5de5\u4f5c\u5468\u62a5\uff08${fmtYMD(monday)}-${fmtYMD(sunday)}\uff09.docx`
     const disposition = res.headers['content-disposition']
     if (disposition) {
-      const match = disposition.match(/filename\*?=(?:UTF-8'')?([^;\s]+)/i)
-      if (match) filename = decodeURIComponent(match[1])
+      // 优先使用 filename*=UTF-8'' 格式（支持中文），否则回退到 filename= 并去除引号
+      const starMatch = disposition.match(/filename\*=(?:UTF-8'')?([^;\s]+)/i)
+      if (starMatch) {
+        filename = decodeURIComponent(starMatch[1])
+      } else {
+        const plainMatch = disposition.match(/filename=(?:([^;\s]+))/i)
+        if (plainMatch) filename = plainMatch[1].replace(/^"|"$/g, '')
+      }
     }
     downloadBlob(res.data, filename)
     msg('success', 'DOCX \u6587\u4ef6\u5df2\u4e0b\u8f7d')
@@ -507,7 +513,7 @@ watch(activeSectionKey, (key) => {
 :deep(.el-scrollbar__wrap) { overflow-x: hidden; }
 :deep(.el-scrollbar__view) { overflow-x: hidden; }
 .doc-layout { flex: 1; min-height: 0; display: flex; gap: 16px; overflow: hidden; }
-.doc-toc { width: 240px; flex-shrink: 0; border-right: 1px solid #e4e7ed; overflow: hidden; background: transparent; padding: 0; }
+.doc-toc { width: 240px; flex-shrink: 0; border-right: 1px solid #e4e7ed; overflow: hidden; background: transparent; padding: 0; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; }
 .toc-title { font-size: 14px; font-weight: 700; color: #303133; padding: 8px 4px 12px; border-bottom: 2px solid #409eff; margin-bottom: 8px; letter-spacing: 4px; }
 .doc-toc .toc-block { margin-bottom: 4px; }
 .doc-toc .toc-parent { font-size: 12px; font-weight: 600; color: #303133; padding: 6px 4px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 4px; transition: all 0.15s; white-space: nowrap; border-left: none; background: transparent; }
@@ -521,11 +527,11 @@ watch(activeSectionKey, (key) => {
 .doc-pages-view { max-width: 21cm; margin: 0 auto; padding: 0 2.6cm 40px 2.8cm; }
 .doc-section { margin-bottom: 24px; padding: 0; border-top: none; }
 .doc-section + .doc-section { border-top: none; }
-.doc-h2 { font-size: 16px; font-weight: 700; color: #303133; margin: 0 0 12px; padding: 8px 0 8px 12px; border-left: 4px solid #409eff; line-height: 1.4; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; scroll-margin-top: 16px; }
+.doc-h2 { font-size: 16px; font-weight: 700; color: #303133; margin: 0 0 12px; padding: 8px 0 8px 12px; border-left: 4px solid #409eff; line-height: 1.4; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; scroll-margin-top: 16px; }
 .doc-h2.no-record { border-left-color: #e4e7ed !important; }
 .doc-sub-section { margin-bottom: 16px; padding-left: 16px; }
 .doc-sub-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.doc-h3 { font-size: 14px; font-weight: 600; color: #606266; margin: 0; padding: 4px 0; line-height: 1.5; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; scroll-margin-top: 16px; }
+.doc-h3 { font-size: 14px; font-weight: 600; color: #606266; margin: 0; padding: 4px 0; line-height: 1.5; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; scroll-margin-top: 16px; }
 
 .doc-parent-content { padding-left: 16px; margin-bottom: 4px; }
 .doc-parent-content .doc-sub-header { margin-bottom: 8px; }
@@ -534,8 +540,8 @@ watch(activeSectionKey, (key) => {
 .content-line.is-idle:hover { background: #f5f7fa; }
 .line-content { flex: 1; min-width: 0; max-width: 40em; text-indent: 2em; overflow: hidden; position: relative; }
 .line-right { flex-shrink: 0; display: flex; align-items: center; gap: 6px; margin-left: 12px; position: relative; z-index: 1; padding-top: 2px; }
-.line-num { color: #909399; font-weight: 600; min-width: 24px; text-align: right; flex-shrink: 0; line-height: 1.6; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; margin-right: 6px; }
-.line-text { color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '仿宋_GB2312', '仿宋', FangSong_GB2312, FangSong, serif; font-size: 16px; min-height: 22px; }
+.line-num { color: #909399; font-weight: 600; min-width: 24px; text-align: right; flex-shrink: 0; line-height: 1.6; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; margin-right: 6px; }
+.line-text { color: #303133; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; font-size: 16px; min-height: 22px; }
 .doc-empty-text { color: #909399; font-size: 13px; }
 </style>
 
