@@ -29,11 +29,11 @@
         <el-option v-for="w in currentWeek" :key="w" :label="'第' + w + '周'" :value="w" />
       </el-select>
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-        <el-button type="warning" size="small" @click="handleRemindAll" :disabled="getSummaryWeek !== currentWeek">
+        <el-button type="warning" size="small" @click="handleRemindAll" :disabled="getSummaryWeek !== currentWeek" v-if="canEdit">
           <el-icon><Bell /></el-icon>
           &nbsp;一键提醒
         </el-button>
-        <el-button type="danger" size="small" @click="showBatchReturnDialog" :disabled="getSummaryWeek !== currentWeek">
+        <el-button type="danger" size="small" @click="showBatchReturnDialog" :disabled="getSummaryWeek !== currentWeek" v-if="canEdit">
           <el-icon><RefreshLeft /></el-icon>
           &nbsp;一键退回
         </el-button>
@@ -115,7 +115,7 @@
         <el-table-column v-if="peopleDialogType !== '已提交'" label="操作" width="80" align="center">
           <template #default="{ row }">
             <el-button
-              v-if="row.userCode && row.status !== 'submitted'"
+              v-if="row.userCode && row.status !== 'submitted' && canEdit"
               type="warning" size="small" text
               :loading="remindingUser === row.userCode"
               :disabled="getSummaryWeek !== currentWeek"
@@ -199,7 +199,7 @@
                         <el-button type="primary" size="small" @click="saveBatchEdit">保存</el-button>
                       </div>
                     </template>
-                    <template v-else-if="getSummaryWeek === currentWeek">
+                    <template v-else-if="getSummaryWeek === currentWeek && canEdit">
                       <div class="doc-sub-actions">
                         <el-button type="primary" size="small" text @click="startBatchEdit(sec.parentEntries, sec.moduleId, 'parent')"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                         <el-dropdown @command="handleReturn">
@@ -277,7 +277,7 @@
                   <!-- 查看态：内容为空 -->
                   <span v-else-if="sec.parentEntries && sec.parentEntries.length > 0" class="doc-empty-text" style="display:block;padding:4px 6px;">暂未填写</span>
                   <!-- 无综述：可添加 -->
-                  <div v-else-if="getSummaryWeek === currentWeek" class="doc-viewer" style="cursor: pointer;" @click="quickAddParentSummary(sec)">
+                  <div v-else-if="getSummaryWeek === currentWeek && canEdit" class="doc-viewer" style="cursor: pointer;" @click="quickAddParentSummary(sec)">
                     <span class="doc-empty-text" style="cursor: pointer;"><el-icon style="font-size:13px;vertical-align:-1px;margin-right:2px;"><Plus /></el-icon>点击添加模块综述</span>
                   </div>
                 </div>
@@ -293,7 +293,7 @@
                         <el-button type="primary" size="small" @click="saveBatchEdit">保存</el-button>
                       </div>
                     </template>
-                    <template v-else-if="getSummaryWeek === currentWeek">
+                    <template v-else-if="getSummaryWeek === currentWeek && canEdit">
                       <div class="doc-sub-actions">
                         <el-button type="primary" size="small" text @click="startBatchEdit(sec.entries, sec.moduleId)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                         <el-dropdown @command="handleReturn">
@@ -388,7 +388,7 @@
                         <el-button type="primary" size="small" @click="saveBatchEdit">保存</el-button>
                       </div>
                     </template>
-                    <template v-else-if="getSummaryWeek === currentWeek">
+                    <template v-else-if="getSummaryWeek === currentWeek && canEdit">
                       <div class="doc-sub-actions">
                         <el-button type="primary" size="small" text @click="startBatchEdit(sec.parentEntries, sec.moduleId, 'parent')"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                         <el-dropdown @command="handleReturn">
@@ -466,7 +466,7 @@
                   <!-- 查看态：内容为空 -->
                   <span v-else-if="sec.parentEntries && sec.parentEntries.length > 0" class="doc-empty-text" style="display:block;padding:4px 6px;">暂未填写</span>
                   <!-- 无综述：可添加 -->
-                  <div v-else-if="getSummaryWeek === currentWeek" class="doc-viewer" style="cursor: pointer;" @click="quickAddParentSummary(sec)">
+                  <div v-else-if="getSummaryWeek === currentWeek && canEdit" class="doc-viewer" style="cursor: pointer;" @click="quickAddParentSummary(sec)">
                     <span class="doc-empty-text" style="cursor: pointer;"><el-icon style="font-size:13px;vertical-align:-1px;margin-right:2px;"><Plus /></el-icon>点击添加模块综述</span>
                   </div>
                 </div>
@@ -489,7 +489,7 @@
                           <el-button type="primary" size="small" @click="saveBatchEdit">保存</el-button>
                         </div>
                       </template>
-                      <template v-else-if="getSummaryWeek === currentWeek">
+                      <template v-else-if="getSummaryWeek === currentWeek && canEdit">
                         <div class="doc-sub-actions">
                           <el-button type="primary" size="small" text @click="startBatchEdit(sub.summaryEntries, sec.moduleId, sj+'-summary')"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                           <el-dropdown @command="handleReturn">
@@ -563,7 +563,7 @@
                     </div>
                   </template>
                   <span v-else-if="sub.summaryEntries && sub.summaryEntries.length > 0" class="doc-empty-text" style="display:block;padding:4px 6px;">暂未填写</span>
-                  <div v-else-if="getSummaryWeek === currentWeek" class="doc-viewer" style="cursor: pointer;" @click="quickAddSubSummaryInSummary(sub)">
+                  <div v-else-if="getSummaryWeek === currentWeek && canEdit" class="doc-viewer" style="cursor: pointer;" @click="quickAddSubSummaryInSummary(sub)">
                     <span class="doc-empty-text" style="cursor: pointer;"><el-icon style="font-size:13px;vertical-align:-1px;margin-right:2px;"><Plus /></el-icon>点击添加子模块综述</span>
                   </div>
                 </div>
@@ -579,7 +579,7 @@
                           <el-button type="primary" size="small" @click="saveBatchEdit">保存</el-button>
                         </div>
                       </template>
-                      <template v-else-if="getSummaryWeek === currentWeek">
+                      <template v-else-if="getSummaryWeek === currentWeek && canEdit">
                         <div class="doc-sub-actions">
                           <el-button type="primary" size="small" text @click="startBatchEdit(sub.entries, sec.moduleId, sj)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                           <el-dropdown @command="handleReturn">
@@ -686,6 +686,7 @@ const currentYear = new Date().getFullYear()
 const summaryWeekKey = ref('current')
 const customSummaryWeek = ref(currentWeek)
 const getSummaryWeek = computed(() => summaryWeekKey.value === 'current' ? currentWeek : customSummaryWeek.value)
+const canEdit = computed(() => summaryData.value?.canEdit === true)
 const summaryData = ref(null)
 const loaded = ref(false)
 const loading = ref(true)
@@ -887,52 +888,27 @@ const showStatDialog = (label) => {
       moduleEntries: buildModuleEntriesFromDetails(u.statusDetails)
     }))
   } else if (label === '已提交') {
-    // 排除有退回或部分提交记录的人员
-    const returnedNames = new Set((summaryData.value?.returnedList || []).map(u => u.name))
-    const partialNames = new Set((summaryData.value?.partialList || []).map(u => u.name))
-    const excludedNames = new Set([...returnedNames, ...partialNames])
-    const personMap = new Map()
-    if (summaryData.value?.moduleGroups) {
-      summaryData.value.moduleGroups.forEach(group => {
-        group.entries.forEach(entry => {
-          if (entry.status !== 'submitted' || excludedNames.has(entry.name)) return
-          if (!personMap.has(entry.name)) {
-            personMap.set(entry.name, { engineerId: entry.engineerId, name: entry.name, userCode: entry.userCode || '', entries: [] })
-          }
-          const person = personMap.get(entry.name)
-          if (!person.entries.some(e => e.moduleName === entry.moduleName && (e.subModuleName || '') === (entry.subModuleName || ''))) {
-            person.entries.push({ moduleName: entry.moduleName, subModuleName: entry.subModuleName || '', moduleColor: entry.color || '', moduleStatus: 'submitted', submitTime: entry.submitTime || null, moduleUpdateTime: entry.updateTime || null, moduleReturnedTime: entry.returnedTime || null })
-          }
-        })
-      })
-    }
-    personMap.forEach(person => {
-      rawList.push({ id: person.engineerId, name: person.name, userCode: person.userCode, status: 'submitted', submitTime: null, updateTime: null, moduleEntries: person.entries })
-    })
+    ;(summaryData.value?.submittedList || []).forEach(u => rawList.push({
+      engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: 'submitted',
+      submitTime: u.submitTime, updateTime: u.updateTime,
+      moduleEntries: buildModuleEntriesFromDetails(u.statusDetails)
+    }))
   } else if (label === '团队成员') {
-    const unsubmittedData = summaryData.value?.unsubmitted || []
     const seen = new Set()
-    unsubmittedData.forEach(u => {
+    // 先加已提交人员
+    ;(summaryData.value?.submittedList || []).forEach(u => {
+      if (!seen.has(u.name)) {
+        seen.add(u.name)
+        rawList.push({ engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: 'submitted', submitTime: u.submitTime, updateTime: u.updateTime, moduleEntries: buildModuleEntriesFromDetails(u.statusDetails) })
+      }
+    })
+    // 再加未完全提交人员
+    ;(summaryData.value?.unsubmitted || []).forEach(u => {
       if (!seen.has(u.name)) {
         seen.add(u.name)
         rawList.push({ engineerId: u.engineerId, name: u.name, userCode: u.userCode, status: u.status, submitTime: u.submitTime, updateTime: u.updateTime, moduleEntries: buildModuleEntriesFromDetails(u.statusDetails) })
       }
     })
-    if (summaryData.value?.moduleGroups) {
-      summaryData.value.moduleGroups.forEach(group => {
-        group.entries.forEach(entry => {
-          if (!seen.has(entry.name)) {
-            seen.add(entry.name)
-            rawList.push({ engineerId: entry.engineerId, name: entry.name, userCode: entry.userCode || '', status: entry.status, submitTime: entry.submitTime, updateTime: entry.updateTime, moduleEntries: entry.moduleName ? [{moduleName: entry.moduleName, subModuleName: entry.subModuleName || '', moduleColor: entry.color || '', moduleStatus: entry.status, submitTime: entry.submitTime || null, moduleUpdateTime: entry.updateTime || null, moduleReturnedTime: entry.returnedTime || null}] : [] })
-          } else if (entry.moduleName) {
-            const existing = rawList.find(e => e.name === entry.name)
-            if (existing && !existing.moduleEntries.some(e => e.moduleName === entry.moduleName && (e.subModuleName || '') === (entry.subModuleName || ''))) {
-              existing.moduleEntries.push({moduleName: entry.moduleName, subModuleName: entry.subModuleName || '', moduleColor: entry.color || '', moduleStatus: entry.status, submitTime: entry.submitTime || null, moduleUpdateTime: entry.updateTime || null, moduleReturnedTime: entry.returnedTime || null})
-            }
-          }
-        })
-      })
-    }
     rawList.sort((a, b) => (a.engineerId || 0) - (b.engineerId || 0))
   }
 
@@ -1176,7 +1152,7 @@ const loadSummary = async (silent = false) => {
         setWeekConfig(getSummaryWeek.value, res.data.startDate, res.data.endDate)
       }
     } catch (e) { /* 静默处理 */ }
-    summaryData.value = await getSummaryReports(getSummaryWeek.value)
+    summaryData.value = await getSummaryReports(getSummaryWeek.value, username.value)
   } catch (e) {
     console.warn('加载汇总数据失败', e)
     summaryData.value = null
@@ -1197,6 +1173,7 @@ const loadSummary = async (silent = false) => {
 
 // 一键提醒
 const handleRemindAll = async () => {
+  if (!canEdit.value) return
   try {
     await ElMessageBox.confirm('确认向所有未完全提交的人员发送周报提醒通知？', '一键提醒确认', { confirmButtonText: '确认发送', cancelButtonText: '取消', type: 'warning' })
   } catch { return }
@@ -1419,6 +1396,7 @@ const onLineContentClick = (idx, e) => {
 // 双击查看态行，进入编辑态并定位光标到该行
 const onViewLineDblClick = (entries, moduleId, subIdx, lineIdx) => {
   if (getSummaryWeek.value !== currentWeek) return
+  if (!canEdit.value) return
   if (!entries || entries.length === 0) return
   startBatchEdit(entries, moduleId, subIdx)
   editingLineIdx.value = lineIdx
@@ -1495,6 +1473,7 @@ const startBatchEdit = (entries, moduleId, subIdx) => {
 // 批量保存
 const saveBatchEdit = async () => {
   if (!editingKey.value || !editingKey.value.startsWith('batch-')) return
+  if (!canEdit.value) return
   const moduleId = editingModuleId.value
   // 记录当前拖拽排序后的全局顺序
   editLines.value.forEach((line, idx) => { line.sortOrder = idx })
@@ -1586,10 +1565,18 @@ const saveBatchEdit = async () => {
 const quickAddParentSummary = async (sec) => {
   if (addingModuleId.value === sec.moduleId) return
   if (!username.value) { msg('warning', '无法获取当前用户'); return }
+  if (!canEdit.value) return
   addingModuleId.value = sec.moduleId
   try {
+    // 获取模块的综述模版
+    let templateContent = ''
+    const mod = reportModules.value.find(m => m.id === sec.moduleId)
+    if (mod && mod.template) {
+      const tpl = typeof mod.template === 'string' ? JSON.parse(mod.template) : mod.template
+      if (tpl && tpl.text) templateContent = JSON.stringify([{ text: tpl.text.replace(/\{(\w+)\}/g, '0'), updatedBy: displayName.value, updatedAt: nowStr(), sortOrder: 0 }])
+    }
     skipNextStatusEvent = true
-    const res = await saveReport({ username: username.value, weekNum: getSummaryWeek.value, entries: [{ moduleId: sec.moduleId, content: '', isSummary: true }], status: 'submitted' })
+    const res = await saveReport({ username: username.value, weekNum: getSummaryWeek.value, entries: [{ moduleId: sec.moduleId, content: templateContent, isSummary: true }], status: 'submitted' })
     if (res.status === 'success') {
       msg('success', '已添加模块综述')
       await loadSummary(true)
@@ -1636,9 +1623,17 @@ const quickAddSubSummaryInSummary = async (sub) => {
   }
   if (!moduleId || !subModuleId) { msg('warning', '无法获取模块信息'); return }
   if (!username.value) { msg('warning', '无法获取当前用户'); return }
+  if (!canEdit.value) return
   try {
+    // 获取子模块的综述模版
+    let templateContent = ''
+    const sm = subModules.value.find(s => s.id === subModuleId)
+    if (sm && sm.summaryTemplate) {
+      const stpl = typeof sm.summaryTemplate === 'string' ? JSON.parse(sm.summaryTemplate) : sm.summaryTemplate
+      if (stpl && stpl.text) templateContent = JSON.stringify([{ text: stpl.text.replace(/\{(\w+)\}/g, '0'), updatedBy: displayName.value, updatedAt: nowStr(), sortOrder: 0 }])
+    }
     skipNextStatusEvent = true
-    const res = await saveReport({ username: username.value, weekNum: getSummaryWeek.value, entries: [{ moduleId, subModuleId, content: '', isSummary: true }], status: 'submitted' })
+    const res = await saveReport({ username: username.value, weekNum: getSummaryWeek.value, entries: [{ moduleId, subModuleId, content: templateContent, isSummary: true }], status: 'submitted' })
     if (res.status === 'success') {
       msg('success', '已添加子模块综述')
       await loadSummary(true)
@@ -1659,6 +1654,7 @@ const quickAddSubSummaryInSummary = async (sub) => {
 // 批量删除子模块下所有记录
 const handleDeleteBatch = async (entries) => {
   if (!entries || entries.length === 0) return
+  if (!canEdit.value) return
   try {
     await ElMessageBox.confirm(`确认删除该模块下所有 ${entries.length} 条周报记录？删除后不可恢复。`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
     for (const entry of entries) { await deleteReport(entry.reportId) }
@@ -1748,6 +1744,7 @@ const saveEdit = async (reportId, engineerId) => {
 }
 
 const handleDeleteEntry = async (reportId) => {
+  if (!canEdit.value) return
   try {
     await ElMessageBox.confirm('确认删除该条周报记录？删除后不可恢复。', '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
     const res = await deleteReport(reportId)
@@ -1757,6 +1754,7 @@ const handleDeleteEntry = async (reportId) => {
 }
 
 const handleReturn = async (reportId) => {
+  if (!canEdit.value) return
   try {
     await ElMessageBox.confirm('退回后该周报将返回给填报人重新编辑，确认退回？', '退回确认', { confirmButtonText: '确认退回', cancelButtonText: '取消', type: 'warning' })
     skipNextStatusEvent = true

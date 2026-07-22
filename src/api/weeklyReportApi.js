@@ -165,9 +165,11 @@ export const deleteReport = async (reportId) => {
  * @param {number} weekNum
  * @returns {Promise}
  */
-export const getSummaryReports = async (weekNum) => {
+export const getSummaryReports = async (weekNum, username) => {
   try {
-    const response = await axios.get(`${RBAC_IP.value}/summaryReports`, { params: { weekNum } })
+    const params = { weekNum }
+    if (username) params.username = username
+    const response = await axios.get(`${RBAC_IP.value}/summaryReports`, { params })
     return response.data.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '获取周报汇总失败')

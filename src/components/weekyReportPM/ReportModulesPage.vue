@@ -208,7 +208,30 @@
           <el-input v-model="subModuleForm.desc" type="textarea" :rows="2" placeholder="简要描述" maxlength="200" />
         </el-form-item>
         <el-divider />
-        <el-form-item label="填写模版">
+        <el-form-item label="综述模版">
+          <div class="template-config">
+            <div class="template-tip">
+              如该子模块的综述需要默认模版，请在下方输入。使用 <code>{变量名}</code> 作为占位符，<code>{A}</code> 可自动计算。<br>
+              示例：本期共处理各类故障 {A} 起，其中 P1 级 {B} 起、P2 级 {C} 起、P3 级 {D} 起。
+            </div>
+            <el-input
+              v-model="subModuleForm.summaryTemplateText"
+              type="textarea"
+              :rows="3"
+              placeholder="综述模版文本，使用 {变量名} 作为占位符"
+            />
+            <div class="template-computed-row">
+              <span class="template-computed-label">自动计算（可选）</span>
+              <el-input
+                v-model="subModuleForm.summaryTemplateComputed"
+                placeholder="如：A=B+C+D+E+F，支持 +-*/ 运算"
+                style="flex:1;"
+              />
+            </div>
+          </div>
+      </el-form-item>
+        <el-divider />
+        <el-form-item label="明细模版">
           <div class="template-config">
             <div class="template-tip">
               如该子模块需要默认模版，请在下方输入。使用 <code>{变量名}</code> 作为占位符，<code>{A}</code> 可自动计算。<br>
@@ -303,7 +326,9 @@ const subModuleForm = ref({
   name: '',
   desc: '',
   templateText: '',
-  templateComputed: ''
+  templateComputed: '',
+  summaryTemplateText: '',
+  summaryTemplateComputed: ''
 })
 
 // 获取模块的子模块数量（直接使用 allSubModules，确保实时更新）
@@ -528,12 +553,13 @@ const initSubSortable = () => {
 
 const openAddSubDialog = () => {
   editingSubModule.value = null
-  subModuleForm.value = { name: '', desc: '', templateText: '', templateComputed: '' }
+  subModuleForm.value = { name: '', desc: '', templateText: '', templateComputed: '', summaryTemplateText: '', summaryTemplateComputed: '' }
   subFormDialogVisible.value = true
 }
 
 const openEditSubDialog = (row) => {
   editingSubModule.value = row
+  // 填写模版
   if (row.template) {
     const tpl = typeof row.template === 'string' ? JSON.parse(row.template) : row.template
     if (tpl) {
@@ -548,6 +574,20 @@ const openEditSubDialog = (row) => {
     }
   } else {
     subModuleForm.value = { name: row.name, desc: row.desc || '', templateText: '', templateComputed: '' }
+  }
+  // 综述模版
+  if (row.summaryTemplate) {
+    const stpl = typeof row.summaryTemplate === 'string' ? JSON.parse(row.summaryTemplate) : row.summaryTemplate
+    if (stpl) {
+      subModuleForm.value.summaryTemplateText = stpl.text || ''
+      subModuleForm.value.summaryTemplateComputed = Object.entries(stpl.computed || {}).map(([k, v]) => `${k}=${v}`).join('; ')
+    } else {
+      subModuleForm.value.summaryTemplateText = ''
+      subModuleForm.value.summaryTemplateComputed = ''
+    }
+  } else {
+    subModuleForm.value.summaryTemplateText = ''
+    subModuleForm.value.summaryTemplateComputed = ''
   }
   subFormDialogVisible.value = true
 }
@@ -573,14 +613,37 @@ const buildTemplateData = () => {
   return JSON.stringify({ text: text || '', computed: Object.keys(computed).length > 0 ? computed : undefined })
 }
 
+// 构建综述模版 JSON 对象
+const buildSummaryTemplateData = () => {
+  const text = subModuleForm.value.summaryTemplateText
+  const computedStr = subModuleForm.value.summaryTemplateComputed
+  if (!text && !computedStr) return null
+  const computed = {}
+  if (computedStr) {
+    computedStr.split(';').forEach(part => {
+      part = part.trim()
+      if (!part) return
+      const eqIdx = part.indexOf('=')
+      if (eqIdx > 0) {
+        const key = part.substring(0, eqIdx).trim()
+        const formula = part.substring(eqIdx + 1).trim()
+        if (key && formula) computed[key] = formula
+      }
+    })
+  }
+  return JSON.stringify({ text: text || '', computed: Object.keys(computed).length > 0 ? computed : undefined })
+}
+
 const handleSaveSubModule = async () => {
   if (!subModuleForm.value.name || !subModuleForm.value.name.trim()) { msg('warning', '请输入子模块名称'); return }
   try {
     const templateData = buildTemplateData()
+    const summaryTemplateData = buildSummaryTemplateData()
     const formData = {
       name: subModuleForm.value.name,
       desc: subModuleForm.value.desc,
-      template: templateData
+      template: templateData,
+      summaryTemplate: summaryTemplateData
     }
     if (editingSubModule.value) {
       const res = await updateReportSubModule(editingSubModule.value.id, formData)
