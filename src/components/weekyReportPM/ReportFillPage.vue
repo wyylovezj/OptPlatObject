@@ -1266,7 +1266,7 @@ const autoSaveCurrentEdit = async () => {
   } catch { return false }
 }
 
-const startInlineEdit = async (rec) => {
+const startInlineEdit = async (rec, initialIdx = 0) => {
   await autoSaveCurrentEdit()
   editRecordId.value = rec.id
   const ts = nowStr()
@@ -1291,7 +1291,7 @@ const startInlineEdit = async (rec) => {
   } else {
     editLines.value = lines.map(l => ({ ...l, _origText: l.text, updatedBy: displayName.value, updatedAt: ts, _uid: lineUid++ }))
   }
-  editingLineIdx.value = 0
+  editingLineIdx.value = initialIdx
 
   // 检测当前编辑行是否有模版,初始化计算规则(无需显示面板)
   editingTemplateInfo.value = null
@@ -1357,11 +1357,12 @@ const startInlineEdit = async (rec) => {
   }
 
   nextTick(() => {
-    const input = document.querySelector('.record-content-lines .line-input-editable')
-    if (input) {
-      input.focus()
+    const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
+    if (inputs.length > initialIdx) {
+      const el = inputs[initialIdx]
+      el.focus()
       const range = document.createRange()
-      range.selectNodeContents(input)
+      range.selectNodeContents(el)
       range.collapse(false)
       const sel = window.getSelection()
       sel.removeAllRanges()
@@ -1434,21 +1435,7 @@ const onLineContentClick = (idx, e) => {
 const onViewLineDblClick = async (rec, lineIdx) => {
   if (fillWeekKey.value !== 'current') return
   if (rec.status === 'submitted') return
-  await startInlineEdit(rec)
-  editingLineIdx.value = lineIdx
-  nextTick(() => {
-    const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
-    if (inputs.length > lineIdx) {
-      const el = inputs[lineIdx]
-      el.focus()
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      range.collapse(false)
-      const sel = window.getSelection()
-      sel.removeAllRanges()
-      sel.addRange(range)
-    }
-  })
+  await startInlineEdit(rec, lineIdx)
 }
 
 // 阻止浏览器默认粘贴行为，用 execCommand 以纯文本插入，避免 DOM 块级拆分且支持 Ctrl+Z 撤销
@@ -1469,18 +1456,20 @@ const focusLine = (idx) => {
         input.textContent = ''
       }
     })
-    // 仅空行需要插入空白符确保光标可见；有数据的行不做任何干预，让浏览器自然处理
     const el = inputs[idx]
-    if (!el.textContent) {
+    if (document.activeElement !== el) {
       el.focus()
-      el.textContent = '\u200B'
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      range.collapse(false)
-      const sel = window.getSelection()
-      sel.removeAllRanges()
-      sel.addRange(range)
     }
+    if (!el.textContent) {
+      el.textContent = '\u200B'
+    }
+    // 将光标定位到行尾
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
   }
 }
 const onEditableInput = (idx, e) => {

@@ -1349,16 +1349,18 @@ const focusLine = (idx) => {
       }
     })
     const el = inputs[idx]
-    if (!el.textContent) {
+    if (document.activeElement !== el) {
       el.focus()
-      el.textContent = '\u200B'
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      range.collapse(false)
-      const sel = window.getSelection()
-      sel.removeAllRanges()
-      sel.addRange(range)
     }
+    if (!el.textContent) {
+      el.textContent = '\u200B'
+    }
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
   }
 }
 const onEditableInput = (idx, e) => {
@@ -1398,21 +1400,7 @@ const onViewLineDblClick = (entries, moduleId, subIdx, lineIdx) => {
   if (getSummaryWeek.value !== currentWeek) return
   if (!canEdit.value) return
   if (!entries || entries.length === 0) return
-  startBatchEdit(entries, moduleId, subIdx)
-  editingLineIdx.value = lineIdx
-  nextTick(() => {
-    const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
-    if (inputs.length > lineIdx) {
-      const el = inputs[lineIdx]
-      el.focus()
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      range.collapse(false)
-      const sel = window.getSelection()
-      sel.removeAllRanges()
-      sel.addRange(range)
-    }
-  })
+  startBatchEdit(entries, moduleId, subIdx, lineIdx)
 }
 // 阻止浏览器默认粘贴行为，用 execCommand 以纯文本插入，避免 DOM 块级拆分且支持 Ctrl+Z 撤销
 const handleContentEditablePaste = (e) => {
@@ -1425,7 +1413,7 @@ const handleContentEditablePaste = (e) => {
 const cancelEdit = () => { destroySortable(); document.removeEventListener('keydown', handleKeydownSave); editingKey.value = ''; editingModuleId.value = null; editingLineIdx.value = null; editingReportIds.value = []; editingSubModuleId.value = null; editingIsSummary.value = false; editLines.value = []; originalContentLines.value = [] }
 
 // 批量编辑：将子模块下所有提交人的内容合并编辑
-const startBatchEdit = (entries, moduleId, subIdx) => {
+const startBatchEdit = (entries, moduleId, subIdx, initialIdx = 0) => {
   if (!entries || entries.length === 0) return
   editingKey.value = 'batch-' + moduleId + (subIdx !== undefined ? '-' + subIdx : '')
   editingModuleId.value = moduleId
@@ -1458,13 +1446,22 @@ const startBatchEdit = (entries, moduleId, subIdx) => {
   // 按 sortOrder 排序（保留拖拽顺序，旧数据无 sortOrder 则保持原有顺序）
   allLines.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
   editLines.value = allLines.length > 0 ? allLines : [{ text: '', name: entries[0].name, _reportId: entries[0].reportId, _engineerId: entries[0].engineerId, _origText: '', updatedBy: displayName.value, updatedAt: ts, _uid: lineUid++ }]
-  editingLineIdx.value = 0
+  editingLineIdx.value = initialIdx
   originalContentLines.value = origLines
   // 记录所有涉及的 reportId，用于保存时处理被彻底删除的条目
   editingReportIds.value = [...new Set(sorted.map(e => e.reportId))]
   nextTick(() => {
-    const input = document.querySelector('.record-content-lines .line-input-editable')
-    if (input) { input.focus(); const r = document.createRange(); r.selectNodeContents(input); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }
+    const inputs = document.querySelectorAll('.record-content-lines .line-input-editable')
+    if (inputs.length > initialIdx) {
+      const el = inputs[initialIdx]
+      el.focus()
+      const r = document.createRange()
+      r.selectNodeContents(el)
+      r.collapse(false)
+      const s = window.getSelection()
+      s.removeAllRanges()
+      s.addRange(r)
+    }
     document.addEventListener('keydown', handleKeydownSave)
     initSortable()
   })
