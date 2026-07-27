@@ -161,6 +161,7 @@
                     <el-tag v-if="sec.parentRecord" :type="sec.parentRecord.status === 'submitted' ? 'success' : sec.parentRecord.status === 'returned' ? 'warning' : 'info'" size="small" effect="light">
                       {{ sec.parentRecord.status === 'submitted' ? '✓ 已提交' : sec.parentRecord.status === 'returned' ? '⚠ 已退回' : '草稿' }}
                     </el-tag>
+                    <el-tag v-if="sec.filledLastWeek" size="small" type="warning" effect="plain" style="margin-left:4px;">上周填写</el-tag>
                     <div v-if="sec.parentRecord && editRecordId !== sec.parentRecord.id && fillWeekKey === 'current'" class="doc-sub-actions">
                       <el-button v-if="sec.parentRecord.status !== 'submitted'" size="small" type="primary" text @click="startInlineEdit(sec.parentRecord)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                       <el-button v-if="sec.parentRecord.status !== 'submitted'" size="small" type="success" text @click="handleSubmitSingleRecord(sec.parentRecord)" :disabled="!parseLines(sec.parentRecord.content).length"><el-icon style="margin-right:2px;"><Select /></el-icon>&nbsp;提交</el-button>
@@ -235,6 +236,7 @@
                     <el-tag v-if="sec.record" :type="sec.record.status === 'submitted' ? 'success' : sec.record.status === 'returned' ? 'warning' : 'info'" size="small" effect="light">
                       {{ sec.record.status === 'submitted' ? '✓ 已提交' : sec.record.status === 'returned' ? '⚠ 已退回' : '草稿' }}
                     </el-tag>
+                    <el-tag v-if="sec.filledLastWeek" size="small" type="warning" effect="plain" style="margin-left:4px;">上周填写</el-tag>
                     <div v-if="sec.record && editRecordId !== sec.record.id && fillWeekKey === 'current'" class="doc-sub-actions">
                       <el-button v-if="sec.record.status !== 'submitted'" size="small" type="primary" text @click="startInlineEdit(sec.record)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                       <el-button v-if="sec.record.status !== 'submitted'" size="small" type="success" text @click="handleSubmitSingleRecord(sec.record)" :disabled="!parseLines(sec.record.content).length"><el-icon style="margin-right:2px;"><Select /></el-icon>&nbsp;提交</el-button>
@@ -320,6 +322,7 @@
                     <el-tag v-if="sec.parentRecord" :type="sec.parentRecord.status === 'submitted' ? 'success' : sec.parentRecord.status === 'returned' ? 'warning' : 'info'" size="small" effect="light">
                       {{ sec.parentRecord.status === 'submitted' ? '✓ 已提交' : sec.parentRecord.status === 'returned' ? '⚠ 已退回' : '草稿' }}
                     </el-tag>
+                    <el-tag v-if="sec.parentFilledLastWeek" size="small" type="warning" effect="plain" style="margin-left:4px;">上周填写</el-tag>
                     <!-- 操作按钮：非编辑态 -->
                     <div v-if="sec.parentRecord && editRecordId !== sec.parentRecord.id && fillWeekKey === 'current'" class="doc-sub-actions">
                       <el-button v-if="sec.parentRecord.status !== 'submitted'" size="small" type="primary" text @click="startInlineEdit(sec.parentRecord)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
@@ -416,6 +419,7 @@
                       <el-tag v-if="sub.summaryRecord" :type="sub.summaryRecord.status === 'submitted' ? 'success' : sub.summaryRecord.status === 'returned' ? 'warning' : 'info'" size="small" effect="light">
                         {{ sub.summaryRecord.status === 'submitted' ? '✓ 已提交' : sub.summaryRecord.status === 'returned' ? '⚠ 已退回' : '草稿' }}
                       </el-tag>
+                      <el-tag v-if="sub.filledLastWeek" size="small" type="warning" effect="plain" style="margin-left:4px;">上周填写</el-tag>
                       <div v-if="sub.summaryRecord && editRecordId !== sub.summaryRecord.id && fillWeekKey === 'current'" class="doc-sub-actions">
                         <el-button v-if="sub.summaryRecord.status !== 'submitted'" size="small" type="primary" text @click="startInlineEdit(sub.summaryRecord)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                         <el-button v-if="sub.summaryRecord.status !== 'submitted'" size="small" type="success" text @click="handleSubmitSingleRecord(sub.summaryRecord)" :disabled="!parseLines(sub.summaryRecord.content).length"><el-icon style="margin-right:2px;"><Select /></el-icon>&nbsp;提交</el-button>
@@ -490,6 +494,7 @@
                       <el-tag v-if="sub.record" :type="sub.record.status === 'submitted' ? 'success' : sub.record.status === 'returned' ? 'warning' : 'info'" size="small" effect="light">
                         {{ sub.record.status === 'submitted' ? '✓ 已提交' : sub.record.status === 'returned' ? '⚠ 已退回' : '草稿' }}
                       </el-tag>
+                      <el-tag v-if="sub.filledLastWeek" size="small" type="warning" effect="plain" style="margin-left:4px;">上周填写</el-tag>
                       <div v-if="sub.record && editRecordId !== sub.record.id && fillWeekKey === 'current'" class="doc-sub-actions">
                         <el-button v-if="sub.record.status !== 'submitted'" size="small" type="primary" text @click="startInlineEdit(sub.record)"><el-icon><Edit /></el-icon>&nbsp;编辑</el-button>
                         <el-button v-if="sub.record.status !== 'submitted'" size="small" type="success" text @click="handleSubmitSingleRecord(sub.record)" :disabled="!parseLines(sub.record.content).length"><el-icon style="margin-right:2px;"><Select /></el-icon>&nbsp;提交</el-button>
@@ -680,6 +685,24 @@ const customWeekNum = ref(currentWeek)
 const activeTab = ref('fill')
 const records = ref([])
 const loading = ref(true)
+
+// 最近有效周的上周已提交记录，用于标记“上周填写”标签
+const lastWeekRecords = ref([])
+const lastWeekFilledModuleSet = computed(() => {
+  const set = new Set()
+  lastWeekRecords.value.forEach(r => { if (r.status === 'submitted') set.add(r.moduleId) })
+  return set
+})
+const lastWeekFilledParentSet = computed(() => {
+  const set = new Set()
+  lastWeekRecords.value.forEach(r => { if (r.status === 'submitted' && !r.subModuleId) set.add(r.moduleId) })
+  return set
+})
+const lastWeekFilledSubModuleSet = computed(() => {
+  const set = new Set()
+  lastWeekRecords.value.forEach(r => { if (r.status === 'submitted' && r.subModuleId) set.add(r.subModuleId) })
+  return set
+})
 const addDialogVisible = ref(false)
 const addForm = ref({ moduleIds: [], subModuleIds: [] })
 
@@ -974,6 +997,7 @@ const docSections = computed(() => {
           record: record || null,
           parentRecord: parentRecord || null,
           hasParentRecord: !!parentRecord,
+          filledLastWeek: lastWeekFilledModuleSet.value.has(mod.id),
           subs: []
         }
       }
@@ -991,6 +1015,7 @@ const docSections = computed(() => {
             record: record || null,
             hasSummaryRecord: !!summaryRecord,
             summaryRecord: summaryRecord || null,
+            filledLastWeek: lastWeekFilledSubModuleSet.value.has(sub.id),
             moduleId: mod.id,
             subModuleId: sub.id
           }
@@ -1003,6 +1028,7 @@ const docSections = computed(() => {
         hasSubModules: true,
         hasRecord: subs.some(s => s.hasRecord || s.hasSummaryRecord) || !!parentRecord,
         parentRecord: parentRecord || null,
+        parentFilledLastWeek: lastWeekFilledParentSet.value.has(mod.id),
         subs
       }
     })
@@ -1027,6 +1053,15 @@ const loadFillData = async (silent = false) => {
     }
     const data = await getMyReports(weekNum, username.value)
     records.value = data?.records || []
+    // 当前周且不是第1周时，加载上周已提交记录用于标记“上周填写”
+    if (fillWeekKey.value === 'current' && weekNum > 1) {
+      try {
+        const lastData = await getMyReports(weekNum - 1, username.value)
+        lastWeekRecords.value = lastData?.records || []
+      } catch { lastWeekRecords.value = [] }
+    } else {
+      lastWeekRecords.value = []
+    }
   } catch { records.value = [] }
   if (!silent) loading.value = false
   // DOM 重建后恢复滚动位置
@@ -1247,6 +1282,14 @@ const autoSaveCurrentEdit = async () => {
   const recordId = editRecordId.value
   const ts = nowStr()
   const nonEmpty = editLines.value.filter(l => l.text.trim())
+  // 所有行内容都为空时，删除该记录，使其变为未选择状态
+  if (nonEmpty.length === 0) {
+    try {
+      await deleteReport(recordId)
+      destroySortable(); editRecordId.value = null; editingLineIdx.value = null; editLines.value = []; editingTemplateInfo.value = null; document.removeEventListener('keydown', handleKeydownSave); document.removeEventListener('mousedown', handleOutsideClick); await loadFillData(true)
+      return true
+    } catch { return false }
+  }
   nonEmpty.forEach(l => { if (!l.updatedBy || l.text !== l._origText) { l.updatedBy = displayName.value; l.updatedAt = ts } })
   const contentStr = JSON.stringify(nonEmpty)
   try {
@@ -1385,18 +1428,8 @@ const handleOutsideClick = (e) => {
 const autoSaveAndExit = async () => {
   if (!editRecordId.value) return
   const recordId = editRecordId.value
-  const contentStr = JSON.stringify([])
   try {
-    const rec = records.value.find(r => r.id === recordId)
-    const updateData = { content: contentStr }
-    if (rec && rec.status === 'returned') updateData.status = 'submitted'
-    await updateReport(recordId, updateData)
-    // 先更新本地 records 数据，使视图立即显示最新状态
-    const localRec = records.value.find(r => r.id === recordId)
-    if (localRec) {
-      localRec.content = contentStr
-      if (rec && rec.status === 'returned') localRec.status = 'submitted'
-    }
+    await deleteReport(recordId)
     destroySortable();
     editRecordId.value = null; editingLineIdx.value = null; editLines.value = []; editingTemplateInfo.value = null;
     document.removeEventListener('keydown', handleKeydownSave);
@@ -1712,6 +1745,14 @@ const saveInlineEdit = async (recordId) => {
   }
   const ts = nowStr()
   const nonEmpty = editLines.value.filter(l => l.text.trim())
+  // 所有行内容都为空时，删除该记录，使其变为未选择状态
+  if (nonEmpty.length === 0) {
+    try {
+      await deleteReport(recordId)
+      destroySortable(); editRecordId.value = null; editingLineIdx.value = null; editLines.value = []; editingTemplateInfo.value = null; document.removeEventListener('keydown', handleKeydownSave); document.removeEventListener('mousedown', handleOutsideClick); msg('success', '内容为空，已删除'); await loadFillData(true)
+    } catch (e) { msg('error', e.message || '删除失败') }
+    return
+  }
   nonEmpty.forEach(l => { if (!l.updatedBy || l.text !== l._origText) { l.updatedBy = displayName.value; l.updatedAt = ts } })
   const contentStr = JSON.stringify(nonEmpty)
   try {
