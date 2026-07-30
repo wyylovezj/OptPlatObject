@@ -62,7 +62,7 @@
           <!-- 表格 -->
           <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="moaVpnTableRef">
             <el-table
-              :data="filteredMoaVpnTableData"
+              :data="paginatedMoaVpnData"
               border
               style="width: 100%"
               :max-height="tableMaxHeight"
@@ -71,7 +71,7 @@
               @selection-change="handleMoaVpnSelectionChange"
             >
               <el-table-column type="selection" width="40" />
-              <el-table-column type="index" label="序号" width="60" />
+              <el-table-column type="index" label="序号" width="60" :index="(i) => (moaVpnPage - 1) * moaVpnPageSize + i + 1" />
               <el-table-column label="日期" width="130">
                 <template #default="{ row }">
                   <el-date-picker v-model="row.record_date" type="date" placeholder="日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" size="small" style="width: 100%" @change="onMoaVpnDateChange(row)" />
@@ -154,6 +154,17 @@
               </el-table-column>
             </el-table>
           </div>
+          <div class="pagination-bar" v-if="displayMoaVpnTableData.length > 0">
+            <span class="pagination-total">共 {{ displayMoaVpnTableData.length }} 条</span>
+            <el-pagination
+              v-model:current-page="moaVpnPage"
+              :page-size="moaVpnPageSize"
+              :total="displayMoaVpnTableData.length"
+              layout="prev, pager, next"
+              small
+              background
+            />
+          </div>
         </div>
       </el-tab-pane>
 
@@ -209,7 +220,7 @@
           <!-- 表格 -->
           <div v-loading="isLoadingData" element-loading-text="加载中..." class="table-wrapper" ref="eccContactTableRef">
             <el-table
-              :data="eccContactTableData"
+              :data="paginatedEccContactData"
               border
               style="width: 100%"
               :max-height="tableMaxHeight"
@@ -218,7 +229,7 @@
               @selection-change="handleEccContactSelectionChange"
             >
               <el-table-column type="selection" width="40" />
-              <el-table-column type="index" label="序号" width="60" />
+              <el-table-column type="index" label="序号" width="60" :index="(i) => (eccContactPage - 1) * eccContactPageSize + i + 1" />
               <el-table-column label="日期" width="120">
                 <template #default="{ row }">
                   <el-date-picker v-model="row.record_date" type="date" placeholder="选择日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" size="small" style="width: 100%" />
@@ -269,6 +280,17 @@
                 </template>
               </el-table-column>
             </el-table>
+          </div>
+          <div class="pagination-bar" v-if="eccContactTableData.length > 0">
+            <span class="pagination-total">共 {{ eccContactTableData.length }} 条</span>
+            <el-pagination
+              v-model:current-page="eccContactPage"
+              :page-size="eccContactPageSize"
+              :total="eccContactTableData.length"
+              layout="prev, pager, next"
+              small
+              background
+            />
           </div>
         </div>
       </el-tab-pane>
@@ -335,10 +357,32 @@ const moaVpnDateRange = ref([lastWeek, today])
 const moaVpnEmailFilter = ref('未补发')
 const moaVpnTableData = ref([])
 
-// 按邮件筛选条件过滤表格显示数据
-const filteredMoaVpnTableData = computed(() => {
-  if (!moaVpnEmailFilter.value) return moaVpnTableData.value
-  return moaVpnTableData.value.filter(r => r.email === moaVpnEmailFilter.value)
+// 表格显示数据（由源数据按当前邮件筛选值过滤得到，仅在点击"加载"/新增/删除时更新）
+const displayMoaVpnTableData = ref([])
+
+// 应用邮件筛选到显示数据
+const applyMoaVpnFilter = () => {
+  if (!moaVpnEmailFilter.value) {
+    displayMoaVpnTableData.value = [...moaVpnTableData.value]
+  } else {
+    displayMoaVpnTableData.value = moaVpnTableData.value.filter(r => r.email === moaVpnEmailFilter.value)
+  }
+}
+
+// 源数据变化时（加载/新增/删除），同步到显示数据
+watch(() => moaVpnTableData.value, () => {
+  applyMoaVpnFilter()
+  // 跳到最后一页（数据追加在末尾）
+  const totalPages = Math.ceil(displayMoaVpnTableData.value.length / moaVpnPageSize.value)
+  moaVpnPage.value = totalPages || 1
+})
+
+// MoaVpn分页
+const moaVpnPage = ref(1)
+const moaVpnPageSize = ref(15)
+const paginatedMoaVpnData = computed(() => {
+  const start = (moaVpnPage.value - 1) * moaVpnPageSize.value
+  return displayMoaVpnTableData.value.slice(start, start + moaVpnPageSize.value)
 })
 
 const moaVpnSelectedRows = ref([])
@@ -496,6 +540,10 @@ const handleMoaVpnAddRow = () => {
     email: '未补发',
     remark: '',
   })
+  applyMoaVpnFilter()
+  // 新增后跳转到最后一页
+  const totalPages = Math.ceil(moaVpnTableData.value.length / moaVpnPageSize.value)
+  moaVpnPage.value = totalPages || 1
   loadEccDutyByTableDates()
 }
 
@@ -531,6 +579,7 @@ const handleMoaVpnDeleteRow = async () => {
     } catch (e) { msg('error', e.message || '删除失败') }
   }
   await nextTick()
+  applyMoaVpnFilter()
   isLoadingData.value = false
   moaVpnDirty.value = false
   msg('success', '删除完成')
@@ -594,25 +643,28 @@ const loadMoaVpnData = async () => {
     return
   }
   isLoadingData.value = true
+  await nextTick()
+  const loadStart = Date.now()
   // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getMoaVpnRecord(moaVpnDateRange.value)
     if (res.status === 'success' && res.data) {
-      isLoadingData.value = true
       moaVpnTableData.value = res.data.map(r => ({ ...r, _isNew: false }))
       await nextTick()
       moaVpnDirty.value = false
-      isLoadingData.value = false
-      msg('success', `已加载 ${filteredMoaVpnTableData.value.length} 条记录`)
-      loadEccDutyByTableDates()
     } else {
-      isLoadingData.value = true
       moaVpnTableData.value = []
       await nextTick()
       moaVpnDirty.value = false
-      isLoadingData.value = false
     }
   } catch (e) { msg('error', e.message || '加载数据失败') }
+  const elapsed = Date.now() - loadStart
+  if (elapsed < 200) await new Promise(r => setTimeout(r, 200 - elapsed))
+  isLoadingData.value = false
+  if (moaVpnTableData.value.length > 0) {
+    msg('success', `已加载 ${displayMoaVpnTableData.value.length} 条记录`)
+    loadEccDutyByTableDates()
+  }
 }
 
 // 加载用户列表（sys_user）
@@ -781,7 +833,24 @@ const handleEccContactAddRow = () => {
     is_callback: '',
     remark: '',
   })
+  // 新增后跳转到最后一页
+  const totalPages = Math.ceil(eccContactTableData.value.length / eccContactPageSize.value)
+  eccContactPage.value = totalPages || 1
 }
+
+// ECC联系异常分页
+const eccContactPage = ref(1)
+const eccContactPageSize = ref(15)
+const paginatedEccContactData = computed(() => {
+  const start = (eccContactPage.value - 1) * eccContactPageSize.value
+  return eccContactTableData.value.slice(start, start + eccContactPageSize.value)
+})
+
+watch(() => eccContactTableData.value, () => {
+  // 跳到最后一页（数据追加在末尾）
+  const totalPages = Math.ceil(eccContactTableData.value.length / eccContactPageSize.value)
+  eccContactPage.value = totalPages || 1
+})
 
 const handleEccContactDeleteRow = async () => {
   if (eccContactSelectedRows.value.length === 0) {
@@ -872,24 +941,27 @@ const loadEccContactData = async () => {
     return
   }
   isLoadingData.value = true
+  await nextTick()
+  const loadStart = Date.now()
   // await new Promise(resolve => setTimeout(resolve, 1000))
   try {
     const res = await getEccContactException(eccContactDateRange.value)
     if (res.status === 'success' && res.data) {
-      isLoadingData.value = true
       eccContactTableData.value = res.data.map(r => ({ ...r, _isNew: false }))
       await nextTick()
       eccContactDirty.value = false
-      isLoadingData.value = false
-      msg('success', `已加载 ${res.data.length} 条记录`)
     } else {
-      isLoadingData.value = true
       eccContactTableData.value = []
       await nextTick()
       eccContactDirty.value = false
-      isLoadingData.value = false
     }
   } catch (e) { msg('error', e.message || '加载数据失败') }
+  const elapsed = Date.now() - loadStart
+  if (elapsed < 200) await new Promise(r => setTimeout(r, 200 - elapsed))
+  isLoadingData.value = false
+  if (eccContactTableData.value.length > 0) {
+    msg('success', `已加载 ${eccContactTableData.value.length} 条记录`)
+  }
 }
 
 const handleEccContactExport = async () => {
@@ -1094,6 +1166,22 @@ onUnmounted(() => {
   overflow: hidden;
   min-height: 0;
   position: relative;
+}
+
+/* 分页栏：固定在底部，左右分离 */
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 8px 0 0 0;
+  user-select: none;
+}
+
+.pagination-total {
+  font-size: 13px;
+  color: #606266;
+  line-height: 24px;
 }
 
 /* 输入框样式 */

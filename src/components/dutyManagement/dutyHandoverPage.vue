@@ -306,6 +306,9 @@ const handoverList = ref([])
 const isLoading = ref(false)
 let _lastSearchTime = 0
 
+// 卡片日期编辑状态（当前正在编辑日期的卡片 _cardId）
+const editingCardDate = ref(null)
+
 // ============ 值班选项常量 ============
 const roleOptions = [
   { label: 'ECC 指挥中心', value: 'ecc', type: 1 },
@@ -1137,6 +1140,235 @@ const toggleShift = (card) => {
   }
 }
 
+// ============ 卡片日期切换：加载指定日期的排班并重新匹配值班人员 ============
+
+// 根据指定日期重新填充卡片人员信息（交班人、接班人、跑批、服务台）
+const fillPersonnelForDate = (card, selectedDate, schedule, yesterdayScheduleData, tomorrowScheduleData, pastSchedules, otherDuty) => {
+  // 设置头像颜色
+  if (card.roleValue === 'ecc') {
+    card.fromColor = card.shiftType === 1 ? 'var(--primary)' : 'var(--text-3)'
+    card.toColor = card.shiftType === 1 ? 'var(--text-3)' : 'var(--primary)'
+  } else {
+    const colorMap = { sys: 'var(--purple)', net: 'var(--cyan)', pm: 'var(--warning)' }
+    card.fromColor = colorMap[card.roleValue] || 'var(--purple)'
+    card.toColor = colorMap[card.roleValue] || 'var(--purple)'
+  }
+
+  if (card.roleValue === 'ecc') {
+    if (card.shiftType === 1) {
+      // 白班→夜班：交班人=选中日期白班，接班人=选中日期夜班
+      card.fromRoleDesc = 'ECC 白班 · 07:00-19:00'
+      card.toRoleDesc = 'ECC 夜班 · 19:00-07:00'
+      if (schedule) {
+        const fromName = schedule.eccDayPersonnelName || schedule.ecc_day_personnel_id || ''
+        const toName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
+        card.fromName = getPersonName(fromName) || fromName || '未排班'
+        card.fromSurname = getSurname(card.fromName) || '—'
+        const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === card.fromName)
+        card.fromUserCode = fromPerson ? fromPerson.userCode : ''
+        card.toName = getPersonName(toName) || toName || '未排班'
+        card.toSurname = getSurname(card.toName) || '—'
+        const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
+        card.toUserCode = toPerson ? toPerson.userCode : ''
+      } else {
+        card.fromName = '未排班'; card.fromSurname = '—'; card.fromUserCode = ''
+        card.toName = '未排班'; card.toSurname = '—'; card.toUserCode = ''
+      }
+    } else {
+      // 夜班→白班：交班人=选中日期夜班，接班人=选中日期次日白班
+      card.fromRoleDesc = 'ECC 夜班 · 19:00-07:00'
+      card.toRoleDesc = 'ECC 白班 · 07:00-19:00'
+      // 交班人 = 选中日期的夜班人员
+      if (schedule) {
+        const fromName = schedule.eccNightPersonnelName || schedule.ecc_night_personnel_id || ''
+        card.fromName = getPersonName(fromName) || fromName || '未排班'
+        card.fromSurname = getSurname(card.fromName) || '—'
+        const fromPerson = allPersonnel.value.find(p => p.userCode === fromName || p.name === card.fromName)
+        card.fromUserCode = fromPerson ? fromPerson.userCode : ''
+      } else {
+        card.fromName = '未排班'; card.fromSurname = '—'; card.fromUserCode = ''
+      }
+      // 接班人 = 选中日期次日的白班人员
+      if (tomorrowScheduleData) {
+        const toName = tomorrowScheduleData.eccDayPersonnelName || tomorrowScheduleData.ecc_day_personnel_id || ''
+        card.toName = getPersonName(toName) || toName || '未排班'
+        card.toSurname = getSurname(card.toName) || '—'
+        const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
+        card.toUserCode = toPerson ? toPerson.userCode : ''
+      } else {
+        card.toName = '未排班'; card.toSurname = '—'; card.toUserCode = ''
+      }
+    }
+  } else {
+    // 非ECC（系统运维/网络运维/甲方PM）
+    const roleFieldMap = {
+      sys: { name: 'sysOpsPersonnelName', id2: 'sys_ops_personnel_id', label: '系统运维 · 08:30-18:00' },
+      net: { name: 'netOpsPersonnelName', id2: 'net_ops_personnel_id', label: '网络运维 · 08:30-18:00' },
+      pm:  { name: 'pmPersonnelName', id2: 'pm_personnel_id', label: '甲方PM · 08:30-18:00' },
+    }
+    const field = roleFieldMap[card.roleValue]
+    card.fromRoleDesc = field.label
+    card.toRoleDesc = field.label
+
+    // 接班人：选中日期的排班人员
+    if (schedule) {
+      const toName = schedule[field.name] || schedule[field.id2] || ''
+      card.toName = getPersonName(toName) || toName || '未排班'
+      card.toSurname = getSurname(card.toName) || '—'
+      const toPerson = allPersonnel.value.find(p => p.userCode === toName || p.name === card.toName)
+      card.toUserCode = toPerson ? toPerson.userCode : ''
+    } else {
+      card.toName = '未排班'; card.toSurname = '—'; card.toUserCode = ''
+    }
+
+    // 交班人：从历史排班中从后往前找前一个有该类型人员排班记录的人员
+    const reversed = [...pastSchedules].reverse()
+    let foundFrom = false
+    for (const record of reversed) {
+      const dateStr = record.scheduleDate || record.schedule_date
+      if (!dateStr || dateStr === selectedDate) continue
+      const personName = record[field.name] || record[field.id2] || ''
+      if (personName) {
+        card.fromName = getPersonName(personName) || personName
+        card.fromSurname = getSurname(card.fromName) || '—'
+        const fromPerson = allPersonnel.value.find(p => p.userCode === personName || p.name === card.fromName)
+        card.fromUserCode = fromPerson ? fromPerson.userCode : ''
+        foundFrom = true
+        break
+      }
+    }
+    if (!foundFrom) {
+      card.fromName = '未排班'; card.fromSurname = '—'; card.fromUserCode = ''
+    }
+  }
+
+  // 填充跑批和服务台人员：优先从同日期另一班次已配置的卡片中获取
+  if (card.roleValue === 'ecc') {
+    const otherShiftCard = handoverList.value.find(c =>
+      c.roleValue === 'ecc' &&
+      c.date === card.date &&
+      c.shiftType !== card.shiftType &&
+      c._cardId !== card._cardId &&
+      (c.batchPersonA && c.batchPersonA !== '未排班' && c.batchPersonA !== '—' && c.batchPersonA !== '' ||
+       c.servicePerson1 && c.servicePerson1 !== '未排班' && c.servicePerson1 !== '—' && c.servicePerson1 !== '')
+    )
+
+    const hasBatchFromOther = otherShiftCard && otherShiftCard.batchPersonA && otherShiftCard.batchPersonA !== '未排班' && otherShiftCard.batchPersonA !== '—' && otherShiftCard.batchPersonA !== ''
+    const hasServiceFromOther = otherShiftCard && otherShiftCard.servicePerson1 && otherShiftCard.servicePerson1 !== '未排班' && otherShiftCard.servicePerson1 !== '—' && otherShiftCard.servicePerson1 !== ''
+
+    if (hasBatchFromOther || hasServiceFromOther) {
+      if (hasBatchFromOther) {
+        card.batchPersonA = otherShiftCard.batchPersonA
+        card.batchPersonACode = otherShiftCard.batchPersonACode || ''
+        card.batchPersonASurname = otherShiftCard.batchPersonASurname || '—'
+        card.batchPersonB = otherShiftCard.batchPersonB
+        card.batchPersonBCode = otherShiftCard.batchPersonBCode || ''
+        card.batchPersonBSurname = otherShiftCard.batchPersonBSurname || '—'
+      }
+      if (hasServiceFromOther) {
+        card.servicePerson1 = otherShiftCard.servicePerson1
+        card.servicePerson1Code = otherShiftCard.servicePerson1Code || ''
+        card.servicePerson1Surname = otherShiftCard.servicePerson1Surname || '—'
+        card.servicePerson2 = otherShiftCard.servicePerson2
+        card.servicePerson2Code = otherShiftCard.servicePerson2Code || ''
+        card.servicePerson2Surname = otherShiftCard.servicePerson2Surname || '—'
+        card.servicePerson3 = otherShiftCard.servicePerson3
+        card.servicePerson3Code = otherShiftCard.servicePerson3Code || ''
+        card.servicePerson3Surname = otherShiftCard.servicePerson3Surname || '—'
+      }
+    } else if (otherDuty) {
+      // 兜底：从 other_duty 排班中获取
+      if (otherDuty.batchA) {
+        card.batchPersonA = otherDuty.batchA
+        card.batchPersonACode = otherDuty.batchAId || ''
+        card.batchPersonASurname = otherDuty.batchA.charAt(0) || '—'
+      }
+      if (otherDuty.batchB) {
+        card.batchPersonB = otherDuty.batchB
+        card.batchPersonBCode = otherDuty.batchBId || ''
+        card.batchPersonBSurname = otherDuty.batchB.charAt(0) || '—'
+      }
+      if (otherDuty.serviceA) {
+        card.servicePerson1 = otherDuty.serviceA
+        card.servicePerson1Code = otherDuty.serviceAId || ''
+        card.servicePerson1Surname = otherDuty.serviceA.charAt(0) || '—'
+      }
+      if (otherDuty.serviceB) {
+        card.servicePerson2 = otherDuty.serviceB
+        card.servicePerson2Code = otherDuty.serviceBId || ''
+        card.servicePerson2Surname = otherDuty.serviceB.charAt(0) || '—'
+      }
+      if (otherDuty.serviceC) {
+        card.servicePerson3 = otherDuty.serviceC
+        card.servicePerson3Code = otherDuty.serviceCId || ''
+        card.servicePerson3Surname = otherDuty.serviceC.charAt(0) || '—'
+      }
+    }
+  }
+}
+
+// 卡片日期变化处理：加载选中日期的排班数据并重新匹配人员
+const onCardDateChange = async (card, newDate) => {
+  if (!newDate || !card.isDraft) return
+  const oldDate = card._prevDate || card.date
+  card.date = newDate
+  card._prevDate = newDate
+
+  // 计算昨天、明天及过去30天的日期
+  const newDateObj = new Date(newDate)
+  const yesterdayObj = new Date(newDateObj)
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+  const yesterdayStr = getLocalDateStr(yesterdayObj)
+
+  const tomorrowObj = new Date(newDateObj)
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1)
+  const tomorrowStr = getLocalDateStr(tomorrowObj)
+
+  const pastObj = new Date(newDateObj)
+  pastObj.setDate(pastObj.getDate() - 30)
+  const pastStr = getLocalDateStr(pastObj)
+
+  try {
+    const [newDateScheduleArr, yesterdayScheduleArr, tomorrowScheduleArr, pastSchedulesArr] = await Promise.all([
+      getDuty([newDate, newDate]),
+      getDuty([yesterdayStr, yesterdayStr]),
+      getDuty([tomorrowStr, tomorrowStr]),
+      getDuty([pastStr, newDate]),
+    ])
+
+    const schedule = Array.isArray(newDateScheduleArr) && newDateScheduleArr.length > 0 ? newDateScheduleArr[0] : null
+    const yesterdayScheduleData = Array.isArray(yesterdayScheduleArr) && yesterdayScheduleArr.length > 0 ? yesterdayScheduleArr[0] : null
+    const tomorrowScheduleData = Array.isArray(tomorrowScheduleArr) && tomorrowScheduleArr.length > 0 ? tomorrowScheduleArr[0] : null
+    const pastSchedules = Array.isArray(pastSchedulesArr) ? pastSchedulesArr : []
+
+    // 获取选中日期的跑批+服务台排班
+    let otherDutyData = null
+    if (card.roleValue === 'ecc') {
+      try {
+        otherDutyData = await getOtherDuty(newDate)
+      } catch (e) {
+        console.error('获取选中日期的跑批/服务台排班失败:', e)
+      }
+    }
+
+    fillPersonnelForDate(card, newDate, schedule, yesterdayScheduleData, tomorrowScheduleData, pastSchedules, otherDutyData)
+
+    // 更新交接时间
+    const now = new Date()
+    const pad = n => String(n).padStart(2, '0')
+    card.handoverTime = `${newDate} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+
+    ElMessage.success(`已切换至 ${newDate} 的排班人员`)
+  } catch (e) {
+    console.error('获取选中日期的排班数据失败:', e)
+    ElMessage.error('获取排班数据失败，请重试')
+    // 恢复旧日期
+    card.date = oldDate
+  } finally {
+    editingCardDate.value = null
+  }
+}
+
 // 系统运行状态：添加新行
 const addStatusItem = (card, index) => {
   const newUid = ++lineUidCounter.value
@@ -1812,7 +2044,26 @@ onBeforeUnmount(() => {
         <span :class="['handover-dot', item.statusClass]"></span>
         <div class="handover-card">
           <div class="handover-card-header">
-            <div class="handover-date">{{ item.date }} ·
+            <div class="handover-date">
+              <template v-if="item.isDraft">
+                <span v-if="editingCardDate !== item._cardId" class="date-clickable" @click="editingCardDate = item._cardId">{{ item.date }}</span>
+                <span v-else class="date-picker-wrap">
+                  <el-date-picker
+                    v-model="item.date"
+                    type="date"
+                    value-format="YYYY-MM-DD"
+                    size="small"
+                    class="date-inline-picker"
+                    popper-class="card-date-popper"
+                    :clearable="false"
+                    :teleported="true"
+                    @change="(val) => { if (val) onCardDateChange(item, val) }"
+                    @visible-change="(v) => { if (!v) editingCardDate = null }"
+                  />
+                </span>
+              </template>
+              <template v-else>{{ item.date }}</template>
+              ·
               <template v-if="item.isDraft">
                 <span class="role-name-wrap">
                   <span v-show="!item.editingRole" class="role-clickable" @click="handleEditRole(item)">{{ item.role }}</span>
@@ -2645,6 +2896,42 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* 卡片日期可点击切换 */
+.date-clickable {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--primary-border);
+  transition: color 0.15s, border-color 0.15s;
+}
+.date-clickable:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* 卡片日期行内日期选择器 - 通过外层 wrapper 约束宽度 */
+.date-picker-wrap {
+  display: inline-flex;
+  width: 110px;
+}
+.date-inline-picker {
+  width: 100%;
+}
+.date-inline-picker :deep(.el-input__wrapper) {
+  padding-left: 6px;
+  padding-right: 6px;
+  box-shadow: none;
+}
+.date-inline-picker :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 700;
+}
+.date-inline-picker :deep(.el-input__suffix) {
+  display: none;
 }
 .handover-shift-info {
   display: flex;
@@ -3444,3 +3731,16 @@ onBeforeUnmount(() => {
 .image-preview-close:hover {
   color: #f00;
 }</style>
+
+<style>
+/* 卡片日期选择器日历弹窗 - 缩小宽度 */
+.card-date-popper {
+  width: 230px;
+}
+.card-date-popper .el-date-table {
+  width: 100%;
+}
+.card-date-popper .el-date-table td {
+  padding: 2px;
+}
+</style>
