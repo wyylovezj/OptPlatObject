@@ -40,7 +40,11 @@ const paginatedUsers = computed(() => {
   return filteredUsers.value.slice(start, start + realtimePageSize.value)
 })
 
-watch(users, () => { realtimePage.value = 1 })
+// 数据刷新后仅校正页码越界（自动刷新不强制回到第一页，避免翻页被打断）
+watch(filteredUsers, () => {
+  const maxPage = Math.max(1, Math.ceil(filteredUsers.value.length / realtimePageSize.value))
+  if (realtimePage.value > maxPage) realtimePage.value = maxPage
+})
 
 const handleRealtimeSearch = () => { realtimePage.value = 1 }
 const handleRealtimeReset = () => {

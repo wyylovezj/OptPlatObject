@@ -8,8 +8,8 @@
  * @lastModifiedTime: 2026-03-30 10:00:00
  */
 import { ref, onMounted,computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { getAllRoles, assignUserRoles, getUserList, disableUser, enableUser } from '@/api/userPermisssion.js'
+import { ElMessage } from 'element-plus'
+import { getAllRoles, getUserList, disableUser, enableUser } from '@/api/userPermisssion.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 
 
@@ -72,27 +72,11 @@ const currentPageData = computed(() => {
   // 计算当前页的结束数据的索引
   const end = start + pageSize.value
   // 返回当前页的数据的切片
-  console.log('end', new Date().getTime())
   return userList.value.slice(start, end)
 })
-// 对话框可见性
-const dialogVisible = ref(false)
-// 当前编辑的用户
-const currentUser = ref(null)
-// 用户已选角色
-const selectedRoles = ref([])
-
-// 计算属性：过滤出启用的角色列表（用于分配角色对话框）
+// 计算属性：过滤出启用的角色列表（用于搜索栏角色筛选）
 const enabledRoleList = computed(() => {
   return roleList.value.filter(role => role.status === 1)
-})
-
-// 穿梭框数据：角色列表
-const roleTransferData = computed(() => {
-  return enabledRoleList.value.map(role => ({
-    key: role.code,
-    label: role.code + ' - ' + role.name
-  }))
 })
 
 // 加载用户列表
@@ -125,35 +109,6 @@ const loadRoles = async () => {
   }
 }
 
-// 打开分配角色对话框
-const openAssignDialog = async (user) => {
-  currentUser.value = user
-  selectedRoles.value = user.roles ? user.roles.map(r => r.code) : []
-  dialogVisible.value = true
-
-  if (roleList.value.length === 0) {
-    await loadRoles()
-  }
-}
-
-// 保存用户角色
-const saveUserRoles = async () => {
-  try {
-    await assignUserRoles(currentUser.value.username, selectedRoles.value)
-    if (message.value) {
-      message.value.close()
-    }
-    message.value = ElMessage.success('分配角色成功')
-    dialogVisible.value = false
-    loadUsers()
-  } catch (error) {
-    if (message.value) {
-      message.value.close()
-    }
-    message.value = ElMessage.error('分配角色失败：' + error.message)
-  }
-}
-
 // 搜索用户
 const handleSearch = () => {
   loadUsers()
@@ -167,6 +122,17 @@ const handleReset = () => {
     status: '',
   }
   loadUsers()
+}
+
+// 分页切换：遮罩过渡，避免换页瞬间旧数据闪现与行高跳动
+let pageChangeTimer = null
+const handlePageChange = (page) => {
+  currentPage.value = page
+  loading.value = true
+  clearTimeout(pageChangeTimer)
+  pageChangeTimer = setTimeout(() => {
+    loading.value = false
+  }, 200)
 }
 
 onMounted(() => {
@@ -210,6 +176,7 @@ onMounted(() => {
           </div>
         </div>
         <el-table
+          :key="currentPage"
           :data="currentPageData"
           v-loading="loading"
           stripe
@@ -225,14 +192,6 @@ onMounted(() => {
               <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small" effect="plain">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" align="center">
-            <template #default="{ row }">
-              <div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">
-                <el-tag v-for="role in row.roles" :key="role.code" size="small" effect="plain">{{ role.name }}</el-tag>
-                <span v-if="!row.roles || row.roles.length === 0" style="color: #909399; font-size: 13px;">无</span>
-              </div>
-            </template>
-          </el-table-column>
           <el-table-column label="用户组" min-width="150" align="center">
             <template #default="{ row }">
               <div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">
@@ -241,11 +200,8 @@ onMounted(() => {
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="230" align="center" fixed="right">
+          <el-table-column label="操作" width="160" align="center" fixed="right">
             <template #default="{ row }">
-              <el-button v-if="permissionStore.hasPermission('system:assignRoles')" class="table-btn-primary" size="small" @click="openAssignDialog(row)">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>&nbsp;分配角色
-              </el-button>
               <el-button v-if="row.status === 0 && permissionStore.hasPermission('system:enableUser')" class="table-btn-success" size="small" @click="userEnable(row.username)">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>&nbsp;启用
               </el-button>
@@ -258,47 +214,9 @@ onMounted(() => {
       </div>
       <div class="pagination-wrapper" v-if="userList.length > 0">
         <span class="pagination-total">共 {{ userList.length }} 条</span>
-        <el-pagination v-model:current-page="currentPage" :page-size="pageSize" :total="userList.length" layout="prev, pager, next" @current-change="() => {}" background />
+        <el-pagination v-model:current-page="currentPage" :page-size="pageSize" :total="userList.length" layout="prev, pager, next" @current-change="handlePageChange" background />
       </div>
     </el-card>
-
-    <!-- 分配角色对话框 -->
-    <el-dialog v-model="dialogVisible" width="760px" :show-close="false" class="assign-dialog" top="5vh" destroy-on-close>
-      <template #header>
-        <div class="dialog-header">
-          <div class="dialog-header-icon">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-          </div>
-          <div class="dialog-header-text">
-            <span class="dialog-title">分配角色</span>
-            <span class="dialog-subtitle">为用户配置角色权限</span>
-          </div>
-        </div>
-      </template>
-      <div class="dialog-body">
-        <div style="margin-bottom: 16px;">
-          <el-tag type="primary" size="large">用户：{{ currentUser?.nickname || currentUser?.username }}（{{ currentUser?.username }}）</el-tag>
-        </div>
-        <el-transfer
-          v-model="selectedRoles"
-          :data="roleTransferData"
-          filterable
-          :filter-placeholder="'搜索角色...'"
-          :titles="['可选角色', '已选角色']"
-          :button-texts="['移除', '选择']"
-        />
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button class="dialog-btn-cancel" @click="dialogVisible = false">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>&nbsp;取消
-          </el-button>
-          <el-button class="dialog-btn-save" type="primary" @click="saveUserRoles">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>&nbsp;确定
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -443,17 +361,6 @@ onMounted(() => {
 }
 
 /* 表格按钮 - 参照系统通知页面风格 */
-:deep(.table-btn-primary) {
-  height: 28px; padding: 0 10px; font-size: 12px; border-radius: 8px !important;
-  display: inline-flex; align-items: center; gap: 4px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border: none; color: #fff; font-weight: 500;
-  transition: all 0.25s ease;
-}
-:deep(.table-btn-primary:hover) {
-  filter: brightness(1.1);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
-}
 :deep(.table-btn-success) {
   height: 28px; padding: 0 10px; font-size: 12px; border-radius: 8px !important;
   display: inline-flex; align-items: center; gap: 4px;
@@ -477,112 +384,4 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(245, 108, 108, 0.35);
 }
 
-/* 穿梭框自适应宽度 */
-:deep(.el-transfer) {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-:deep(.el-transfer-panel) {
-  flex: 1;
-  height: 360px;
-}
-:deep(.el-transfer-panel__body) {
-  height: 280px;
-}
-:deep(.el-transfer__buttons) {
-  padding: 0 12px;
-  flex-shrink: 0;
-}
-
-/* 对话框样式 */
-.assign-dialog {
-  border-radius: 20px !important;
-  overflow: hidden;
-}
-.assign-dialog :deep(.el-dialog__header) {
-  padding: 0;
-  margin: 0;
-}
-.assign-dialog :deep(.el-dialog__body) {
-  padding: 0;
-}
-.assign-dialog :deep(.el-dialog__footer) {
-  padding: 0;
-}
-.assign-dialog .dialog-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 24px 28px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.assign-dialog .dialog-header-icon {
-  width: 52px;
-  height: 52px;
-  background: rgba(255,255,255,0.2);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
-}
-.assign-dialog .dialog-header-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.assign-dialog .dialog-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: 0.5px;
-}
-.assign-dialog .dialog-subtitle {
-  font-size: 13px;
-  color: rgba(255,255,255,0.75);
-}
-.assign-dialog .dialog-body {
-  padding: 24px 28px;
-  background: #f8f9fe;
-}
-.assign-dialog .dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 28px 24px;
-  background: #f8f9fe;
-}
-.assign-dialog .dialog-btn-cancel {
-  border-radius: 10px !important;
-  height: 38px;
-  padding: 0 20px;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #e4e7f0;
-  background: #fff;
-  transition: all 0.25s ease;
-}
-.assign-dialog .dialog-btn-cancel:hover {
-  border-color: #667eea;
-  color: #667eea;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-}
-.assign-dialog .dialog-btn-save {
-  border-radius: 10px !important;
-  height: 38px;
-  padding: 0 24px;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border: none;
-  transition: all 0.25s ease;
-}
-.assign-dialog .dialog-btn-save:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
 </style>

@@ -206,7 +206,7 @@ const checkTodoReminders = async () => {
               h('span', { style: 'font-size:14px;font-weight:600;color:#303133;line-height:1.5;word-break:break-word;' }, t.title),
             ]),
             t.content
-              ? h('div', { style: 'background:#eef0f5;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:13px;color:#606266;line-height:1.6;word-break:break-word;', innerHTML: (() => { try { const r = marked.parse(t.content, { async: false }); return r instanceof Promise ? t.content : r } catch(e) { return t.content } })() })
+              ? h('div', { style: 'background:#eef0f5;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:13px;color:#606266;line-height:1.6;word-break:break-word;white-space:pre-wrap;tab-size:2em;-moz-tab-size:2em;', innerHTML: (() => { try { const r = marked.parse(t.content, { async: false }); return r instanceof Promise ? t.content : r } catch(e) { return t.content } })() })
               : null,
             h('div', { style: 'display:flex;align-items:center;gap:10px;font-size:12px;' }, [
               h('span', { style: `display:inline-block;padding:2px 8px;border-radius:4px;background:${typeColor}18;color:${typeColor};font-weight:500;` }, typeLabel),

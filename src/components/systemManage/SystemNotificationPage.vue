@@ -68,6 +68,22 @@ const handlePreview = () => {
   previewDialogVisible.value = true
 }
 
+// 通知内容 textarea Tab 键插入制表符（而非跳转焦点）
+const handleContentKeydown = (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const textarea = e.target
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const value = formData.value.content || ''
+    formData.value.content = value.slice(0, start) + '\t' + value.slice(end)
+    // 恢复光标到插入后位置
+    requestAnimationFrame(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 1
+    })
+  }
+}
+
 const backToEdit = () => {
   isPreviewing.value = false
   isViewMode.value = false
@@ -654,7 +670,7 @@ onUnmounted(() => {
               通知内容
             </div>
             <el-form-item prop="content">
-              <el-input v-model="formData.content" type="textarea" placeholder="详细描述通知内容..." spellcheck="false" resize="none" :autosize="{ minRows: 6, maxRows: 20 }" :disabled="isViewMode" />
+              <el-input v-model="formData.content" type="textarea" placeholder="详细描述通知内容..." spellcheck="false" resize="none" :autosize="{ minRows: 6, maxRows: 20 }" :disabled="isViewMode" @keydown="handleContentKeydown" />
             </el-form-item>
           </div>
 
@@ -1511,5 +1527,13 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #667eea, #764ba2);
   border: none;
   color: #fff;
+}
+
+/* 预览通知内容保留格式文本（换行、制表符、空格） */
+.notif-dialog-content {
+  white-space: pre-wrap;
+  tab-size: 2em;
+  -moz-tab-size: 2em;
+  word-break: break-word;
 }
 </style>

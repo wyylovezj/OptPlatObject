@@ -164,6 +164,17 @@ const handleReset = () => {
   loadGroups()
 }
 
+// 分页切换：遮罩过渡，避免换页瞬间旧数据闪现与行高跳动
+let pageChangeTimer = null
+const handlePageChange = (page) => {
+  currentPage.value = page
+  loading.value = true
+  clearTimeout(pageChangeTimer)
+  pageChangeTimer = setTimeout(() => {
+    loading.value = false
+  }, 200)
+}
+
 // 打开新增对话框
 const openCreateDialog = () => {
   isEdit.value = false
@@ -335,6 +346,7 @@ onMounted(() => {
           </div>
         </div>
         <el-table
+          :key="currentPage"
           :data="currentPageData"
           v-loading="loading"
           stripe
@@ -389,7 +401,7 @@ onMounted(() => {
       </div>
       <div class="pagination-wrapper" v-if="groupList.length > 0">
         <span class="pagination-total">共 {{ groupList.length }} 条</span>
-        <el-pagination v-model:current-page="currentPage" :page-size="pageSize" :total="groupList.length" layout="prev, pager, next" @current-change="() => {}" background />
+        <el-pagination v-model:current-page="currentPage" :page-size="pageSize" :total="groupList.length" layout="prev, pager, next" @current-change="handlePageChange" background />
       </div>
     </el-card>
 

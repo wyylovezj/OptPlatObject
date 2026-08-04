@@ -3,7 +3,7 @@
  * 待办备忘录管理页面
  * UI风格与系统通知页面一致
  */
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTodoList, createTodo, updateTodo, toggleTodoStatus, deleteTodo } from '@/api/todoApi.js'
 import { Search } from '@element-plus/icons-vue'
@@ -205,6 +205,21 @@ const openCreateDialog = () => {
   editId.value = null
   formData.value = { title: '', content: '', todoType: 0, reminderTime: '', recurringPattern: '', recurringDay: '', recurringTime: '09:00' }
   dialogVisible.value = true
+}
+
+// 待办内容 textarea Tab 键插入制表符（而非跳转焦点）
+const handleContentKeydown = (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const textarea = e.target
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const value = formData.value.content || ''
+    formData.value.content = value.slice(0, start) + '\t' + value.slice(end)
+    requestAnimationFrame(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 1
+    })
+  }
 }
 
 // 打开编辑对话框
@@ -538,7 +553,7 @@ onUnmounted(() => {
     </el-card>
 
     <!-- 新建/编辑待办对话框 -->
-    <el-dialog v-model="dialogVisible" width="650px" :show-close="false" class="todo-dialog" top="20vh">
+    <el-dialog v-model="dialogVisible" width="680px" :show-close="false" class="todo-dialog" top="5vh">
       <template #header>
         <div class="dialog-header">
           <div class="dialog-header-icon">
@@ -576,7 +591,7 @@ onUnmounted(() => {
                 待办内容 <span style="color: #f56c6c;">*</span>
               </div>
               <el-form-item :rules="{ required: true, message: '请输入待办内容', trigger: 'blur' }" prop="content">
-                <el-input v-model="formData.content" type="textarea" placeholder="输入待办内容（选填）..." spellcheck="false" resize="none" :autosize="{ minRows: 3 }" />
+                <el-input v-model="formData.content" type="textarea" placeholder="输入待办内容（选填）..." spellcheck="false" resize="none" :autosize="{ minRows: 3 }" @keydown="handleContentKeydown" />
               </el-form-item>
             </div>
 
@@ -1183,12 +1198,10 @@ onUnmounted(() => {
 
 .dialog-footer {
   display: flex;
-  align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 16px 28px;
+  padding: 16px 28px 24px;
   background: #f8f9fe;
-  border-top: 1px solid #e8eaf0;
 }
 .dialog-btn-cancel {
   border-radius: 10px !important;
