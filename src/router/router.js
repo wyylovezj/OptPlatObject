@@ -29,6 +29,7 @@ import ReportModulesPage from '@/components/weekyReportPM/ReportModulesPage.vue'
 import ReportExportPage from '@/components/weekyReportPM/ReportExportPage.vue'
 import ReportPersonnelPage from '@/components/weekyReportPM/ReportPersonnelPage.vue'
 import WeekManagePage from '@/components/weekyReportPM/WeekManagePage.vue'
+import TodoPage from '@/components/systemManage/TodoPage.vue'
 
 
 // 创建路由实例
@@ -226,6 +227,71 @@ const router = createRouter({
             title: '菜单管理',
             breadcrumb: '菜单管理',
             permission: 'system:menu',
+          },
+        },
+        {
+          path: 'groupManage',
+          name: 'GroupManage',
+          component: () => import('@/components/permissionManage/GroupManagePage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '用户组管理',
+            breadcrumb: '用户组管理',
+            permission: 'system:group',
+          },
+        },
+      ],
+    },
+    /**
+     * 系统管理模块路由
+     * @path /systemManagement
+     * @name SystemManagement
+     * @requiresAuth true - 需要认证
+     * @title 系统管理
+     * @breadcrumb 系统管理
+     * @permission system:manage
+     */
+    {
+      path: '/systemManagement',
+      name: 'SystemManagement',
+      meta: {
+        requiresAuth: true,
+        title: '系统管理',
+        breadcrumb: '系统管理',
+        permission: 'system:manage',
+      },
+      children: [
+        {
+          path: 'systemNotification',
+          name: 'SystemNotification',
+          component: () => import('@/components/systemManage/SystemNotificationPage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '系统通知',
+            breadcrumb: '系统通知',
+            permission: 'system:notification',
+          },
+        },
+        {
+          path: 'userOnline',
+          name: 'UserOnline',
+          component: () => import('@/components/systemManage/UserOnlinePage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '在线用户',
+            breadcrumb: '在线用户',
+            permission: 'system:onlineStatus',
+          },
+        },
+        {
+          path: 'todo',
+          name: 'Todo',
+          component: TodoPage,
+          meta: {
+            requiresAuth: true,
+            title: '待办备忘录',
+            breadcrumb: '待办备忘录',
+            permission: 'system:todo',
           },
         },
       ],

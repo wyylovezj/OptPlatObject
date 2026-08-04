@@ -17,11 +17,14 @@ export const getUserInfo = async (username) => {
       username,
       currentUser: getCurrentUser(),
     })
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '获取用户信息失败')
+    }
     console.log("getUserInfo",response.data.data)
     return response.data.data
 
   } catch (error) {
-    throw new Error(error.response?.data?.message || '获取用户信息失败')
+    throw new Error(error.response?.data?.message || error.message || '获取用户信息失败')
   }
 }
 /**
@@ -107,10 +110,13 @@ export const getUserRoles = async (username) => {
       username,
       currentUser: getCurrentUser(),
     })
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '获取用户角色失败')
+    }
     console.log("getUserRoles",response.data.data)
     return response.data.data
   } catch (error) {
-    throw new Error(error.response?.data?.message || '获取用户角色失败')
+    throw new Error(error.response?.data?.message || error.message || '获取用户角色失败')
   }
 }
 
@@ -192,10 +198,13 @@ export const getUserMenus = async (username) => {
       username,
       currentUser: getCurrentUser(),
     })
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '获取用户菜单失败')
+    }
     console.log("getUserMenus",response.data.data)
     return response.data.data
   } catch (error) {
-    throw new Error(error.response?.data?.message || '获取用户菜单失败')
+    throw new Error(error.response?.data?.message || error.message || '获取用户菜单失败')
   }
 }
 
@@ -337,5 +346,172 @@ export const deleteMenu = async (menuId) => {
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || '删除菜单失败')
+  }
+}
+
+// ===================== 用户组管理接口 =====================
+
+/**
+ * 获取所有用户组
+ * @param {Object} form - 查询条件 {groupName, status}
+ * @returns {Promise<Array>}
+ */
+export const getAllGroups = async (form) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/getAllGroups`, {
+      groupName: form.groupName || '',
+      status: form.status || '',
+    })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取用户组列表失败')
+  }
+}
+
+/**
+ * 创建用户组
+ * @param {Object} groupData - {groupName, groupCode, description}
+ * @returns {Promise<Object>}
+ */
+export const createGroup = async (groupData) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/createGroup`, groupData)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '创建用户组失败')
+  }
+}
+
+/**
+ * 更新用户组
+ * @param {string} groupCode - 用户组编码
+ * @param {Object} groupData - {groupName, description}
+ * @returns {Promise<Object>}
+ */
+export const updateGroup = async (groupCode, groupData) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/updateGroup`, {
+      groupCode,
+      ...groupData
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '更新用户组失败')
+  }
+}
+
+/**
+ * 删除用户组
+ * @param {string} groupCode - 用户组编码
+ * @returns {Promise<Object>}
+ */
+export const deleteGroup = async (groupCode) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/deleteGroup`, {
+      groupCode
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '删除用户组失败')
+  }
+}
+
+/**
+ * 启用用户组
+ * @param {string} groupCode - 用户组编码
+ * @returns {Promise<Object>}
+ */
+export const enableGroup = async (groupCode) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/enableGroup`, {
+      groupCode
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '启用用户组失败')
+  }
+}
+
+/**
+ * 禁用用户组
+ * @param {string} groupCode - 用户组编码
+ * @returns {Promise<Object>}
+ */
+export const disableGroup = async (groupCode) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/disableGroup`, {
+      groupCode
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '禁用用户组失败')
+  }
+}
+
+/**
+ * 获取用户组内用户
+ * @param {string} groupCode - 用户组编码
+ * @returns {Promise<Array>}
+ */
+export const getGroupUsers = async (groupCode) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/getGroupUsers`, {
+      groupCode
+    })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取用户组用户失败')
+  }
+}
+
+/**
+ * 分配用户到用户组
+ * @param {string} groupCode - 用户组编码
+ * @param {Array} usernames - 用户名数组
+ * @returns {Promise<Object>}
+ */
+export const assignGroupUsers = async (groupCode, usernames) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/assignGroupUsers`, {
+      groupCode,
+      usernames
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '分配用户失败')
+  }
+}
+
+/**
+ * 获取用户组角色
+ * @param {string} groupCode - 用户组编码
+ * @returns {Promise<Array>}
+ */
+export const getGroupRoles = async (groupCode) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/getGroupRoles`, {
+      groupCode
+    })
+    return response.data.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '获取用户组角色失败')
+  }
+}
+
+/**
+ * 分配角色到用户组
+ * @param {string} groupCode - 用户组编码
+ * @param {Array} roleCodes - 角色编码数组
+ * @returns {Promise<Object>}
+ */
+export const assignGroupRoles = async (groupCode, roleCodes) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/assignGroupRoles`, {
+      groupCode,
+      roleCodes
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '分配角色失败')
   }
 }

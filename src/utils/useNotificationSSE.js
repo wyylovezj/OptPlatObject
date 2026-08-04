@@ -7,6 +7,10 @@ import { ref, onUnmounted, h } from 'vue'
 import { ElNotification, ElScrollbar } from 'element-plus'
 import { RBAC_IP } from '@/utils/dutyPageData.js'
 import axios from 'axios'
+import { marked } from 'marked'
+
+// 生成当前标签页唯一编号（在页面刷新前保持不变）
+const TAB_ID = 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8)
 
 /**
  * 使用 SSE 通知推送
@@ -17,9 +21,36 @@ export function useNotificationSSE(usernameRef) {
   let eventSource = null
   let reconnectTimer = null
   let reconnectAttempts = 0
-  const MAX_RECONNECT_ATTEMPTS = 10
   const RECONNECT_BASE_DELAY = 3000 // 3秒
   let currentRemindNotification = null // 跟踪当前周报提醒弹框实例
+  const currentSystemNotification = ref(null) // 当前系统通知弹框数据
+  const systemNotificationQueue = [] // 系统通知队列（避免多个通知互相覆盖）
+  const systemNotifShownCache = {} // 内存去重缓存 {notificationId: timestamp}
+
+  // sessionStorage 持久化去重（替代内存 Set + 5秒超时）
+  // 无论 SSE 重连还是页面刷新，同标签页内同一通知只展示一次
+  const SYSTEM_NOTIF_DEDUP_KEY = 'system_notif_dedup_ids'
+  const MAX_DEDUP_IDS = 200
+
+  const isSystemNotifDisplayed = (notifId) => {
+    try {
+      const stored = sessionStorage.getItem(SYSTEM_NOTIF_DEDUP_KEY)
+      if (!stored) return false
+      return JSON.parse(stored).includes(notifId)
+    } catch { return false }
+  }
+
+  const markSystemNotifDisplayed = (notifId) => {
+    try {
+      const stored = sessionStorage.getItem(SYSTEM_NOTIF_DEDUP_KEY)
+      let ids = stored ? JSON.parse(stored) : []
+      if (!ids.includes(notifId)) {
+        ids.push(notifId)
+        if (ids.length > MAX_DEDUP_IDS) ids = ids.slice(-MAX_DEDUP_IDS)
+        sessionStorage.setItem(SYSTEM_NOTIF_DEDUP_KEY, JSON.stringify(ids))
+      }
+    } catch { /* 忽略存储错误 */ }
+  }
 
   // 实时校验用户是否真的还未提交周报（防止缓存的过期通知误导已提交用户）
   const isUserTrulyUnsubmitted = async (weekNum) => {
@@ -127,16 +158,29 @@ export function useNotificationSSE(usernameRef) {
       })
       window.dispatchEvent(new CustomEvent('weekly-report-returned', { detail: data }))
     } else if (data.type === 'system_notification') {
-      // 系统通知：从管理员后台发送，不自动关闭，手动关闭
-      ElNotification({
-        title: '📢 ' + (data.title || '系统通知'),
-        message: data.message || '',
+      // 系统通知：sessionStorage 持久化去重
+      // 覆盖场景：同 Worker 内双重投递、SSE 重连后离线补推
+      const notifId = data.notificationId
+      if (notifId !== undefined && !isNaN(notifId)) {
+        if (isSystemNotifDisplayed(notifId)) {
+          console.log('[SSE] 跳过重复的系统通知 notificationId=' + notifId)
+          return
+        }
+        markSystemNotifDisplayed(notifId)
+      }
+      // 入队，由队列管理展示模态框（避免离线补推时多个通知互相覆盖）
+      systemNotificationQueue.push({
+        title: data.title || '系统通知',
+        content: data.message || '',
         type: data.notificationType || 'info',
-        duration: 0,
-        position: 'top-right',
-        showClose: true,
-        dangerouslyUseHTMLString: false,
+        timestamp: data.timestamp || '',
       })
+      // 若当前没有展示中的模态框，立即展示下一个
+      if (currentSystemNotification.value === null) {
+        showNextSystemNotification()
+      }
+      // 通知 HeaderBar 刷新通知列表
+      window.dispatchEvent(new CustomEvent('system-notification-received'))
     } else if (data.type === 'report_module_change') {
       // 模块/子模块变更（新增/编辑/删除/启停/排序）：
       // 弹出变更通知 + 触发填写页和汇总页响应式更新
@@ -227,7 +271,7 @@ export function useNotificationSSE(usernameRef) {
     if (!usernameRef.value) return
     if (eventSource) disconnect()
 
-    const url = `${RBAC_IP.value}/notifications/stream?username=${encodeURIComponent(usernameRef.value)}`
+    const url = `${RBAC_IP.value}/notifications/stream?username=${encodeURIComponent(usernameRef.value)}&tabId=${encodeURIComponent(TAB_ID)}`
     eventSource = new EventSource(url)
 
     eventSource.addEventListener('connected', () => {
@@ -258,12 +302,8 @@ export function useNotificationSSE(usernameRef) {
     }
   }
 
-  // 计划重连
+  // 计划重连（指数退避，无限重连）
   const scheduleReconnect = () => {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.warn('[SSE] 已达最大重连次数，停止重连')
-      return
-    }
     const delay = RECONNECT_BASE_DELAY * Math.pow(1.5, reconnectAttempts)
     reconnectTimer = setTimeout(() => {
       reconnectAttempts++
@@ -288,5 +328,17 @@ export function useNotificationSSE(usernameRef) {
   // 组件卸载时自动断开
   onUnmounted(disconnect)
 
-  return { isConnected, connect, disconnect }
+  // 展示队列中的下一个系统通知
+  const showNextSystemNotification = () => {
+    if (systemNotificationQueue.length === 0) return
+    currentSystemNotification.value = systemNotificationQueue.shift()
+  }
+
+  // 关闭当前系统通知并展示下一个（由 App.vue 在模态框关闭时调用）
+  const dismissSystemNotification = () => {
+    currentSystemNotification.value = null
+    showNextSystemNotification()
+  }
+
+  return { isConnected, connect, disconnect, currentSystemNotification, dismissSystemNotification }
 }

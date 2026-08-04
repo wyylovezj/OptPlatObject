@@ -1,5 +1,6 @@
 <script setup>
 import { getOrderData } from '@/api/homePage.js'
+import { getTodoReminders } from '@/api/todoApi.js'
 
 /**
  * @author： 魏阳阳
@@ -16,11 +17,10 @@ import { itsmTodoData } from '@/utils/homePageData.js'
 import { isSsoLogin, messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
 import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 import { ElMessage, ElMessageBox, ElNotification, ElScrollbar } from 'element-plus'
-import { computed, onBeforeUnmount, onMounted, watch, h } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch, h, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useNotificationSSE } from '@/utils/useNotificationSSE'
-import axios from 'axios'
-import { RBAC_IP } from '@/utils/dutyPageData.js'
+import { marked } from 'marked'
 
 // 获取store实例
 const authStore = useAuthStore()
@@ -30,24 +30,48 @@ const route = useRoute()
 
 // SSE 通知推送（全局，实时接收管理员一键提醒等服务端推送）
 const sseUsername = computed(() => sessionStorage.getItem('user') || '')
-const { connect: connectSSE, disconnect: disconnectSSE } = useNotificationSSE(sseUsername)
+const { connect: connectSSE, disconnect: disconnectSSE, currentSystemNotification, dismissSystemNotification } = useNotificationSSE(sseUsername)
 
-// 检查当前用户是否为甲方，只有 personnel_type=4 需要连接 SSE
-const checkServiceDeskAndConnect = async () => {
+// 系统通知模态框控制
+const systemNotifVisible = ref(false)
+const systemNotifContent = ref('')
+const notifTypeStyles = {
+  success: { c: '#67c23a', label: '普通通知' },
+  warning: { c: '#e6a23c', label: '重要通知' },
+  error: { c: '#f56c6c', label: '紧急通知' },
+  info: { c: '#667eea', label: '系统通知' },
+}
+const currentTypeStyle = computed(() => notifTypeStyles[currentSystemNotification.value?.type || 'info'] || notifTypeStyles.info)
+watch(currentSystemNotification, (val) => {
+  if (val) {
+    // marked v18 中 parse() 返回 Promise，使用同步方式兼容
+    try {
+      const parsed = marked.parse(val.content || '', { async: false })
+      if (parsed instanceof Promise) {
+        parsed.then(html => { systemNotifContent.value = html })
+      } else {
+        systemNotifContent.value = parsed
+      }
+    } catch (e) {
+      systemNotifContent.value = val.content || ''
+      console.warn('Markdown 解析失败，使用原始内容：', e)
+    }
+    systemNotifVisible.value = true
+  }
+})
+
+// 从 HeaderBar 铃铛历史列表打开系统通知
+const handleShowSystemNotification = (event) => {
+  const { title, content, type, timestamp, publishTime } = event.detail
+  currentSystemNotification.value = { title, content, type, timestamp: publishTime || timestamp || '' }
+}
+
+// 所有登录用户都连接 SSE，用于接收系统通知等实时消息
+const connectSSEForUser = () => {
   const username = sessionStorage.getItem('user')
   if (!username) return
-  try {
-    const res = await axios.get(`${RBAC_IP.value}/checkServiceDesk`, {
-      params: { username }
-    })
-    if (res.data?.isServiceDesk) {
-      connectSSE()
-    } else {
-      console.log(`[SSE] 用户 ${username} 非甲方，跳过 SSE 连接`)
-    }
-  } catch (e) {
-    console.warn('[SSE] 检查服务台身份失败，默认不连接', e)
-  }
+  connectSSE()
+  console.log(`[SSE] 用户 ${username} 已连接 SSE`)
 }
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -83,6 +107,137 @@ const saveTodoIdsToStorage = () => {
     console.error('保存待办ID缓存失败:', error)
   }
 }
+// ======== 待办备忘录提醒检查 ========
+let todoRemindTimer = null
+// sessionStorage 持久化去重 key = `{todoId}_{reminderTime|recurringTime}` → 时间戳
+// 冷却期130秒（略大于后端2分钟窗口），防止页面刷新后重复弹窗
+// 时间变了 key 就变，修改待办后可以重新触发
+const STORAGE_KEY = 'todo_reminded_keys'
+const REMINDER_COOLDOWN_MS = 180000
+
+const loadRemindedKeys = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? new Map(Object.entries(JSON.parse(stored))) : new Map()
+  } catch { return new Map() }
+}
+const saveRemindedKeys = (map) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(map)))
+  } catch {}
+}
+
+const makeRemindKey = (todo) =>
+  `${todo.id}_${todo.reminderTime || todo.recurringTime || ''}`
+
+const checkTodoReminders = async () => {
+  const username = sessionStorage.getItem('user')
+  if (!username) return
+  try {
+    const res = await getTodoReminders(username)
+    if (res.code === 200 && res.data && res.data.length > 0) {
+      const now = Date.now()
+      const remindedKeys = loadRemindedKeys()
+      let changed = false
+
+      // 清理过期记录
+      for (const [key, ts] of remindedKeys) {
+        if (now - ts > REMINDER_COOLDOWN_MS) {
+          remindedKeys.delete(key)
+          changed = true
+        }
+      }
+
+      // 收集新到期的待办（冷却期内不再提醒）
+      const newlyAdded = []
+      for (const todo of res.data) {
+        const key = makeRemindKey(todo)
+        if (!remindedKeys.has(key)) {
+          remindedKeys.set(key, now)
+          newlyAdded.push(todo)
+          changed = true
+        }
+      }
+
+      if (changed) saveRemindedKeys(remindedKeys)
+      // 有新到期的待办，合并为一条通知展示（避免多通知互相覆盖）
+      if (newlyAdded.length > 0) {
+        const isMultiple = newlyAdded.length > 1
+        const titleText = isMultiple
+          ? `📝 ${newlyAdded.length} 条备忘录待办`
+          : '📝 备忘录待办'
+
+        // 构建待办周期/时间标签
+        const getRecurringLabel = (t) => {
+          if (t.todoType !== 1 || t.recurringPattern === null || t.recurringPattern === undefined) return null
+          const patterns = ['每月', '每周', '每日']
+          let label = patterns[t.recurringPattern] || ''
+          if (t.recurringPattern === 0 && t.recurringDay) label += `${t.recurringDay}号`
+          else if (t.recurringPattern === 1 && t.recurringDay) {
+            label += (['周一','周二','周三','周四','周五','周六','周日'][t.recurringDay - 1] || '')
+          }
+          if (t.recurringTime) label += ` ${t.recurringTime}`
+          return label
+        }
+
+        // 卡片式待办列表
+        const todoCards = newlyAdded.map((t, i) => {
+          const isRecurring = t.todoType === 1
+          const typeLabel = isRecurring ? '周期性' : '一次性'
+          const typeColor = isRecurring ? '#667eea' : '#e6a23c'
+          const recurringLabel = getRecurringLabel(t)
+          const reminderTime = t.reminderTime ? t.reminderTime.substring(5, 16) : null
+          return h('div', {
+            class: 'memo-remind-todo-card',
+            style: `margin-bottom:${i < newlyAdded.length - 1 ? '10px' : '0'};border-radius:8px;background:#f5f7fa;padding:12px 14px;border-left:3px solid ${typeColor};cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;`,
+            onClick: () => {
+              const cards = document.querySelectorAll('.memo-remind-todo-card')
+              if (cards[i]) {
+                const wrap = cards[i].closest('.el-scrollbar__wrap')
+                if (wrap) {
+                  const offset = cards[i].offsetTop - wrap.offsetTop - wrap.clientHeight / 2 + cards[i].offsetHeight / 2
+                  wrap.scrollTo({ top: offset, behavior: 'smooth' })
+                }
+              }
+            }
+          }, [
+            h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:6px;' }, [
+              h('span', { style: `display:inline-block;padding:2px 10px;border-radius:4px;background:${typeColor}1a;color:${typeColor};font-size:12px;font-weight:600;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;` }, '标题'),
+              h('span', { style: 'font-size:14px;font-weight:600;color:#303133;line-height:1.5;word-break:break-word;' }, t.title),
+            ]),
+            t.content
+              ? h('div', { style: 'background:#eef0f5;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:13px;color:#606266;line-height:1.6;word-break:break-word;', innerHTML: (() => { try { const r = marked.parse(t.content, { async: false }); return r instanceof Promise ? t.content : r } catch(e) { return t.content } })() })
+              : null,
+            h('div', { style: 'display:flex;align-items:center;gap:10px;font-size:12px;' }, [
+              h('span', { style: `display:inline-block;padding:2px 8px;border-radius:4px;background:${typeColor}18;color:${typeColor};font-weight:500;` }, typeLabel),
+              isRecurring && recurringLabel
+                ? h('span', { style: 'color:#909399;' }, `🔄 ${recurringLabel}`)
+                : (!isRecurring && reminderTime
+                  ? h('span', { style: 'color:#e6a23c;' }, `⏰ ${reminderTime}`)
+                  : h('span', { style: 'color:#c0c4cc;' }, '—')),
+            ]),
+          ])
+        })
+
+        ElNotification({
+          title: titleText,
+          message: h('div', { style: 'font-size:14px;line-height:1.6;' }, [
+            h(ElScrollbar, { maxHeight: '500px' }, { default: () => todoCards }),
+          ]),
+          customClass: 'memo-remind-notification',
+          duration: 0,
+          position: 'top-right',
+          offset: 60,
+        })
+        // 通知备忘录页面刷新数据（一次性待办提醒后状态已变为停用）
+        window.dispatchEvent(new CustomEvent('todo-reminded'))
+      }
+    }
+  } catch (e) {
+    console.error('检查待办提醒失败:', e.message)
+  }
+}
+
 // 检查待办并发送通知
 const checkAndNotifyTodos = async () => {
   const username = sessionStorage.getItem('user')
@@ -281,11 +436,17 @@ const startTodoCheckTimer = async (isFirstLogin = false) => {
   }
 
   // 不再在这里检查待办，统一由 HomePage 组件挂载后触发
+  // 待办提醒也由 HomePage 触发
   // 这样可以确保用户已经进入首页界面
   console.log('待办检查定时器已启动，等待 HomePage 触发首次检查')
 
   // 每30秒检查一次
   todoCheckTimer = setInterval(checkAndNotifyTodos, 30000)
+  // 每30秒检查一次待办提醒
+  if (todoRemindTimer) clearInterval(todoRemindTimer)
+  todoRemindTimer = setInterval(checkTodoReminders, 30000)
+  // 立即执行一次
+  checkTodoReminders()
 }
 
 // 停止待办检查定时器
@@ -294,6 +455,10 @@ const stopTodoCheckTimer = () => {
     clearInterval(todoCheckTimer)
     todoCheckTimer = null
   }
+  if (todoRemindTimer) {
+    clearInterval(todoRemindTimer)
+    todoRemindTimer = null
+  }
 }
 // 监听 HomePage 发出的待办检查事件
 const handleCheckTodos = () => {
@@ -301,7 +466,14 @@ const handleCheckTodos = () => {
   checkAndNotifyTodos()
 }
 
-// lunar-javascript 库更新提示（每年12月提醒管理员）
+// 页面从后台切回时立即检查待办提醒
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    checkTodoReminders()
+  }
+}
+
+// 日历库及节假日数据年度更新提醒（每年12月提醒管理员）
 const codeStyle = {
   background: '#e3e8ef',
   padding: '1px 6px',
@@ -310,47 +482,77 @@ const codeStyle = {
   fontSize: '13px',
   color: '#476582',
 }
-const checkLunarUpdatePrompt = () => {
+const checkCalendarUpdatePrompt = () => {
   const now = new Date()
   // 12月（getMonth() 返回 11）
   if (now.getMonth() !== 11) return
   // 只提示一次
-  if (sessionStorage.getItem('lunar_update_prompted')) return
+  if (sessionStorage.getItem('calendar_update_prompted')) return
 
   const userType = sessionStorage.getItem('userType')
   if (userType !== 'admin') return
 
   const nextYear = now.getFullYear() + 1
-  sessionStorage.setItem('lunar_update_prompted', 'true')
+  sessionStorage.setItem('calendar_update_prompted', 'true')
 
   ElMessageBox.alert(
     h('div', { style: 'line-height:1.8;color:#606266;font-size:14px' }, [
-      h('p', { style: 'margin:0 0 12px 0' }, [
-        '请尽快更新 ', h('code', { style: codeStyle }, 'lunar-javascript'),
-        ' 库，获取',h('strong', { style: 'color:#e6a23c' }, `${nextYear}年`),'法定节假日数据。'
+      h('p', { style: 'margin:0 0 14px 0;font-weight:600;font-size:15px' }, [
+        '以下 ', h('strong', { style: 'color:#e6a23c' }, '3项'),
+        ' 节假日数据更新请在 ', h('strong', { style: 'color:#e6a23c' }, `${nextYear}年`),
+        ' 前完成：'
       ]),
-      h('p', { style: 'margin:0 0 8px 0;color:#909399;font-size:13px' },
-        '否则会影响值班管理中自动识别法定节假日！'
-      ),
-      h('div', { style: 'margin-top:14px;padding:12px 16px;background:#f8f9fa;border-radius:8px;border:1px solid #ebeef5' }, [
-        h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#909399;font-size:12px' }, [
-          h('span', null, '🔧'),
-          h('span', null, '更新命令'),
+      // 第1项：lunar-javascript
+      h('div', { style: 'margin-bottom:14px;padding:12px 16px;background:#f8f9fa;border-radius:8px;border:1px solid #ebeef5' }, [
+        h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#e6a23c;font-size:13px;font-weight:500' }, [
+          h('span', null, '① 前端依赖：lunar-javascript'),
         ]),
-        h('div', { style: 'display:flex;align-items:center;gap:10px' }, [
+        h('p', { style: 'margin:0 0 8px 12px;color:#909399;font-size:13px' },
+          '用于值班管理中日历自动识别日期类型，影响法定节假日判断'
+        ),
+        h('div', { style: 'display:flex;align-items:center;gap:10px;margin-left:12px' }, [
           h('code', { style: 'flex:1;padding:8px 12px;background:#1e2a3a;color:#a8c8e8;border-radius:6px;font-family:Consolas,monospace;font-size:13px;user-select:all;cursor:text;letter-spacing:0.3px;white-space:nowrap' },
             'npm install lunar-javascript@latest'
           ),
         ]),
       ]),
+      // 第2项：chinese_calendar
+      h('div', { style: 'margin-bottom:14px;padding:12px 16px;background:#f8f9fa;border-radius:8px;border:1px solid #ebeef5' }, [
+        h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#409eff;font-size:13px;font-weight:500' }, [
+          h('span', null, '② 后端依赖：chinese_calendar'),
+        ]),
+        h('p', { style: 'margin:0 0 8px 12px;color:#909399;font-size:13px' },
+          '用于周报有效周计算和自动排班识别节假日，影响周报和周范围判定'
+        ),
+        h('div', { style: 'display:flex;align-items:center;gap:10px;margin-left:12px' }, [
+          h('code', { style: 'flex:1;padding:8px 12px;background:#1e2a3a;color:#a8c8e8;border-radius:6px;font-family:Consolas,monospace;font-size:13px;user-select:all;cursor:text;letter-spacing:0.3px;white-space:nowrap' },
+            'pip install --upgrade chinese_calendar'
+          ),
+        ]),
+      ]),
+      // 第3项：generate_schedule.py 硬编码字典
+      h('div', { style: 'margin-bottom:4px;padding:12px 16px;background:#f8f9fa;border-radius:8px;border:1px solid #ebeef5' }, [
+        h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#67c23a;font-size:13px;font-weight:500' }, [
+          h('span', null, '③ 后端硬编码：generate_schedule.py'),
+        ]),
+        h('p', { style: 'margin:0 0 8px 12px;color:#909399;font-size:13px' },
+          'chinese_calendar 不可用时的降级数据（_KNOWN_HOLIDAYS 和 _KNOWN_WORKDAYS 字典）'
+        ),
+        h('div', { style: 'display:flex;align-items:center;gap:10px;margin-left:12px' }, [
+          h('code', { style: 'flex:1;padding:8px 12px;background:#1e2a3a;color:#a8c8e8;border-radius:6px;font-family:Consolas,monospace;font-size:13px;user-select:all;cursor:text;letter-spacing:0.3px;white-space:normal;word-break:break-all' },
+            '手动更新 generate_schedule.py 第41行和第62行'
+          ),
+        ]),
+      ]),
     ]),
-    '节假日库更新提醒',
+    '节假日数据年度更新提醒',
     {
       confirmButtonText: '知道了',
       type: 'warning',
       customClass: 'custom-message-box',
       showClose: true,
       closeOnClickModal: true,
+      width: '520px',
     }
   )
 }
@@ -371,8 +573,8 @@ onMounted(() => {
     () => authStore.isAuthenticated,
     (newValue) => {
       if (newValue) {
-        // 先判断当前用户是否为运维服务台人员（只有 personnel_type=5 才需要 SSE）
-        checkServiceDeskAndConnect()
+        // 所有登录用户均连接 SSE，用于接收系统通知等实时消息
+        connectSSEForUser()
         // 检查是否是登录重定向，如果不是才启动定时器
         const wasLoginRedirect = sessionStorage.getItem('isLoginRedirect')
         // 检测页面是否是通过刷新加载的
@@ -454,8 +656,12 @@ onMounted(() => {
   // 添加页面卸载事件监听
   window.addEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
 
-  // 首页加载完成后触发 lunar-javascript 更新提示
-  window.addEventListener('check-lunar-update', checkLunarUpdatePrompt)
+  // 首页加载完成后触发日历库年度更新提醒
+  window.addEventListener('check-calendar-update', checkCalendarUpdatePrompt)
+  // 接收 HeaderBar 铃铛点击打开系统通知
+  window.addEventListener('show-system-notification', handleShowSystemNotification)
+  // 页面从后台切回时立即检查待办提醒（解决浏览器后台节流导致漏检）
+  window.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
@@ -463,8 +669,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', alarmStore.persistAlreadySpeakQueue())
   // 移除待办检查事件监听
   window.removeEventListener('check-todos', handleCheckTodos)
-  // 移除 lunar 更新提示事件监听
-  window.removeEventListener('check-lunar-update', checkLunarUpdatePrompt)
+  // 移除日历库年度更新提醒事件监听
+  window.removeEventListener('check-calendar-update', checkCalendarUpdatePrompt)
   // 关闭页面时清除标记
   if (isSsoLogin.value) {
     authStore.logoutInfoClear()
@@ -481,6 +687,9 @@ onBeforeUnmount(() => {
   stopTodoCheckTimer()
   // 断开 SSE 连接
   disconnectSSE()
+  // 移除 HeaderBar 系统通知事件
+  window.removeEventListener('show-system-notification', handleShowSystemNotification)
+  window.removeEventListener('visibilitychange', handleVisibilityChange)
   alarmStore.persistAlreadySpeakQueue()
 })
 </script>
@@ -490,6 +699,41 @@ onBeforeUnmount(() => {
     <router-view v-if="route.name === 'NotFound'" name="NotFound"></router-view>
     <router-view v-else-if="!isAuthenticated || route.name === 'LoginPage'" name="LoginPage"></router-view>
     <IndexPage v-else></IndexPage>
+
+    <!-- 系统通知模态框 -->
+    <el-dialog v-model="systemNotifVisible" width="560px" :show-close="false" class="system-notif-dialog" top="8vh" :close-on-click-modal="false" @closed="dismissSystemNotification()">
+      <template #header>
+        <div class="notif-dialog-header" v-if="currentSystemNotification">
+          <div class="notif-dialog-header-icon">
+            <!-- 普通通知-铃铛 -->
+            <svg v-if="currentSystemNotification.type === 'success'" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <!-- 重要通知-三角警告 -->
+            <svg v-else-if="currentSystemNotification.type === 'warning'" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <!-- 紧急通知-扩音器 -->
+            <svg v-else-if="currentSystemNotification.type === 'error'" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14s3 2 3 5V5s-3 2-3 5"/><path d="M3 10v4a2 2 0 002 2h3l3 4V4L8 8H5a2 2 0 00-2 2z"/></svg>
+            <!-- 默认-铃铛 -->
+            <svg v-else viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          </div>
+          <div class="notif-dialog-header-text">
+            <span class="notif-dialog-title-text">{{ currentSystemNotification.title }}</span>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <el-tag :type="currentSystemNotification.type" size="small" effect="dark">{{ currentTypeStyle.label }}</el-tag>
+              <span v-if="currentSystemNotification.timestamp" style="font-size: 12px; color: rgba(255,255,255,0.7);">{{ currentSystemNotification.timestamp }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
+      <div class="notif-dialog-body">
+        <el-scrollbar max-height="400px">
+          <div class="notif-dialog-content" v-html="systemNotifContent"></div>
+        </el-scrollbar>
+      </div>
+      <template #footer>
+        <div class="notif-dialog-footer">
+          <el-button class="notif-dialog-btn" @click="systemNotifVisible = false">我知道了</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -671,5 +915,250 @@ body {
   color: #606266;
   padding-left: 8px;
   line-height: 1.6;
+}
+
+/* 系统通知弹出框样式 */
+.system-notification-popup {
+  border-radius: 12px !important;
+  border: 1px solid #e8ecf1 !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.10) !important;
+  padding: 18px 22px !important;
+  width: 380px !important;
+  background: #fff !important;
+}
+.system-notification-popup .el-notification__title {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #303133 !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid #f0f2f5 !important;
+  margin-bottom: 10px !important;
+}
+.system-notification-popup .el-notification__content {
+  font-size: 13px !important;
+  color: #606266 !important;
+  line-height: 1.8 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.system-notification-popup .el-notification__content p {
+  margin: 0 0 8px !important;
+  line-height: 1.8 !important;
+}
+.system-notification-popup .el-notification__content p:last-child {
+  margin-bottom: 0 !important;
+}
+.system-notification-popup .el-notification__content strong {
+  font-weight: 600;
+  color: #303133;
+}
+.system-notification-popup .el-notification__content code {
+  background: #f5f7fa;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #476582;
+}
+.system-notification-popup .el-notification__content a {
+  color: #409eff;
+  text-decoration: none;
+}
+.system-notification-popup .el-notification__content a:hover {
+  text-decoration: underline;
+}
+.system-notification-popup .el-notification__content ul,
+.system-notification-popup .el-notification__content ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+.system-notification-popup .el-notification__content li {
+  margin-bottom: 4px;
+}
+.system-notification-popup .el-notification__closeBtn {
+  top: 18px !important;
+  right: 18px !important;
+  font-size: 16px !important;
+  color: #c0c4cc !important;
+}
+.system-notification-popup .el-notification__closeBtn:hover {
+  color: #909399 !important;
+}
+/* type 颜色定制 */
+.system-notification-popup.el-notification--success {
+  border-left: 4px solid #67c23a !important;
+}
+.system-notification-popup.el-notification--warning {
+  border-left: 4px solid #e6a23c !important;
+}
+.system-notification-popup.el-notification--error {
+  border-left: 4px solid #f56c6c !important;
+}
+.system-notification-popup.el-notification--info {
+  border-left: 4px solid #909399 !important;
+}
+
+/* 系统通知模态框样式 - 匹配新建通知风格 */
+.system-notif-dialog {
+  border-radius: 20px !important;
+  overflow: hidden;
+}
+.system-notif-dialog .el-dialog__header {
+  padding: 0;
+  margin: 0;
+}
+.system-notif-dialog .el-dialog__body {
+  padding: 0;
+}
+.system-notif-dialog .el-dialog__footer {
+  padding: 0;
+}
+.notif-dialog-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.notif-dialog-header-icon {
+  width: 52px;
+  height: 52px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  backdrop-filter: blur(4px);
+}
+.notif-dialog-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  align-items: flex-start;
+}
+.notif-dialog-header-text .el-tag {
+  font-weight: 600;
+}
+.notif-dialog-title-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+.notif-dialog-body {
+  padding: 24px 28px;
+  background: #f8f9fe;
+}
+.notif-dialog-body .el-scrollbar__wrap {
+  padding: 0;
+}
+.notif-dialog-content {
+  font-size: 14px;
+  color: #303133;
+  line-height: 1.8;
+}
+.notif-dialog-content p {
+  margin: 0 0 10px;
+}
+.notif-dialog-content p:last-child {
+  margin-bottom: 0;
+}
+.notif-dialog-content strong {
+  font-weight: 600;
+  color: #1a1a2e;
+}
+.notif-dialog-content code {
+  background: #f0f2f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #476582;
+}
+.notif-dialog-content a {
+  color: #409eff;
+  text-decoration: none;
+}
+.notif-dialog-content a:hover {
+  text-decoration: underline;
+}
+.notif-dialog-content ul,
+.notif-dialog-content ol {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.notif-dialog-content li {
+  margin-bottom: 4px;
+}
+.notif-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 28px;
+  background: #f8f9fe;
+  border-top: 1px solid #e8eaf0;
+}
+.notif-dialog-btn {
+  border-radius: 10px !important;
+  height: 38px;
+  padding: 0 28px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: #fff !important;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+.notif-dialog-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  color: #fff !important;
+}
+
+/* 备忘录待办提醒弹框 - 匹配新建待办模态框紫蓝渐变主题 */
+.memo-remind-notification {
+  background: #fff !important;
+  border: none !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3), 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+  padding: 0 !important;
+  min-width: 360px;
+  max-width: 650px;
+  width: auto !important;
+  overflow: hidden;
+  user-select: none;
+}
+.memo-remind-notification .el-notification__title {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  margin: 0 !important;
+  padding: 18px 20px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  letter-spacing: 0.5px;
+}
+.memo-remind-notification .el-notification__content {
+  padding: 16px 20px !important;
+  margin: 0 !important;
+  background: #f8f9fe;
+}
+.memo-remind-notification .el-notification__closeBtn {
+  color: rgba(255,255,255,0.75) !important;
+  font-size: 16px !important;
+  top: 18px !important;
+  right: 18px !important;
+  transition: color 0.2s;
+}
+.memo-remind-notification .el-notification__closeBtn:hover {
+  color: #fff !important;
+}
+.memo-remind-notification .el-notification__icon {
+  display: none !important;
+}
+.memo-remind-notification .el-notification__group {
+  margin-left: 0 !important;
+  width: 100%;
 }
 </style>
