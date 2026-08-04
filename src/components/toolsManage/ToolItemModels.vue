@@ -153,6 +153,12 @@ const accountTypeOptions = [
   { label: '数据库用户账号', value: '数据库用户账号' },
 ]
 
+// 单用户账号类型选项（在模板中使用）
+const singleAccountTypeOptions = [
+  { label: 'linux', value: 'linux' },
+  { label: 'windows', value: 'windows' },
+]
+
 // 计算属性：执行人是否禁用（始终禁用）
 const userNameDisabled = computed(() => {
   return true
@@ -161,6 +167,11 @@ const userNameDisabled = computed(() => {
 // 计算属性：是否显示账号类型（在模板中使用）
 const showAccountType = computed(() => {
   return passwordModifyForm.value.category === '2'
+})
+
+// 计算属性：是否显示单用户账号类型（单用户改密时显示）
+const showSingleAccountType = computed(() => {
+  return passwordModifyForm.value.category === '1'
 })
 
 // 计算属性：是否显示主机应用用户（多用户+应用用户账号时显示）
@@ -207,10 +218,14 @@ const userConfText = ref('')
 // host文本域的值（用于显示和编辑）
 const hostText = ref('')
 
-// 监听category变化，自动填充执行人
+// 监听category变化，自动填充执行人并清空账号类型
 const handleCategoryChange = (value) => {
   // 不管选择什么类型，都自动填充当前登录用户
   passwordModifyForm.value.user_name = authStore.user || ''
+  // 切换到具体改密类型时清空账号类型，避免单/多用户的账号类型值互相残留
+  if (value === '1' || value === '2') {
+    passwordModifyForm.value.type = ''
+  }
 }
 
 // 解析文本域内容为数组
@@ -808,6 +823,13 @@ defineExpose({
         <el-form-item label="改密类型" prop="category">
           <el-select v-model="passwordModifyForm.category" placeholder="请选择改密类型" clearable style="width: 300px" @change="handleCategoryChange">
             <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+
+        <!-- 单用户账号类型（单用户改密时显示） -->
+        <el-form-item v-if="showSingleAccountType" label="账号类型" prop="type">
+          <el-select v-model="passwordModifyForm.type" placeholder="请选择账号类型" clearable style="width: 300px">
+            <el-option v-for="item in singleAccountTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
 
