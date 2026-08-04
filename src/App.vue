@@ -1159,6 +1159,7 @@ body {
 }
 .memo-remind-notification .el-notification__group {
   margin-left: 0 !important;
+  margin-right: 0 !important;
   width: 100%;
 }
 </style>
