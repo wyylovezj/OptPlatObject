@@ -9,7 +9,7 @@
  */
 import { alarmMonitoringData, itsmTodoData, eccDutyData } from '@/utils/homePageData.js'
 import { ref, computed, onMounted, watch, nextTick, h ,onUnmounted } from 'vue'
-import { Bell, Warning, CircleCheck, Clock, TrendCharts, Timer } from '@element-plus/icons-vue'
+import { Bell, Warning, CircleCheck, Clock, TrendCharts, Timer, Search } from '@element-plus/icons-vue'
 import { ElScrollbar, ElNotification, ElMessage } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
@@ -1112,6 +1112,36 @@ onUnmounted(() => {
 
 // 加载当日值班信息
 const allDutyPersonnel = ref([])
+
+// ===================== 今日值班 - 通讯录 tab =====================
+// 今日值班内部 tab：schedule-排班信息, contact-通讯录
+const dutyTab = ref('schedule')
+// 通讯录搜索关键字
+const dutySearchKeyword = ref('')
+
+// 人员类型配置（duty_personnel.personnel_type）
+const personnelTypeConfig = [
+  { type: 1, label: 'ECC', color: '#667eea' },
+  { type: 2, label: '系统运维', color: '#10b981' },
+  { type: 3, label: '网络运维', color: '#06b6d4' },
+  { type: 4, label: '甲方PM', color: '#e6a23c' },
+  { type: 5, label: '运维服务台', color: '#f56c6c' },
+]
+
+// 按人员类型分组的通讯录（按 userCode 去重 + 姓名搜索过滤）
+const dutyPersonnelGroups = computed(() => {
+  const keyword = dutySearchKeyword.value.trim()
+  const seen = new Set()
+  const uniquePeople = allDutyPersonnel.value.filter((p) => {
+    if (seen.has(p.userCode)) return false
+    seen.add(p.userCode)
+    return true
+  })
+  const filtered = keyword ? uniquePeople.filter((p) => (p.name || '').includes(keyword)) : uniquePeople
+  return personnelTypeConfig
+    .map((cfg) => ({ ...cfg, people: filtered.filter((p) => p.personnelType === cfg.type) }))
+    .filter((group) => group.people.length > 0)
+})
 const loadEccDuty = async () => {
   try {
     const today = new Date().toISOString().split('T')[0]
@@ -1159,6 +1189,40 @@ const getDutyPhone = (name) => {
   if (!name || !allDutyPersonnel.value.length) return ''
   const p = allDutyPersonnel.value.find(item => item.name === name)
   return p ? (p.phone || p.mobile || '') : ''
+}
+
+// 复制电话号码到剪贴板
+let phoneToast = null // 复制提示实例引用，新提示弹出前先关闭旧提示
+const showPhoneToast = (type, message) => {
+  if (phoneToast) phoneToast.close()
+  phoneToast = ElMessage[type]({ message, duration: 1500 })
+}
+
+const copyPhone = async (phone) => {
+  if (!phone) {
+    showPhoneToast('warning', '暂无电话号码')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(phone)
+    showPhoneToast('success', `电话 ${phone} 已复制`)
+  } catch {
+    // 非 HTTPS 环境降级方案：隐藏 textarea + execCommand
+    try {
+      const textarea = document.createElement('textarea')
+      textarea.value = phone
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      showPhoneToast('success', `电话 ${phone} 已复制`)
+    } catch (err) {
+      console.error('复制失败:', err)
+      showPhoneToast('warning', '复制失败，请手动复制')
+    }
+  }
 }
 
 </script>
@@ -1550,6 +1614,9 @@ const getDutyPhone = (name) => {
             </div>
           </div>
           <div class="ecc-duty-body">
+            <el-tabs v-model="dutyTab" class="duty-tabs">
+              <el-tab-pane name="schedule" label="排班">
+              <div class="duty-schedule-content">
             <div class="ecc-duty-row">
               <span class="ecc-shift-badge ecc-shift-day">白班</span>
               <span class="ecc-shift-label">ECC</span>
@@ -1602,50 +1669,6 @@ const getDutyPhone = (name) => {
                 {{ getDutyPhone(eccDutyData?.netOps) || '-' }}
               </span>
             </div>
-            <div class="ecc-duty-row">
-              <span class="ecc-shift-badge ecc-shift-pm">全</span>
-              <span class="ecc-shift-label">甲方 PM</span>
-              <span class="ecc-shift-time">08:30 - 18:00</span>
-              <span class="ecc-person-info">
-                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.pm }">{{ eccDutyData?.pm ? eccDutyData.pm.charAt(0) : '—' }}</span>
-                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.pm }">{{ eccDutyData?.pm || '未排班' }}</span>
-              </span>
-              <span class="ecc-person-phone">
-                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
-                {{ getDutyPhone(eccDutyData?.pm) || '-' }}
-              </span>
-            </div>
-
-            <!-- 跑批 A 角 -->
-            <div class="ecc-duty-row">
-              <span class="ecc-shift-badge ecc-shift-batch">A</span>
-              <span class="ecc-shift-label">跑批</span>
-              <span class="ecc-shift-time">18:00 - 08:30</span>
-              <span class="ecc-person-info">
-                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.batchA }">{{ eccDutyData?.batchA ? eccDutyData.batchA.charAt(0) : '—' }}</span>
-                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.batchA }">{{ eccDutyData?.batchA || '未排班' }}</span>
-              </span>
-              <span class="ecc-person-phone">
-                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
-                {{ getDutyPhone(eccDutyData?.batchA) || '-' }}
-              </span>
-            </div>
-
-            <!-- 跑批 B 角 -->
-            <div class="ecc-duty-row">
-              <span class="ecc-shift-badge ecc-shift-batch">B</span>
-              <span class="ecc-shift-label">跑批</span>
-              <span class="ecc-shift-time">18:00 - 08:30</span>
-              <span class="ecc-person-info">
-                <span class="ecc-avatar" :class="{ 'ecc-avatar-empty': !eccDutyData?.batchB }">{{ eccDutyData?.batchB ? eccDutyData.batchB.charAt(0) : '—' }}</span>
-                <span class="ecc-person-name" :class="{ 'ecc-person-name-empty': !eccDutyData?.batchB }">{{ eccDutyData?.batchB || '未排班' }}</span>
-              </span>
-              <span class="ecc-person-phone">
-                <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
-                {{ getDutyPhone(eccDutyData?.batchB) || '-' }}
-              </span>
-            </div>
-
             <!-- 运维服务台 - 业务组 -->
             <div class="ecc-duty-row">
               <span class="ecc-shift-badge ecc-shift-service">业务</span>
@@ -1690,6 +1713,50 @@ const getDutyPhone = (name) => {
                 {{ getDutyPhone(eccDutyData?.serviceC) || '-' }}
               </span>
             </div>
+              </div>
+              </el-tab-pane>
+              <el-tab-pane name="contact" label="通讯录">
+                <div class="duty-contact-panel">
+                  <el-input
+                    v-model="dutySearchKeyword"
+                    placeholder="输入姓名快速搜索"
+                    clearable
+                    size="small"
+                    class="duty-search-input"
+                  >
+                    <template #prefix>
+                      <el-icon><Search /></el-icon>
+                    </template>
+                  </el-input>
+                  <el-scrollbar class="duty-contact-scrollbar">
+                    <div class="duty-contact-groups">
+                      <div v-for="group in dutyPersonnelGroups" :key="group.type" class="duty-contact-group">
+                        <div class="duty-contact-group-header">
+                          <span class="duty-contact-group-name">{{ group.label }}</span>
+                          <span class="duty-contact-group-count">{{ group.people.length }}人</span>
+                        </div>
+                        <div v-for="person in group.people" :key="person.userCode" class="duty-contact-item">
+                          <span class="ecc-avatar">{{ person.name.charAt(0) }}</span>
+                          <span class="duty-contact-name">{{ person.name }}</span>
+                          <span
+                            class="duty-contact-phone"
+                            :class="{ 'phone-copyable': person.phone }"
+                            :title="person.phone ? '点击复制电话号码' : '暂无电话'"
+                            @click="copyPhone(person.phone)"
+                          >
+                            <svg class="ecc-phone-icon" viewBox="0 0 28 18" width="24" height="16"><text x="0" y="14" fill="currentColor" font-size="13" font-family="Arial,sans-serif" font-weight="bold">Tel</text></svg>
+                            <span class="phone-number">{{ person.phone || '-' }}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div v-if="dutyPersonnelGroups.length === 0" class="duty-contact-empty">
+                        <el-empty description="未找到匹配的人员" :image-size="80" />
+                      </div>
+                    </div>
+                  </el-scrollbar>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
           </div>
         </div>
 
@@ -2831,6 +2898,7 @@ const getDutyPhone = (name) => {
 /* ECC 值班卡片 */
 .ecc-duty-section {
   flex-shrink: 0;
+  height: 400px; /* 固定卡片高度：正好容纳 7 行排班内容，切换 tab 高度不变，通讯录超出由 el-scrollbar 滚动 */
 }
 
 .ecc-duty-body {
@@ -2838,12 +2906,15 @@ const getDutyPhone = (name) => {
   flex-direction: column;
   gap: 8px;
   padding-top: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .ecc-duty-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 6px 10px;
   background: #f8f9fa;
   border-radius: 8px;
@@ -2959,6 +3030,193 @@ const getDutyPhone = (name) => {
   color: #909399;
   font-family: 'Consolas', 'Courier New', monospace;
   flex-shrink: 0;
+}
+
+/* 排班内容容器：恢复行间距（原 .ecc-duty-body 的 gap 仅作用于直接子元素，包进 tab 后失效）；margin auto 将上下剩余空白平分 */
+.duty-schedule-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: auto 0;
+  width: 100%;
+}
+
+/* 今日值班 - tabs */
+.duty-tabs {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.duty-tabs :deep(.el-tabs__header) {
+  margin: 0 0 8px 0;
+  flex-shrink: 0;
+}
+
+.duty-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 0 2px;
+}
+
+.duty-tabs :deep(.el-tabs__item) {
+  padding: 0 12px;
+  font-size: 12px;
+  height: 30px;
+}
+
+.duty-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+  height: 0;
+}
+
+.duty-tabs :deep(.el-tab-pane) {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 今日值班 - 通讯录 */
+.duty-contact-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.duty-search-input {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* 搜索框主题美化：胶囊圆角 + 紫蓝渐变主题 */
+.duty-search-input :deep(.el-input__wrapper) {
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f6f7fc 0%, #ffffff 100%);
+  box-shadow: 0 0 0 1px #e4e8f5 inset;
+  transition: all 0.3s ease;
+  padding: 1px 14px;
+}
+
+.duty-search-input :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #b9c4f7 inset, 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.duty-search-input :deep(.el-input__wrapper.is-focus) {
+  background: #fff;
+  box-shadow: 0 0 0 1px #667eea inset, 0 4px 14px rgba(102, 126, 234, 0.18);
+}
+
+.duty-search-input :deep(.el-input__prefix) {
+  color: #667eea;
+  transition: color 0.3s ease;
+}
+
+.duty-search-input :deep(.el-input__wrapper.is-focus .el-input__prefix) {
+  color: #764ba2;
+}
+
+.duty-search-input :deep(.el-input__inner) {
+  font-size: 12px;
+}
+
+.duty-search-input :deep(.el-input__inner::placeholder) {
+  color: #a3a8bd;
+}
+
+.duty-contact-scrollbar {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.duty-contact-scrollbar :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden;
+}
+
+.duty-contact-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 6px;
+}
+
+.duty-contact-group {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.duty-contact-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.duty-contact-group-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2d3436;
+}
+
+.duty-contact-group-count {
+  font-size: 11px;
+  color: #909399;
+}
+
+.duty-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 13px;
+}
+
+.duty-contact-item + .duty-contact-item {
+  border-top: 1px dashed #e4e7ed;
+}
+
+.duty-contact-name {
+  flex: 1;
+  color: #2d3436;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duty-contact-phone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #909399;
+  font-family: 'Consolas', 'Courier New', monospace;
+  flex-shrink: 0;
+  min-width: 110px;
+}
+
+/* 电话可点击复制 */
+.duty-contact-phone.phone-copyable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.duty-contact-phone.phone-copyable:hover {
+  color: #667eea;
+}
+
+.phone-number {
+  user-select: text;
+}
+
+.duty-contact-empty {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
 }
 
 .section-header {
