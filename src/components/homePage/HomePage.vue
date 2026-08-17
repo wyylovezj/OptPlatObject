@@ -21,7 +21,7 @@ import {
   getAlertTrendData,
   getHandleTimeData,
 } from '@/api/homePage.js'
-import { getDuty,getEcc, getSys, getNet, getPM, getBatch, getService, getOtherDuty } from '@/api/dutyPageInterface.js'
+import { getDuty,getEcc, getSys, getNet, getPM, getBatch, getService, getOther, getOtherDuty } from '@/api/dutyPageInterface.js'
 
 // 计算环比变化
 const totalChange = computed(() => {
@@ -1126,6 +1126,7 @@ const personnelTypeConfig = [
   { type: 3, label: '网络运维', color: '#06b6d4' },
   { type: 4, label: '甲方PM', color: '#e6a23c' },
   { type: 5, label: '运维服务台', color: '#f56c6c' },
+  { type: 6, label: '其他人员', color: '#909399' },
 ]
 
 // 按人员类型分组的通讯录（按 userCode 去重 + 姓名搜索过滤）
@@ -1145,10 +1146,10 @@ const dutyPersonnelGroups = computed(() => {
 const loadEccDuty = async () => {
   try {
     const today = new Date().toISOString().split('T')[0]
-    const [dutyResult, ecc, sys, net, pm, batch, service] = await Promise.all([
+    const [dutyResult, ecc, sys, net, pm, batch, service, other] = await Promise.all([
       getDuty([today, today]),
       getEcc(), getSys(), getNet(), getPM(),
-      getBatch(), getService()
+      getBatch(), getService(), getOther()
     ])
     allDutyPersonnel.value = [
       ...(ecc || []).map(p => ({ ...p, category: 'ecc' })),
@@ -1157,6 +1158,7 @@ const loadEccDuty = async () => {
       ...(pm || []).map(p => ({ ...p, category: 'pm' })),
       ...(batch || []).map(p => ({ ...p, category: 'batch' })),
       ...(service || []).map(p => ({ ...p, category: 'service' })),
+      ...(other || []).map(p => ({ ...p, category: 'other' })),
     ]
 
     if (dutyResult && Array.isArray(dutyResult) && dutyResult.length > 0) {
