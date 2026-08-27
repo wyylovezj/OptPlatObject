@@ -1844,6 +1844,14 @@ const goFillWeek = (weekNum) => {
 
 const handleReportReturned = (e) => { const { weekNum } = e.detail; if (weekNum !== fillWeek.value) return; loadFillData(true) }
 
+// 周报状态变更（本人提交/系统自动提交）：本人记录被提交时静默刷新填写页
+const handleStatusChange = (e) => {
+  const { action, username: notifUser, weekNum } = e.detail || {}
+  if (action === 'submitted' && notifUser === username.value && weekNum === fillWeek.value) {
+    loadFillData(true)
+  }
+}
+
 // 模块/子模块变更时静默刷新填写页数据（响应式更新模块列表和状态）
 const handleModuleChange = () => { loadFillData(true) }
 
@@ -1881,6 +1889,7 @@ onMounted(async () => {
   try { const res = await getWeekConfig(currentWeek); if (res.code === 200 && res.data && res.data.startDate && res.data.endDate) setWeekConfig(currentWeek, res.data.startDate, res.data.endDate) } catch (e) { /* */ }
   loadFillData()  // 内部会重新加载 reportModules、subModules 和 records
   window.addEventListener('weekly-report-returned', handleReportReturned)
+  window.addEventListener('weekly-report-status-change', handleStatusChange)
   window.addEventListener('weekly-report-module-change', handleModuleChange)
   window.addEventListener('beforeunload', handleBeforeUnload)
   // 默认选中第一个目录项
@@ -1906,6 +1915,7 @@ watch(activeSectionKey, (key) => {
 // 组件卸载时移除事件监听
 onUnmounted(() => {
   window.removeEventListener('weekly-report-returned', handleReportReturned)
+  window.removeEventListener('weekly-report-status-change', handleStatusChange)
   window.removeEventListener('weekly-report-module-change', handleModuleChange)
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
