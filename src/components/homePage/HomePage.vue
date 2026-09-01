@@ -1129,15 +1129,18 @@ const personnelTypeConfig = [
   { type: 6, label: '其他人员', color: '#909399' },
 ]
 
-// 按人员类型分组的通讯录（按 userCode 去重 + 姓名搜索过滤）
+// 按人员类型分组的通讯录（仅显示状态正常人员，按 userCode 去重 + 姓名搜索过滤）
 const dutyPersonnelGroups = computed(() => {
   const keyword = dutySearchKeyword.value.trim()
   const seen = new Set()
-  const uniquePeople = allDutyPersonnel.value.filter((p) => {
-    if (seen.has(p.userCode)) return false
-    seen.add(p.userCode)
-    return true
-  })
+  // status：0-禁用, 1-启用；过滤禁用人员（status 为空的历史数据视为正常），再去重
+  const uniquePeople = allDutyPersonnel.value
+    .filter((p) => p.status !== 0)
+    .filter((p) => {
+      if (seen.has(p.userCode)) return false
+      seen.add(p.userCode)
+      return true
+    })
   const filtered = keyword ? uniquePeople.filter((p) => (p.name || '').includes(keyword)) : uniquePeople
   return personnelTypeConfig
     .map((cfg) => ({ ...cfg, people: filtered.filter((p) => p.personnelType === cfg.type) }))
