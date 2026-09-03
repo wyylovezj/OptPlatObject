@@ -418,7 +418,7 @@ const submitTask = async () => {
     console.log('任务提交结果:', response)
 
     const resultData = response?.data || {}
-    if (resultData.status) {
+    if (resultData.status === 'success') {
       // 服务端已返回执行结果：将结果数据写入文件下载到浏览器
       downloadResultFile(taskId, resultData)
       ElMessage.success({
