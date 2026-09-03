@@ -25,6 +25,7 @@ import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
 import { Search, Edit,Key,Timer,Download,Unlock } from '@element-plus/icons-vue'
 import ToolItemModels from './ToolItemModels.vue'
+import LinuxToolModels from './LinuxToolModels.vue'
 
 // 邮件别名查询相关 ref
 const emailAliasInputFile = ref(null)
@@ -42,6 +43,7 @@ const cardRenderState = ref({
   tokenUnlock: false,
   emailManage: false,
   passwordModify: false, // 主机密码修改卡片渲染状态
+  linuxTool: false, // Linux系统工具卡片渲染状态
 })
 
 // 新增：实时统计实际渲染的卡片数量（不依赖任何数据，只统计实际 DOM）
@@ -414,6 +416,10 @@ const initHistoryTaskTable = async () => {
 const openPasswordModifyHistory = () => {
   dialogVisible.value.passwordModifyHistory = true
 }
+// 打开Linux系统工具历史任务模态框
+const openLinuxToolHistory = () => {
+  dialogVisible.value.linuxToolHistory = true
+}
 // 表单验证定时器
 let validateTimer = null
 // 定义一个计算属性，判断是否有 el-card 需要显示
@@ -433,6 +439,8 @@ const dialogVisible = ref({
   emailManage: false, // 邮件管理控制台模态框可视状态
   passwordModify: false, // 主机密码修改模态框可视状态
   passwordModifyHistory: false, // 主机密码修改历史任务模态框可视状态
+  linuxToolConsole: false, // Linux系统工具控制台模态框可视状态
+  linuxToolHistory: false, // Linux系统工具历史任务模态框可视状态
 })
 const buttonVisible = ref({
   taskDetails: false,  //脚本下发后任务详情按钮显示状态
@@ -468,6 +476,7 @@ const exportDisabled = ref({
   emailManage: false, // 邮件管理按钮禁用状态
   renameSubmit: false, // 邮件管理界面禁用状态
   passwordModify: false, // 主机密码修改按钮禁用状态
+  linuxTool: false, // Linux系统工具按钮禁用状态
 })
 // 进度条可视状态
 const percentageVisible = ref({
@@ -3163,6 +3172,40 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </el-card>
+        <!-- Linux系统工具卡片 -->
+        <el-card
+          v-if="containsLabel('Linux系统工具') && permissionStore.hasPermission('tool:linuxTools')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.linuxTool = !!el; }"
+        >
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-xitongguanli"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>Linux系统工具</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="danger" @click="openLinuxToolHistory">历史任务</el-button>
+                <el-button type="primary" :disabled="exportDisabled.linuxTool" @click="() => {dialogVisible.linuxToolConsole = true}"> 控制台 </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
       </div>
       <el-empty v-if="!hasVisibleCards" description="无匹配数据" style="width: 100%; height: 95%" />
       <!-- 分页：显示总数、页码导航 -->
@@ -4302,6 +4345,17 @@ onBeforeUnmount(() => {
       v-model="dialogVisible.passwordModifyHistory"
       :default-history-mode="true"
       @close="() => { dialogVisible.passwordModifyHistory = false }"
+    />
+    <!-- Linux系统工具控制台模态框 -->
+    <LinuxToolModels
+      v-model="dialogVisible.linuxToolConsole"
+      @close="() => { dialogVisible.linuxToolConsole = false; exportDisabled.linuxTool = false }"
+    />
+    <!-- Linux系统工具历史任务模态框 -->
+    <LinuxToolModels
+      v-model="dialogVisible.linuxToolHistory"
+      :default-history-mode="true"
+      @close="() => { dialogVisible.linuxToolHistory = false }"
     />
   </div>
 </template>
