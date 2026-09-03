@@ -47,6 +47,7 @@ watch(
 const linuxToolForm = ref({
   sys_user: '', // 系统用户
   host: [], // 目的主机列表
+  time_out: 10, // 超时时间（秒）
   script: [], // 脚本内容（按行拆分，保留行内空格）
 })
 
@@ -66,6 +67,13 @@ const formRules = ref({
     {
       required: true,
       message: '请输入或导入目的主机',
+      trigger: 'blur',
+    },
+  ],
+  time_out: [
+    {
+      required: true,
+      message: '请输入超时时间',
       trigger: 'blur',
     },
   ],
@@ -117,7 +125,7 @@ const checkRootPermission = async () => {
 
 // 计算属性：模态框宽度（控制台表单始终包含文本域组件，固定为700px）
 const dialogWidth = computed(() => {
-  return '700px'
+  return '800px'
 })
 
 // 目的主机文本域的值（用于显示和编辑）
@@ -402,6 +410,7 @@ const submitTask = async () => {
       taskId: taskId,
       sys_user: linuxToolForm.value.sys_user,
       host: linuxToolForm.value.host,
+      time_out: linuxToolForm.value.time_out, // 超时时间（秒）
       script: linuxToolForm.value.script,
       operator_username: confirmForm.value.username, // 身份确认用户名
       operator_password: confirmForm.value.password, // 身份确认密码
@@ -477,6 +486,7 @@ const resetForm = () => {
   linuxToolForm.value = {
     sys_user: '',
     host: [],
+    time_out: 10,
     script: [],
   }
 
@@ -841,7 +851,7 @@ defineExpose({
       >
         <!-- 第1个组件：系统用户 -->
         <el-form-item label="系统用户" prop="sys_user">
-          <el-select v-model="linuxToolForm.sys_user" placeholder="请选择系统用户" clearable style="width: 300px">
+          <el-select v-model="linuxToolForm.sys_user" placeholder="请选择系统用户" clearable style="width: 200px">
             <el-option v-for="item in sysUserOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -852,9 +862,9 @@ defineExpose({
             <el-input
               v-model="hostText"
               type="textarea"
-              :autosize="{ minRows: 5, maxRows: 10 }"
+              :autosize="{ minRows: 5, maxRows: 5 }"
               placeholder="请输入目的主机IP，每行一个"
-              style="width: 400px"
+              style="width: 250px"
               resize="none"
               @input="handleHostChange"
             />
@@ -867,17 +877,28 @@ defineExpose({
           </div>
         </el-form-item>
 
-        <!-- 第3个组件：脚本内容 -->
+        <!-- 第3个组件：超时时间 -->
+        <el-form-item label="超时时间" prop="time_out">
+          <el-input-number v-model="linuxToolForm.time_out" :min="10" :max="3600" :step="10" style="width: 200px">
+            <template #suffix>
+              <span>秒</span>
+            </template>
+          </el-input-number>
+          <span style="font-size: 12px; color: #909399; margin-left: 10px">有效范围：10 ~ 3600</span>
+        </el-form-item>
+
+        <!-- 第4个组件：脚本内容 -->
         <el-form-item label="脚本内容" prop="script">
           <div style="display: flex; align-items: flex-start; gap: 10px">
             <el-input
               v-model="scriptText"
               type="textarea"
-              :autosize="{ minRows: 5, maxRows: 20 }"
+              :autosize="{ minRows: 5, maxRows: 10, minColumns: 50, maxColumns: 100 }"
               placeholder="请输入shell脚本内容，保持脚本原格式"
-              style="width: 400px"
+              style="width: 500px"
               resize="none"
               @input="handleScriptChange"
+              SPELLCHECK="false"
             />
             <div style="display: flex; flex-direction: column; gap: 8px">
               <el-upload action="#" :auto-upload="false" :on-change="importScriptFile" :show-file-list="false" accept=".txt,.sh">
