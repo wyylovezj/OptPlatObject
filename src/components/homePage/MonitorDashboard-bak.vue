@@ -8,53 +8,8 @@ import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { ElMessage, ElScrollbar } from 'element-plus'
 import axios from 'axios'
 import * as echarts from 'echarts'
-
-// 修改 src/utils/publicData.js 中的 serverIp 定义
-const RBAC_IP = ref(window.APP_CONFIG?.RBAC_IP || '127.0.0.1');
-// ==================== 告警/ITSM 接口直连(与首页同源,组件内自持不经 api/homePage.js 转发) ====================
-// 告警级别统计(严重/重要/一般): 入参日期 YYYY-MM-DD,返回 { critical/important/general/total, status }
-const getAlertLevelData = async (date) => {
-  try {
-    const res = await axios.post(`${RBAC_IP.value}/getMonitorAlertLevelData`, { date })
-    return res.data
-  } catch (error) {
-    console.error('获取告警级别数据失败:', error)
-    throw error
-  }
-}
-
-// 告警状态统计(闭环收敛: 今日已处理/待处理): 入参日期
-const getAlertStatusData = async (date) => {
-  try {
-    const res = await axios.post(`${RBAC_IP.value}/getMonitorAlertStatusData`, { date })
-    return res.data
-  } catch (error) {
-    console.error('获取告警状态数据失败:', error)
-    throw error
-  }
-}
-
-// 告警统计(今日新增告警数): 无入参,返回 { added: { today } }
-const getAlertStatisticData = async () => {
-  try {
-    const res = await axios.get(`${RBAC_IP.value}/getMonitorAlertStatisticData`)
-    return res.data
-  } catch (error) {
-    console.error('获取告警统计数据失败:', error)
-    throw error
-  }
-}
-
-// ITSM 工单待办 + SLA 达成率(首页 ITSM 待办卡片同源): 入参当前登录用户名
-const getOrderData = async (username) => {
-  try {
-    const res = await axios.post(`${RBAC_IP.value}/getMonitorOrderData`, { username })
-    return res.data
-  } catch (error) {
-    console.error('获取 ITSM 工单数据失败:', error)
-    throw error
-  }
-}
+import { getAlertLevelData, getAlertStatisticData, getAlertStatusData, getOrderData } from '@/api/homePage.js'
+import { serverIp } from '@/utils/publicData.js'
 
 // ==================== 告警真实数据(与首页/告警数据页面同源接口) ====================
 
@@ -81,7 +36,7 @@ const trendSeriesData = ref({ xData: [], crit: [], major: [], minor: [] })
 // 采样周期: 每 5 分钟采样一次(数据拉取仅此周期进行)
 const TREND_SAMPLE_INTERVAL = 5 * 60 * 1000
 // 图形重绘周期: 每 3 秒完整重绘一次频次推移折线(仅重绘渲染,不触发数据拉取)
-const TREND_REPAINT_INTERVAL = 10 * 1000
+const TREND_REPAINT_INTERVAL = 3 * 1000
 // 窗口容量: 24 个槽位 = 最近 2 小时(24 × 5 分钟)
 const TREND_MAX_POINTS = 24
 // 槽宽(分钟): 槽位时间轴锚定 5 分钟网格(如 14:00 / 14:05 / 14:10)
@@ -139,45 +94,42 @@ const refreshRowTimes = () => {
   alertRows.value.forEach(o => { o.time = relativeTime(o.raw) })
 }
 
-// 全栈基础设施与应用监控矩阵(生产数据由 getMonitoMatrixData 接口生成,本地仅保留同键空壳类型占位)
-// 顶部 SLA 综合健康率: 接口返回数字,未拉回前不显示数值
-const overallSla = ref(null)
+// 全栈基础设施与应用监控矩阵
 const infraData = ref({
-  app: { health: '', total: 0, coreRate: '', devCount: '', opsCount: '', branchCount: '', logRate: '' },
-  host: { total: 0, health: '', offline: 0, cpu: 0, ram: 0, disk: 0, net: 0 },
-  db: { total: 0, health: '', pool: '', slow: '', replica: '', sessions: '', qpsPeak: '' },
-  middleware: { total: 0, kafkaLag: 0, redisHit: '', rocket: '', zk: '', es: '', retry: '' },
-  k8s: { pods: 0, restarts: 0, clusters: '', nodes: '', pending: '', hpa: '', cpuPct: '', memPct: '', etcd: '' },
-  docker: { total: 0, health: '', stopped: 0, oom: '', scan: '', healthChk: '', logRate: '' },
-  jvm: { threads: 0, heap: '', youngGc: '', fullGc: '', classes: '', deadlock: '', jdk: '' },
-  api: { health: '', total: 0, rtt: 0, err4xx: '', err5xx: '', p99: '', icmpRate: '' },
+  host: { total: 248, health: '99.1%', offline: 2, cpu: 68, ram: 82, disk: 58, net: 73 },
+  db: { total: 36, health: '100% 在线', pool: '76.4%', slow: '14 ops', replica: '< 0.05s', sessions: '1,285 个', qpsPeak: '9.8K' },
+  middleware: { total: 52, kafkaLag: 1842, redisHit: '99.4%', rocket: '8,420/s', zk: '128 会话', es: 'Green 正常', retry: '0 个' },
+  k8s: { pods: 1260, restarts: 8, clusters: '4 Clusters', nodes: '62/64 Ready', pending: '2 Pending', hpa: '12次 / 1h', cpuPct: '62%', memPct: '71%' },
+  docker: { total: 3420, health: '99.8%', stopped: 14, oom: '0 触发', scan: '全合规', healthChk: '0 失败', logRate: '1.8 GB/h' },
+  jvm: { threads: 8640, heap: '73.2%', youngGc: '28ms / 次', fullGc: '1次 / 1h', classes: '21.4K', deadlock: '0 个' },
+  api: { total: 432, health: '99.98%', rtt: 38, err4xx: '0.31%', err5xx: '0.008%', p99: '86 ms', breaker: '0 激活' },
 })
 
-// 阿里云专有云企业套件监控(生产数据由 getMonitoMatrixData 接口生成)
+// 阿里云专有云企业套件监控
 const cloudData = ref({
-  ecs: { count: 0, health: '', cpu: '', mem: '', iops: '', disk: '', ess: '' },
-  vpc: { routes: 0, zones: '', vbr: '', nat: '', eip: '', vsw: '', flowlog: '' },
-  slb: { count: 0, health: '', qps: 0, newConn: '', unhealthy: '', ssl: '', healthChk: '' },
-  security: { rules: 0, health: '', audit: '', blocks: 0, ddos: '', brute: '', vuln: '', policyCount: '', triageRate: '', vulnCount: '' },
-  rds: { instances: 0, health: '', replica: '', storage: '', backup: '', cpu: '', conns: '' },
-  oss: { size: 0, health: '', bandwidth: '', reqQps: '', apiRate: '', objects: '', dr: '' },
+  ecs: { count: 512, health: '99.9% 稳定', cpu: '54.2%', mem: '61.8%', iops: '18.4K / 320MB/s', disk: '47%', ess: '就绪' },
+  vpc: { routes: 68, zones: '12 个隔离区', vbr: '10G 双活', nat: '42.5 万 pps', eip: '128/150 已分配', vsw: '86 个', flowlog: '已开启' },
+  slb: { count: 28, health: '100% 正常', qps: 24500, newConn: '12.6K /s', unhealthy: '0 台', ssl: '已开启', healthChk: '全通过' },
+  security: { rules: 864, health: '防御中', audit: '全合规', blocks: 3182, ddos: 'Clean 5.2G', brute: '126 次', vuln: '0 高危' },
+  rds: { instances: 24, health: '高可用 HA', replica: '< 0.08s', storage: '12.4 TB (61%)', backup: '已完成', cpu: '22%', conns: '1,842 个' },
+  oss: { size: 184, health: '16 Buckets', bandwidth: '840 Mbps', reqQps: '42.6K', apiRate: '99.999%', objects: '2.86 亿', dr: '已同步' },
 })
 
 // ==================== 大屏轮播控制 ====================
 // 两块大屏定义: 运维监控 / ITSM流程(标题在顶部正中间随轮播切换)
 const screens = [
   { key: 'ops', title: '全栈智能运维告警监控中心' },
-  { key: 'itsm', title: 'ITSM流程监控中心' },
+  { key: 'itsm', title: 'ITSM流程大屏 · ITSM Process' },
 ]
 const currentIndex = ref(0)
 const currentScreen = computed(() => screens[currentIndex.value])
 
-// 自动轮播配置(毫秒)，15秒自动轮播
-const AUTO_PLAY_INTERVAL = 15000
+// 自动轮播配置(毫秒)
+const AUTO_PLAY_INTERVAL = 10000
 // 轮播倒计时秒数: 由顶部倒计时环实时展示,归零时切换下一屏
 const COUNTDOWN_TOTAL = AUTO_PLAY_INTERVAL / 1000
 const countdown = ref(COUNTDOWN_TOTAL)
-const autoPlayEnabled = ref(false)
+const autoPlayEnabled = ref(true)
 const isHovering = ref(false)
 let autoPlayTimer = null
 
@@ -247,7 +199,7 @@ const isFullscreenMode = ref(false)
 const syncFullscreenState = () => {
   const fullscreen = !!document.fullscreenElement
   isFullscreenMode.value = fullscreen
-  document.body.classList.toggle('-fullscreen', fullscreen)
+  document.body.classList.toggle('monitor-fullscreen', fullscreen)
   // 全屏切换导致布局突变,mouseenter/leave 可能丢失而使悬停暂停状态卡死
   // 这里重置悬停状态并恢复轮播,倒计时从中断处继续
   isHovering.value = false
@@ -292,6 +244,7 @@ const initCharts = () => {
     initClosureChart()
     initAlertStreamChart()
     initItmsCharts()
+    initMiniCharts()
   })
 }
 
@@ -375,7 +328,7 @@ const relativeTime = (str) => {
 
 // 快照序列持久化(localStorage): 刷新或重开页面后恢复今日已积累的快照,跨天自动清空(今日累计语义下旧数据无意义)
 // key 升级为 v2: 旧版为 15 秒粒度(6 分钟窗口),新版为 5 分钟粒度(2 小时窗口),时间格式不兼容旧缓存直接作废
-const TREND_STORAGE_KEY = '-trend-series-v2'
+const TREND_STORAGE_KEY = 'monitor-trend-series-v2'
 // 快照序列所属日期: 用于跨天检测(页面不关跨越零点时清空序列,新一天从零开始积累)
 let trendSeriesDate = todayStr()
 
@@ -475,7 +428,7 @@ const updateClosureChart = () => {
 // 直连原始接口而非 api/interface.js 的 searchData 封装,避免触发其中耦合的语音播报副作用
 const fetchAlertDetail = async () => {
   try {
-    const rows = await axios.post(`${RBAC_IP.value}/searchMonitorData`, {}).then(r => (r.data && r.data.data) || [])
+    const rows = await axios.post(`${serverIp.value}/searchData`, {}).then(r => (r.data && r.data.data) || [])
     const list = [...rows]
       .sort((a, b) => (parseTime(b.occurrenceTime) || 0) - (parseTime(a.occurrenceTime) || 0))
       .slice(0, 12)
@@ -578,34 +531,6 @@ const itsmTodoTotal = computed(() =>
   ITSM_ORDER_TYPES.reduce((sum, type) => sum + (itsmData.value[type]?.length || 0), 0)
 )
 
-// 工单总览五类占比行(卡片内嵌微条数据): 类别名/色板/数量/占待办总量百分比,实时跟随接口数据
-const itsmOverviewRows = computed(() => {
-  const total = itsmTodoTotal.value
-  return ITSM_ORDER_TYPES.map(type => {
-    const count = itsmData.value[type]?.length || 0
-    return {
-      label: ITSM_CATEGORY_META[type].label,
-      color: ITSM_CATEGORY_META[type].color,
-      count,
-      pct: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
-    }
-  })
-})
-
-// SLA 卡三行占比条数据: 周期工单为满量基线(100%),达标绿/超时红 = 各自数量 / 周期工单总数
-const slaOverviewRows = computed(() => {
-  const s = itsmData.value.sla || {}
-  const total = Number(s.total) || 0
-  const pctOf = v => (total > 0 ? Math.round((v / total) * 1000) / 10 : 0)
-  const achieved = Number(s.achieved) || 0
-  const overtime = Number(s.overtime) || 0
-  return [
-    { label: '周期工单', count: total, pct: total > 0 ? 100 : 0, tip: '周期工单总量', color: '#00d4ff', valClass: 'c-info' },
-    { label: '达标工单', count: achieved, pct: pctOf(achieved), tip: total > 0 ? `占周期工单 ${pctOf(achieved)}%` : '暂无数据', color: '#00ff88', valClass: 'c-good' },
-    { label: '超时工单', count: overtime, pct: pctOf(overtime), tip: total > 0 ? `占周期工单 ${pctOf(overtime)}%` : '暂无数据', color: '#ff4757', valClass: 'c-bad' },
-  ]
-})
-
 // 工单分类占比: 近 7 日五类工单合计(week_trend 派生,与工单趋势图同口径),供饼图直接消费
 const itsmCategoryStat = computed(() =>
   ITSM_ORDER_TYPES.map(type => ({
@@ -654,58 +579,6 @@ const fetchItmsData = async () => {
   }
 }
 
-// 拉取监控矩阵卡数据(应用系统/全栈基础设施/阿里云套件): 30 秒周期整组替换本地 ref,
-// 返回键名与后端 getMonitoMatrixData 保持一致,数值由接口随机生成(前端不再本地编造)
-const fetchMatrixData = async () => {
-  try {
-    const res = await axios.post(`${RBAC_IP.value}/getMonitorMatrixData`, {})
-    const d = res?.data
-    if (d?.status !== 'success') return
-    if (d.infra) infraData.value = d.infra
-    if (d.cloud) cloudData.value = d.cloud
-    if (typeof d.topSla === 'number') overallSla.value = d.topSla
-  } catch (error) {
-    console.error('监控矩阵数据拉取失败:', error)
-  }
-}
-
-// ==================== 知识库(第二屏知识库卡: 与后端 getMonitoKnowledgeData 接口同源,30s 刷新) ====================
-// 分类固定为 系统类/容器云/网络类/其他/新增,条数为整数;占比条条宽 = 分类条数 / 总数
-const KB_CATEGORY_COLOR = {
-  '系统类': '#00d4ff',
-  '容器云': '#a78bfa',
-  '网络类': '#00ff88',
-  '其他': '#ffa502',
-  '新增': '#ff4757',
-}
-const knowledgeData = ref({ total: 0, items: [] })
-
-// 知识库五类占比行: 分类色板/条数/占比(与工单总览卡同口径: 条宽 = 该类条数 / 总条数)
-const knowledgeRows = computed(() => {
-  const total = Number(knowledgeData.value.total) || 0
-  return (knowledgeData.value.items || []).map(item => {
-    const count = Number(item.count) || 0
-    return {
-      name: item.name,
-      count,
-      color: KB_CATEGORY_COLOR[item.name] || '#00d4ff',
-      pct: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
-    }
-  })
-})
-
-// 拉取知识库五类条目统计(与 ITSM 数据同 30 秒周期,接口随机生成条数)
-const fetchKnowledgeData = async () => {
-  try {
-    const res = await axios.post(`${RBAC_IP.value}/getMonitorKnowledgeData`, {})
-    const d = res?.data
-    if (d?.status !== 'success') return
-    knowledgeData.value = { total: Number(d.total) || 0, items: d.items || [] }
-  } catch (error) {
-    console.error('知识库数据拉取失败:', error)
-  }
-}
-
 // ==================== 第2屏 ITSM 图表(第三排: 工单趋势/分类占比/SLA达成趋势) ====================
 // 深色大屏统一 tooltip 皮肤(与第1屏图表一致)
 const itmsTooltip = { backgroundColor: 'rgba(10,20,45,0.9)', borderColor: '#00d4ff', textStyle: { color: '#e0e6ed' } }
@@ -742,52 +615,19 @@ const buildOrderTrendOption = (rows) => {
   }
 }
 
-// 工单分类占比(近 7 日): 横向条形图 —— 宽扁卡片内条形比环形图更饱满,条长=数量;
-// 类目自顶向下按五类色板顺序,尾标显示 单数 + 占比;值轴留 1.3 倍余量防长条尾标越界
-const buildCategoryOption = (list) => {
-  const total = list.reduce((sum, it) => sum + (Number(it.value) || 0), 0)
-  const pctOf = v => (total > 0 ? Math.round((v / total) * 1000) / 10 : 0)
-  return {
-    tooltip: {
-      ...itmsTooltip,
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      formatter: ps => {
-        const p = ps && ps[0]
-        return p ? `${p.name}: <b>${p.value} 单</b> · 占近 7 日 ${pctOf(p.value)}%` : ''
-      },
-    },
-    grid: { top: 6, right: 4, bottom: 2, left: 40 },
-    xAxis: {
-      type: 'value',
-      axisLabel: { show: false },
-      splitLine: { lineStyle: { color: '#1a2a4a', type: 'dashed' } },
-      max: v => Math.ceil(v.max * 1.3),
-    },
-    yAxis: {
-      type: 'category',
-      inverse: true,
-      data: list.map(i => i.name),
-      axisLine: { lineStyle: { color: '#1a2a4a' } },
-      axisTick: { show: false },
-      axisLabel: { color: '#a8b8d0', fontSize: 12 },
-    },
-    series: [{
-      type: 'bar',
-      barWidth: 15,
-      label: {
-        show: true,
-        position: 'right',
-        color: '#e0e6ed',
-        fontFamily: "'Courier New', monospace",
-        fontSize: 12,
-        formatter: p => `${p.value} 单 · ${pctOf(p.value)}%`,
-      },
-      itemStyle: { borderRadius: [0, 5, 5, 0] },
-      data: list.map(i => ({ value: i.value, itemStyle: { color: i.color } })),
-    }],
-  }
-}
+// 工单分类占比(近 7 日): 环形饼图
+const buildCategoryOption = (list) => ({
+  tooltip: { ...itmsTooltip, trigger: 'item', formatter: '{b}: {c} 单 ({d}%)' },
+  legend: { bottom: 0, left: 'center', icon: 'circle', itemWidth: 8, itemHeight: 8, itemGap: 12, textStyle: { color: '#8a9bb5', fontSize: 10 } },
+  series: [{
+    type: 'pie',
+    radius: ['46%', '68%'],
+    center: ['50%', '44%'],
+    itemStyle: { borderColor: '#0a142d', borderWidth: 2 },
+    label: { show: false },
+    data: list.map(item => ({ ...item, itemStyle: { color: item.color } })),
+  }],
+})
 
 // SLA 达成率趋势(近 7 日): 平滑折线 + 目标基线参考线
 const buildSlaTrendOption = (rows) => {
@@ -866,18 +706,411 @@ const repaintSnapshotCharts = () => {
   updateItmsCharts()
 }
 
+// ==================== 第二三层矩阵卡微图表(属性行 + 实时图表) ====================
+// 13 张矩阵卡(基础设施 7 卡 + 阿里云 6 卡)卡面统一改为「大数值 + 属性行 + 微图表」结构:
+// 属性+值列于图表上方(随 30s 状态抖动实时刷新),图表直观呈现核心可量化指标的实时水位/走势;
+// 悬停 tooltip 同源复读属性明细,便于快速比对(卡面不再被大段纯文本占满)。
+// 微图表节拍: 每 3 秒(与频次推移重绘同周期)围绕基线做 ± 微幅脉动,基线取自卡片当前值,
+// 30s 状态抖动牵引基线漂移,图形因此始终处于缓慢实时滚动状态(模拟数据脉动风格与全局一致)。
+const MINI_WINDOW = 24 // 3s × 24 帧 = 72 秒回看窗口(横轴随帧推移)
+// 语义色板(与大屏 c-* 文本色一致,供微图表线/环/tooltip 明细着色)
+const MINI_HEX = { good: '#00ff88', info: '#00d4ff', warn: '#ffa502', bad: '#ff4757', ali: '#ff9900', purple: '#a78bfa' }
+// hex → rgba(供面积渐变/发光)
+const hexA = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
+}
+// 数值千分位格式化(等宽字体大数展示)
+const numFmt = (v, dec = 0) => Number(v).toFixed(dec).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+const clampN = (v, min, max) => (v < min ? min : v > max ? max : v)
+
+// 微图表 tooltip 皮肤: 与全局深色 tooltip 一致,appendToBody 挂到 body 上避免被卡片 overflow 裁切
+const miniTip = (accent) => ({
+  backgroundColor: 'rgba(10,20,45,0.94)',
+  borderColor: accent,
+  borderWidth: 1,
+  padding: [8, 10],
+  textStyle: { color: '#c9d6e8', fontSize: 12 },
+  appendToBody: true,
+  extraCssText: 'border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,0.45)',
+})
+// tooltip 头部: 卡片名(随分区主题色)
+const tipHead = (title, accent) => `<div style="color:${accent};font-weight:700;letter-spacing:1px;white-space:nowrap">${title}</div>`
+// tooltip 明细块: 原卡片属性明细行的忠实复刻(名称灰 / 值随语义色)
+const tipRows = (rows) => rows.length
+  ? `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,0.15)">` + rows.map(([label, value, color]) =>
+    `<div style="display:flex;justify-content:space-between;gap:20px;white-space:nowrap;line-height:1.8"><span style="color:#8a9bb5">${label}</span><span style="color:${color};font-family:'Courier New',monospace">${value}</span></div>`).join('') + '</div>'
+  : ''
+
+// 通道: 微抖动游走(基线由 get 实时读取卡片当前值;每帧向基线收敛并叠加 ±amp 噪声)
+const mkCh = (get, amp, min, max, dec = 0, name = '', color = '#00d4ff', unit = '') => ({
+  get, amp, min, max, dec, name, color, unit, cur: clampN(Number(get()) || 0, min, max),
+})
+const walkCh = (c) => {
+  const target = Number(c.get()) || 0
+  const v = clampN(c.cur + (target - c.cur) * 0.3 + (Math.random() * 2 - 1) * c.amp, c.min, c.max)
+  c.cur = v
+  return v
+}
+// 从当前基线回放生成 24 帧历史序列(首屏即有完整曲线,后续帧在窗口末端原位推进)
+const seedBuffer = (c, seedAmp) => {
+  const buf = [c.cur]
+  let v = c.cur
+  for (let i = 1; i < MINI_WINDOW; i++) {
+    v = clampN(v + (Math.random() * 2 - 1) * seedAmp, c.min, c.max)
+    buf.unshift(v)
+  }
+  c.cur = v
+  return buf
+}
+const fmtPct = (v, c) => `${v.toFixed(c.dec)}%`
+
+// ============ 微图表各图型构造器(雷达 / 半环仪表 / 水位环 / 滑动走势) ============
+// 资源水位雷达图(主机四维水位)
+const buildRadarOption = (d) => ({
+  tooltip: { ...miniTip(d.accent), trigger: 'item', formatter: () => tipHead(d.title, d.accent) + tipRows(d.rows()) },
+  radar: {
+    indicator: d.chs.map(c => ({ name: c.name, max: 100 })),
+    radius: '72%',
+    center: ['50%', '55%'],
+    axisName: { color: '#8a9bb5', fontSize: 10 },
+    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.12)' } },
+    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+    splitArea: { show: false },
+  },
+  series: [{
+    type: 'radar',
+    symbol: 'circle',
+    symbolSize: 3.5,
+    lineStyle: { width: 1.6, color: d.accent },
+    itemStyle: { color: d.accent },
+    data: [{
+      value: d.chs.map(c => c.cur),
+      areaStyle: { color: hexA(d.accent, 0.2) },
+    }],
+  }],
+  animationDuration: 600,
+  animationDurationUpdate: 600,
+})
+
+// 半环水位仪表(数据库连接池占用等)
+const buildGaugeOption = (d) => {
+  const c = d.chs[0]
+  return {
+    tooltip: { ...miniTip(d.accent), trigger: 'item', formatter: () => tipHead(d.title, d.accent) + tipRows(d.rows()) },
+    series: [{
+      type: 'gauge',
+      min: 0,
+      max: 100,
+      startAngle: 180,
+      endAngle: 0,
+      radius: '128%',
+      center: ['50%', '88%'],
+      progress: { show: true, width: 9, roundCap: true, itemStyle: { color: d.accent, shadowColor: hexA(d.accent, 0.5), shadowBlur: 8 } },
+      axisLine: { lineStyle: { width: 9, color: [[1, 'rgba(255,255,255,0.07)']] } },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      pointer: { show: false },
+      anchor: { show: false },
+      title: { show: true, offsetCenter: [0, '-78%'], color: '#8a9bb5', fontSize: 10 },
+      detail: { show: true, offsetCenter: [0, '-36%'], color: '#e0e6ed', fontSize: 19, fontWeight: 700, fontFamily: "'Courier New', monospace", formatter: v => `${v.toFixed(c.dec)}%` },
+      data: [{ value: c.cur, name: d.gaugeTitle }],
+    }],
+    animationDuration: 600,
+    animationDurationUpdate: 600,
+  }
+}
+
+// 水位环(单环: 堆内存/EIP分配率/RDS CPU; 双环: K8s/ECS CPU+内存, 双环并排共用槽位)
+const buildRingOption = (d) => {
+  const pair = d.chs.length > 1
+  return {
+    tooltip: { ...miniTip(d.accent), trigger: 'item', formatter: () => tipHead(d.title, d.accent) + tipRows(d.rows()) },
+    series: d.chs.map((c, i) => ({
+      type: 'pie',
+      center: pair ? [`${32 + i * 36}%`, '50%'] : ['50%', '50%'],
+      radius: pair ? ['25%', '44%'] : ['52%', '74%'],
+      itemStyle: { borderRadius: 3 },
+      label: {
+        show: true,
+        position: 'center',
+        formatter: p => (p.dataIndex === 0 ? `{a|${c.name}}\n{b|${p.name}}` : ''),
+        rich: {
+          a: { color: '#8a9bb5', fontSize: 10, lineHeight: 15 },
+          b: { color: '#e0e6ed', fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: pair ? (c.dec ? 12 : 14) : (c.dec ? 13 : 16), lineHeight: 19 },
+        },
+      },
+      data: [
+        { value: c.cur, name: fmtPct(c.cur, c), itemStyle: { color: c.color } },
+        { value: 100 - c.cur, itemStyle: { color: 'rgba(255,255,255,0.06)' }, label: { show: false }, tooltip: { show: false } },
+      ],
+    })),
+    animationDuration: 600,
+    animationDurationUpdate: 600,
+  }
+}
+
+// 滑动走势图(单线: 积压/吞吐等; 双线: RTT+P99): 隐藏坐标轴,仅保留渐变面积曲线 + 自适应纵轴缩放
+const sparkYRange = (bufs) => {
+  const lo = Math.min(...bufs.flat())
+  const hi = Math.max(...bufs.flat())
+  const span = Math.max((hi - lo) * 0.4, 0.5)
+  return { min: lo - span, max: hi + span }
+}
+const buildSparkOption = (d) => ({
+  tooltip: {
+    ...miniTip(d.accent),
+    trigger: 'axis',
+    formatter: params => {
+      const lines = params.map((p, i) => {
+        const c = d.chs[i]
+        return `<div style="display:flex;justify-content:space-between;gap:24px;white-space:nowrap;line-height:1.8"><span style="color:${c.color}">● ${c.name}</span><span style="color:#e0e6ed;font-family:'Courier New',monospace">${numFmt(p.data, c.dec)}${c.unit}</span></div>`
+      }).join('')
+      return tipHead(d.title, d.accent) + (lines ? `<div style="margin-top:2px">${lines}</div>` : '') + tipRows(d.rows())
+    },
+  },
+  grid: { top: 8, right: 6, bottom: 6, left: 6 },
+  xAxis: { type: 'category', show: false, boundaryGap: false, data: new Array(MINI_WINDOW).fill('') },
+  yAxis: { type: 'value', show: false, ...sparkYRange(d.bufs) },
+  series: d.chs.map(c => ({
+    name: c.name,
+    type: 'line',
+    smooth: true,
+    symbol: 'none',
+    lineStyle: { width: 1.8, color: c.color },
+    itemStyle: { color: c.color },
+    areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: hexA(c.color, 0.32) }, { offset: 1, color: hexA(c.color, 0) }]) },
+  })),
+  animationDuration: 600,
+  animationDurationUpdate: 600,
+})
+
+const buildMiniOption = (d) =>
+  d.kind === 'radar' ? buildRadarOption(d)
+    : d.kind === 'gauge' ? buildGaugeOption(d)
+      : d.kind === 'ring' ? buildRingOption(d)
+        : buildSparkOption(d)
+
+// ============ 13 张矩阵卡微图表定义(rows 与卡面属性行同源,供悬停 tooltip 复读) ============
+const miniDefs = {
+  // ---- 基础设施矩阵 ----
+  host: {
+    key: 'miniHost', el: 'mini-chart-host', kind: 'radar', title: '主机监控 · 资源水位', accent: MINI_HEX.info,
+    chs: [
+      mkCh(() => infraData.value.host.cpu, 1.2, 5, 98, 0, 'CPU', MINI_HEX.info),
+      mkCh(() => infraData.value.host.ram, 1.2, 5, 98, 0, 'RAM', MINI_HEX.warn),
+      mkCh(() => infraData.value.host.disk, 1.1, 5, 98, 0, 'DISK', MINI_HEX.good),
+      mkCh(() => infraData.value.host.net, 1.1, 5, 98, 0, 'NET', MINI_HEX.purple),
+    ],
+    rows: () => [
+      ['离线节点', `${infraData.value.host.offline} 台`, MINI_HEX.bad],
+      ['CPU 平均', `${infraData.value.host.cpu}%`, MINI_HEX.info],
+      ['内存 平均', `${infraData.value.host.ram}%`, MINI_HEX.warn],
+      ['磁盘 I/O', `${infraData.value.host.disk}%`, MINI_HEX.good],
+      ['网络 I/O', `${infraData.value.host.net}%`, MINI_HEX.warn],
+    ],
+  },
+  db: {
+    key: 'miniDb', el: 'mini-chart-db', kind: 'gauge', title: '原生数据库 · 连接池水位', accent: MINI_HEX.info, gaugeTitle: '连接池占用',
+    chs: [mkCh(() => parseFloat(infraData.value.db.pool) || 0, 0.5, 45, 99, 1, '连接池占用', MINI_HEX.info)],
+    rows: () => [
+      ['连接池占用', infraData.value.db.pool, MINI_HEX.warn],
+      ['慢查询 QPS', infraData.value.db.slow, MINI_HEX.good],
+      ['主从延时', infraData.value.db.replica, MINI_HEX.good],
+      ['活跃会话', infraData.value.db.sessions, MINI_HEX.info],
+      ['QPS 峰值', infraData.value.db.qpsPeak, MINI_HEX.info],
+    ],
+  },
+  mid: {
+    key: 'miniMid', el: 'mini-chart-mid', kind: 'spark', title: '中间件节点 · Kafka 积压走势', accent: MINI_HEX.warn,
+    chs: [mkCh(() => infraData.value.middleware.kafkaLag, 30, 1200, 2800, 0, 'Kafka 积压', MINI_HEX.warn, ' 条')],
+    rows: () => [
+      ['Redis 命中率', infraData.value.middleware.redisHit, MINI_HEX.good],
+      ['RocketMQ TPS', infraData.value.middleware.rocket, MINI_HEX.info],
+      ['ZooKeeper 连接', infraData.value.middleware.zk, MINI_HEX.info],
+      ['ES 集群状态', infraData.value.middleware.es, MINI_HEX.good],
+      ['消息重试队列', infraData.value.middleware.retry, MINI_HEX.good],
+    ],
+  },
+  k8s: {
+    key: 'miniK8s', el: 'mini-chart-k8s', kind: 'ring', title: 'K8s 集群 · 资源水位', accent: '#6b7dff',
+    chs: [
+      mkCh(() => parseFloat(infraData.value.k8s.cpuPct) || 0, 0.8, 30, 95, 0, 'CPU', MINI_HEX.info),
+      mkCh(() => parseFloat(infraData.value.k8s.memPct) || 0, 0.9, 30, 95, 0, '内存', '#6b7dff'),
+    ],
+    rows: () => [
+      ['Node 节点', infraData.value.k8s.nodes, MINI_HEX.good],
+      ['异常 Pod', infraData.value.k8s.pending, MINI_HEX.warn],
+      ['HPA 频次', infraData.value.k8s.hpa, MINI_HEX.info],
+      ['CPU 水位', infraData.value.k8s.cpuPct, MINI_HEX.info],
+      ['内存水位', infraData.value.k8s.memPct, MINI_HEX.warn],
+    ],
+  },
+  docker: {
+    key: 'miniDocker', el: 'mini-chart-docker', kind: 'spark', title: 'Docker 容器 · 日志增速', accent: MINI_HEX.good,
+    chs: [mkCh(() => parseFloat(infraData.value.docker.logRate) || 0, 0.16, 0.4, 5, 1, '日志增速', MINI_HEX.good, ' GB/h')],
+    rows: () => [
+      ['停止 / 休眠', `${infraData.value.docker.stopped} 个`, MINI_HEX.gray],
+      ['OOM-Killer', infraData.value.docker.oom, MINI_HEX.good],
+      ['镜像扫描', infraData.value.docker.scan, MINI_HEX.good],
+      ['健康检查', infraData.value.docker.healthChk, MINI_HEX.good],
+      ['日志增速', infraData.value.docker.logRate, MINI_HEX.info],
+    ],
+  },
+  jvm: {
+    key: 'miniJvm', el: 'mini-chart-jvm', kind: 'ring', title: 'JVM 运行时 · 堆内存水位', accent: MINI_HEX.warn,
+    chs: [mkCh(() => parseFloat(infraData.value.jvm.heap) || 0, 0.4, 40, 92, 1, '堆内存', '#ffd93d')],
+    rows: () => [
+      ['堆内存分配', infraData.value.jvm.heap, MINI_HEX.warn],
+      ['Young GC', infraData.value.jvm.youngGc, MINI_HEX.info],
+      ['Full GC 频次', infraData.value.jvm.fullGc, MINI_HEX.bad],
+      ['类加载总数', infraData.value.jvm.classes, MINI_HEX.info],
+      ['死锁线程', infraData.value.jvm.deadlock, MINI_HEX.good],
+    ],
+  },
+  api: {
+    key: 'miniApi', el: 'mini-chart-api', kind: 'spark', title: '接口/URL 监控 · 链路耗时走势', accent: MINI_HEX.info,
+    chs: [
+      mkCh(() => infraData.value.api.rtt, 1.2, 15, 180, 0, '往返耗时 RTT', MINI_HEX.info, ' ms'),
+      mkCh(() => parseFloat(infraData.value.api.p99) || 0, 2.2, 30, 260, 0, 'P99 长尾耗时', MINI_HEX.warn, ' ms'),
+    ],
+    rows: () => [
+      ['往返耗时', `${infraData.value.api.rtt} ms`, MINI_HEX.good],
+      ['4xx 错误率', infraData.value.api.err4xx, MINI_HEX.warn],
+      ['5xx 错误率', infraData.value.api.err5xx, MINI_HEX.good],
+      ['P99 长尾耗时', infraData.value.api.p99, MINI_HEX.info],
+      ['熔断端点', infraData.value.api.breaker, MINI_HEX.good],
+    ],
+  },
+  // ---- 阿里云专有云矩阵(橙色点缀) ----
+  ecs: {
+    key: 'miniEcs', el: 'mini-chart-ecs', kind: 'ring', title: 'ECS 云服务器 · 资源水位', accent: MINI_HEX.ali,
+    chs: [
+      mkCh(() => parseFloat(cloudData.value.ecs.cpu) || 0, 0.5, 20, 88, 1, 'CPU', '#ffa502'),
+      mkCh(() => parseFloat(cloudData.value.ecs.mem) || 0, 0.6, 20, 88, 1, '内存', MINI_HEX.ali),
+    ],
+    rows: () => [
+      ['平均 CPU', cloudData.value.ecs.cpu, MINI_HEX.info],
+      ['平均内存', cloudData.value.ecs.mem, MINI_HEX.info],
+      ['IOPS / 吞吐', cloudData.value.ecs.iops, MINI_HEX.gray],
+      ['云盘使用率', cloudData.value.ecs.disk, MINI_HEX.good],
+      ['ESS 伸缩组', cloudData.value.ecs.ess, MINI_HEX.good],
+    ],
+  },
+  vpc: {
+    key: 'miniVpc', el: 'mini-chart-vpc', kind: 'ring', title: 'VPC 虚拟专网 · EIP 分配率', accent: MINI_HEX.ali,
+    chs: [mkCh(() => {
+      const m = String(cloudData.value.vpc.eip).match(/(\d+)\s*\/\s*(\d+)/)
+      return m ? (Number(m[1]) / Number(m[2])) * 100 : 0
+    }, 0.35, 60, 99.9, 1, 'EIP 分配', MINI_HEX.ali)],
+    rows: () => [
+      ['高速通道 VBR', cloudData.value.vpc.vbr, MINI_HEX.good],
+      ['NAT 网关', cloudData.value.vpc.nat, MINI_HEX.info],
+      ['EIP 弹性IP', cloudData.value.vpc.eip, MINI_HEX.gray],
+      ['子网 vSwitch', cloudData.value.vpc.vsw, MINI_HEX.info],
+      ['流日志', cloudData.value.vpc.flowlog, MINI_HEX.good],
+    ],
+  },
+  slb: {
+    key: 'miniSlb', el: 'mini-chart-slb', kind: 'spark', title: 'SLB 负载均衡 · 入口流量走势', accent: MINI_HEX.ali,
+    chs: [mkCh(() => cloudData.value.slb.qps, 60, 800, 100000, 0, '入口 QPS', MINI_HEX.ali, '')],
+    rows: () => [
+      ['入口总 QPS', numFmt(cloudData.value.slb.qps, 0), MINI_HEX.info],
+      ['新建连接', cloudData.value.slb.newConn, MINI_HEX.info],
+      ['异常后端 ECS', cloudData.value.slb.unhealthy, MINI_HEX.good],
+      ['SSL 卸载', cloudData.value.slb.ssl, MINI_HEX.good],
+      ['健康检查', cloudData.value.slb.healthChk, MINI_HEX.good],
+    ],
+  },
+  security: {
+    key: 'miniSecurity', el: 'mini-chart-security', kind: 'spark', title: '安全组与威胁防护 · DDoS 清洗', accent: MINI_HEX.bad,
+    chs: [mkCh(() => {
+      const v = parseFloat(String(cloudData.value.security.ddos).replace(/[^0-9.]/g, ''))
+      return Number.isFinite(v) && v > 0 ? v : 5.2
+    }, 0.3, 1.5, 10, 1, 'DDoS 清洗', MINI_HEX.bad, ' G')],
+    rows: () => [
+      ['生效策略', `${cloudData.value.security.rules} 条`, MINI_HEX.info],
+      ['违规端口审计', cloudData.value.security.audit, MINI_HEX.good],
+      ['DDoS 清洗', cloudData.value.security.ddos, MINI_HEX.gray],
+      ['暴力破解拦截', cloudData.value.security.brute, MINI_HEX.warn],
+      ['高危漏洞未修复', cloudData.value.security.vuln, MINI_HEX.good],
+    ],
+  },
+  rds: {
+    key: 'miniRds', el: 'mini-chart-rds', kind: 'ring', title: 'RDS 专有实例 · CPU 水位', accent: MINI_HEX.ali,
+    chs: [mkCh(() => parseFloat(cloudData.value.rds.cpu) || 0, 0.5, 5, 75, 0, '平均 CPU', MINI_HEX.ali)],
+    rows: () => [
+      ['只读延时', cloudData.value.rds.replica, MINI_HEX.good],
+      ['存储空间', cloudData.value.rds.storage, MINI_HEX.warn],
+      ['自动冷备', cloudData.value.rds.backup, MINI_HEX.good],
+      ['平均 CPU', cloudData.value.rds.cpu, MINI_HEX.info],
+      ['活跃连接', cloudData.value.rds.conns, MINI_HEX.info],
+    ],
+  },
+  oss: {
+    key: 'miniOss', el: 'mini-chart-oss', kind: 'spark', title: 'OSS 对象存储 · 流出带宽走势', accent: MINI_HEX.ali,
+    chs: [mkCh(() => parseFloat(cloudData.value.oss.bandwidth) || 0, 12, 150, 3000, 0, '流出带宽', MINI_HEX.ali, ' Mbps')],
+    rows: () => [
+      ['流出带宽', cloudData.value.oss.bandwidth, MINI_HEX.info],
+      ['请求 QPS', cloudData.value.oss.reqQps, MINI_HEX.info],
+      ['API 响应率', cloudData.value.oss.apiRate, MINI_HEX.good],
+      ['对象总数', cloudData.value.oss.objects, MINI_HEX.gray],
+      ['跨域容灾', cloudData.value.oss.dr, MINI_HEX.good],
+    ],
+  },
+}
+
+// ============ 微图表初始化与 3 秒滚动节拍 ============
+const initMiniCharts = () => {
+  Object.values(miniDefs).forEach(d => {
+    const el = document.getElementById(d.el)
+    if (!el) return
+    // spark 类首帧为走势图预生成 72s 回看序列,后续帧在窗口末端原位推进
+    if (d.kind === 'spark' && !d.bufs) d.bufs = d.chs.map(c => seedBuffer(c, c.amp * 3))
+    const chart = echarts.init(el)
+    charts[d.key] = chart
+    chart.setOption(buildMiniOption(d))
+  })
+}
+
+// 3 秒帧推进: 各通道围绕卡片当前基线做微幅脉动后增量刷新(数据变化走真实 diff 渲染,不整图 clear)
+const updateMiniCharts = () => {
+  // 第1屏隐藏(轮播切到 ITSM)时暂停帧推进,切回后从当前基线继续
+  if (currentIndex.value !== 0) return
+  Object.values(miniDefs).forEach(d => {
+    const chart = charts[d.key]
+    if (!chart) return
+    if (d.kind === 'spark') {
+      d.bufs.forEach((buf, i) => {
+        buf.push(walkCh(d.chs[i]))
+        if (buf.length > MINI_WINDOW) buf.shift()
+      })
+      chart.setOption({
+        yAxis: sparkYRange(d.bufs),
+        series: d.chs.map((c, i) => ({ data: d.bufs[i].slice() })),
+      })
+    } else if (d.kind === 'radar') {
+      chart.setOption({ series: [{ data: [{ value: d.chs.map(c => walkCh(c)) }] }] })
+    } else if (d.kind === 'gauge') {
+      chart.setOption({ series: [{ data: [{ value: walkCh(d.chs[0]) }] }] })
+    } else {
+      chart.setOption({ series: d.chs.map(c => { const v = walkCh(c); return { data: [{ value: v, name: fmtPct(v, c) }, { value: 100 - v }] } }) })
+    }
+  })
+}
 
 // ==================== 生命周期 ====================
 let timeTimer = null
-// 真实数据定时刷新(30s)/频次推移采样(5min)/频次推移重绘(3s)/未结列表滚动刷新(15s)/监控矩阵刷新定时器
+// 真实数据定时刷新(30s)/频次推移采样(5min)/频次推移重绘(3s)/未结列表滚动刷新(15s)/数据微抖动定时器
 let refreshTimer = null
 let trendRefreshTimer = null
 let trendRepaintTimer = null
 let detailRefreshTimer = null
 let itsmRefreshTimer = null
 let snapshotRepaintTimer = null
-let matrixRefreshTimer = null
-let knowledgeRefreshTimer = null
+let miniAnimTimer = null
+let jitterTimer = null
 
 // 窗口尺寸变化时重新校准图表
 const handleWindowResize = () => {
@@ -914,24 +1147,50 @@ onMounted(() => {
   fetchAlertDetail()
   // 拉取 ITSM 工单待办与 SLA 达成率(与首页 ITSM 待办卡片同源)
   fetchItmsData()
-  // 拉取监控矩阵卡数据(应用系统/基础设施/阿里云套件,与告警统计同 30 秒周期)
-  fetchMatrixData()
-  // 拉取知识库五类条目统计(与 ITSM 数据同 30 秒周期)
-  fetchKnowledgeData()
   refreshTimer = setInterval(fetchRealtimeData, 30 * 1000)
   itsmRefreshTimer = setInterval(fetchItmsData, 30 * 1000)
-  matrixRefreshTimer = setInterval(fetchMatrixData, 30 * 1000)
-  knowledgeRefreshTimer = setInterval(fetchKnowledgeData, 30 * 1000)
   // 频次推移数据采样: 每 5 分钟拉取一次数据写入当前槽(数据更新与图形重绘解耦)
   trendRefreshTimer = setInterval(recordTrendSnapshot, TREND_SAMPLE_INTERVAL)
   // 频次推移图形重绘: 每 3 秒完整重绘一次折线图,保持画面实时渲染感
   trendRepaintTimer = setInterval(repaintTrendChart, TREND_REPAINT_INTERVAL)
   // 闭环环形图 + ITSM 三图: 每 3 秒整组重绘一次,与频次推移折线同节奏
   snapshotRepaintTimer = setInterval(repaintSnapshotCharts, TREND_REPAINT_INTERVAL)
-  // 实时未结告警列表: 保持 30 秒高频刷新,不受频次推移重绘周期影响
-  detailRefreshTimer = setInterval(fetchAlertDetail, 30 * 1000)
+  // 矩阵卡微图表帧推进: 与快照图重绘同周期,各图围绕基线微幅脉动保持实时滚动感
+  miniAnimTimer = setInterval(updateMiniCharts, TREND_REPAINT_INTERVAL)
+  // 实时未结告警列表: 保持 15 秒高频刷新,不受频次推移重绘周期影响
+  detailRefreshTimer = setInterval(fetchAlertDetail, 15 * 1000)
   // 未结告警列表滚动推进: 50ms 步进一位移,刷新数据的增量接入由 rollTick 在滚出位置完成
   rollTimer = setInterval(rollTick, ROLL_STEP_MS)
+  // 30秒周期数据微抖动,模拟核心指标的实时波动
+  jitterTimer = setInterval(() => {
+    // 主机资源水位 ±2~3% 轻微波动,模拟负载实时变化
+    infraData.value.host.cpu = 68 + Math.floor(Math.random() * 7 - 3)
+    infraData.value.host.ram = 82 + Math.floor(Math.random() * 5 - 2)
+    infraData.value.host.disk = 58 + Math.floor(Math.random() * 5 - 2)
+    infraData.value.host.net = 73 + Math.floor(Math.random() * 5 - 2)
+    infraData.value.middleware.kafkaLag = 1842 + Math.floor(Math.random() * 260 - 130)
+    infraData.value.api.rtt = 38 + Math.floor(Math.random() * 4 - 2)
+    cloudData.value.slb.qps = 24500 + Math.floor(Math.random() * 260 - 130)
+    // 矩阵卡微图表基线抖动: 解析当前字符串格式原位改写,驱动图中各条线/环/仪表缓慢漂移
+    const jit = (cur, amp, min, max, dec) => {
+      const v = clampN(cur + (Math.random() * 2 - 1) * amp, min, max)
+      return Number(v.toFixed(dec))
+    }
+    infraData.value.db.pool = `${jit(parseFloat(infraData.value.db.pool) || 76.4, 2, 55, 96, 1)}%`
+    infraData.value.middleware.redisHit = `${jit(parseFloat(infraData.value.middleware.redisHit) || 99.4, 0.3, 98.4, 100, 1)}%`
+    infraData.value.middleware.rocket = `${numFmt(jit(parseInt(infraData.value.middleware.rocket.replace(/\D/g, '')) || 8420, 180, 3000, 20000, 0), 0)}/s`
+    infraData.value.k8s.cpuPct = `${jit(parseFloat(infraData.value.k8s.cpuPct) || 62, 1.6, 40, 88, 0)}%`
+    infraData.value.k8s.memPct = `${jit(parseFloat(infraData.value.k8s.memPct) || 71, 1.8, 40, 92, 0)}%`
+    infraData.value.docker.logRate = `${jit(parseFloat(infraData.value.docker.logRate) || 1.8, 0.2, 0.6, 4.2, 1)} GB/h`
+    infraData.value.jvm.heap = `${jit(parseFloat(infraData.value.jvm.heap) || 73.2, 1.6, 55, 90, 1)}%`
+    infraData.value.api.p99 = `${jit(parseFloat(infraData.value.api.p99) || 86, 4, 40, 180, 0)} ms`
+    cloudData.value.ecs.cpu = `${jit(parseFloat(cloudData.value.ecs.cpu) || 54.2, 2, 30, 86, 1)}%`
+    cloudData.value.ecs.mem = `${jit(parseFloat(cloudData.value.ecs.mem) || 61.8, 2.2, 30, 86, 1)}%`
+    cloudData.value.rds.cpu = `${jit(parseFloat(cloudData.value.rds.cpu) || 22, 1.6, 8, 70, 0)}%`
+    cloudData.value.rds.conns = `${numFmt(jit(parseInt(String(cloudData.value.rds.conns).replace(/\D/g, '')) || 1842, 40, 800, 3200, 0), 0)} 个`
+    cloudData.value.security.ddos = `Clean ${jit(parseFloat(String(cloudData.value.security.ddos).replace(/[^0-9.]/g, '')) || 5.2, 0.35, 2.5, 9.5, 1)}G`
+    cloudData.value.oss.bandwidth = `${jit(parseFloat(cloudData.value.oss.bandwidth) || 840, 28, 300, 2200, 0)} Mbps`
+  }, 30000)
   window.addEventListener('resize', handleWindowResize)
   document.addEventListener('fullscreenchange', syncFullscreenState)
   window.addEventListener('keydown', handleKeydown)
@@ -946,21 +1205,21 @@ onUnmounted(() => {
   if (itsmRefreshTimer) clearInterval(itsmRefreshTimer)
   if (snapshotRepaintTimer) clearInterval(snapshotRepaintTimer)
   if (rollTimer) clearInterval(rollTimer)
-  if (matrixRefreshTimer) clearInterval(matrixRefreshTimer)
-  if (knowledgeRefreshTimer) clearInterval(knowledgeRefreshTimer)
+  if (jitterTimer) clearInterval(jitterTimer)
+  if (miniAnimTimer) clearInterval(miniAnimTimer)
   stopAutoPlay()
   window.removeEventListener('resize', handleWindowResize)
   document.removeEventListener('fullscreenchange', syncFullscreenState)
   window.removeEventListener('keydown', handleKeydown)
   // 离开页面时确保恢复布局,避免侧边栏/顶栏停留在隐藏状态
-  document.body.classList.remove('-fullscreen')
+  document.body.classList.remove('monitor-fullscreen')
   Object.values(charts).forEach(c => c && c.dispose())
   charts = {}
 })
 </script>
 
 <template>
-  <div class="-carousel-wrapper">
+  <div class="monitor-carousel-wrapper">
     <!-- 顶部标题栏(参考大屏标准样式: 左侧品牌 / 中间轮播标题 / 右侧倒计时与状态) -->
     <div class="dashboard-header">
       <!-- 左侧品牌区 -->
@@ -1002,7 +1261,7 @@ onUnmounted(() => {
         <!-- SLA 综合健康率 -->
         <div class="sla-info">
           <div class="sla-label">SLA 综合健康率</div>
-          <div class="sla-value">{{ overallSla != null ? overallSla.toFixed(2) + '%' : '--' }}</div>
+          <div class="sla-value">99.982%</div>
         </div>
 
         <!-- 时钟 -->
@@ -1026,8 +1285,8 @@ onUnmounted(() => {
 
       <!-- 第1屏: 运维监控大屏 -->
       <div class="carousel-slide">
-        <el-scrollbar class="-scrollbar" view-class="-viewport">
-          <div class="-dashboard dashboard-fill">
+        <el-scrollbar class="monitor-scrollbar" view-class="monitor-viewport">
+          <div class="monitor-dashboard dashboard-fill">
 
     <!-- 第一层: 告警中心 -->
     <div class="alert-layer">
@@ -1122,7 +1381,7 @@ onUnmounted(() => {
         <div class="card-header">
           <svg class="card-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z"/></svg>
           <span>实时未结告警列表</span>
-          <span class="header-tag streaming-tag">ALARM DISPALY</span>
+          <span class="header-tag">SEAMLESS POOL</span>
         </div>
         <div class="alert-roll-list" @mouseenter="rollPaused = true" @mouseleave="rollPaused = false">
           <div class="alert-roll-track" ref="rollTrackEl" :style="{ transform: `translateY(-${rollOffset}px)` }">
@@ -1150,74 +1409,30 @@ onUnmounted(() => {
 
     <!-- 第二层: 全栈基础设施与应用监控矩阵 -->
     <div class="section-bar">
-      <span class="section-title"><svg class="card-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/></svg> 应用系统与基础设施监控矩阵</span>
+      <span class="section-title"><svg class="card-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/></svg> 全栈基础设施与应用监控矩阵 (INFRASTRUCTURE &amp; RUNTIME OVERVIEW)</span>
       <span class="section-meta">SLA BASELINE 99.95% · 5min SCRAPE</span>
     </div>
     <div class="infra-grid">
-      <!-- 业务系统 -->
-      <div class="metric-card mini-card">
-        <div class="card-header">
-          <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M20 10c-.5 0-1 .2-1.4.5l-.5-.5C17.7 9.6 17 9 16 9c-.5 0-1 .2-1.4.5l-.5-.5C13.7 8.6 13 8 12 8c-.5 0-1 .2-1.4.5L10 8c-.7-.7-1.6-1-2.5-1C5 7 3 9 3 11.5V13h16c1.1 0 2-.9 2-2s-.9-1-1-1M3 16h2v3H3m3 0h2v-3H6m3 0h2v3H9m3 0h2v-3h-2m3 0h2v3h-2m3 0h2v-3h-2z"/></svg>
-          <span>应用系统</span>
-          <span :class="['header-tag', infraData.app.health >= 99.9 ? 'c-good' : 'c-bad']">{{ infraData.app.health }}%</span>
-        </div>
-        <div class="mini-main">
-          <span class="mini-value">{{ infraData.app.total }}</span>
-          <span class="mini-flag c-info">系统数</span>
-        </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
-        <div class="mini-metrics">
-          <div class="mini-metric"><span>核心业务系统可用率:</span><span :class="['mm-val', infraData.app.coreRate >= 99.9 ? 'c-good' : 'c-bad']">{{ infraData.app.coreRate }}%</span></div>
-          <div class="mini-metric"><span>开发类系统:</span><span class="mm-val c-info">{{ infraData.app.devCount }} 个</span></div>
-          <div class="mini-metric"><span>运维类系统:</span><span class="mm-val c-info">{{ infraData.app.opsCount }} 个</span></div>
-          <div class="mini-metric"><span>分/子公司系统:</span><span class="mm-val c-info">{{ infraData.app.branchCount }} 个</span></div>
-          <div class="mini-metric"><span>日志增速:</span><span class="mm-val c-info">{{ infraData.app.logRate }} MB/min</span></div>
-        </div>
-
-      </div>
-
-
-      <!-- 核心API链路 -->
-      <div class="metric-card mini-card">
-        <div class="card-header">
-          <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2m-5.15 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56M14.34 14H9.66c-.1-.66-.16-1.32-.16-2 0-.68.06-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2M12 19.96c-.83-1.2-1.5-2.53-1.91-3.96h3.82c-.41 1.43-1.08 2.76-1.91 3.96M8 8H5.08A7.923 7.923 0 0 1 9.4 4.44C8.8 5.55 8.35 6.75 8 8m-2.92 8H8c.35 1.25.8 2.45 1.4 3.56A8.008 8.008 0 0 1 5.08 16m-.82-2C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2M12 4.04c.83 1.2 1.5 2.54 1.91 3.96h-3.82c.41-1.42 1.08-2.76 1.91-3.96M18.92 8h-2.95a15.65 15.65 0 0 0-1.38-3.56c1.84.63 3.37 1.9 4.33 3.56M12 2C6.47 2 2 6.5 2 12s4.47 10 10 10 10-4.5 10-10S17.53 2 12 2z"/></svg>
-          <span>服务状态监控</span>
-          <span :class="['header-tag', infraData.api.health >= 99.9 ? 'c-good' : 'c-bad']">{{ infraData.api.health }}%</span>
-        </div>
-        <div class="mini-main">
-          <span class="mini-value">{{ infraData.api.total }}</span>
-          <span class="mini-flag c-info">HTTP/ICMP</span>
-        </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
-        <div class="mini-metrics">
-          <div class="mini-metric"><span>往返耗时:</span><span class="mm-val c-good">{{ infraData.api.rtt }} ms</span></div>
-          <div class="mini-metric"><span>4xx 错误率:</span><span :class="['mm-val', infraData.api.err4xx <= 0.005 ? 'c-good' : 'c-bad']">{{ infraData.api.err4xx }}‰</span></div>
-          <div class="mini-metric"><span>5xx 错误率:</span><span :class="['mm-val', infraData.api.err5xx <= 0.005 ? 'c-good' : 'c-bad']">{{ infraData.api.err5xx }}‰</span></div>
-          <div class="mini-metric"><span>P99 耗时:</span><span :class="['mm-val', infraData.api.p99 <= 80 ? 'c-good' : 'c-warn']">{{ infraData.api.p99 }} ms</span></div>
-          <div class="mini-metric"><span>ICMP 响应率:</span><span :class="['mm-val', infraData.api.icmpRate >= 99.5 ? 'c-good' : 'c-bad']">{{ infraData.api.icmpRate }}%</span></div>
-        </div>
-
-      </div>
       <!-- 主机监控 -->
       <div class="metric-card mini-card">
         <div class="card-header">
           <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1m1 2v14h14V5H5m2 2h10v2H7V7m0 4h10v2H7v-2m0 4h6v2H7v-2"/></svg>
           <span>主机监控</span>
-          <span :class="['header-tag', infraData.host.health >= 99.9 ? 'c-good' : 'c-bad']">{{ infraData.host.health }}%</span>
+          <span class="header-tag c-good">{{ infraData.host.health }}</span>
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ infraData.host.total }}</span>
-          <span class="mini-flag c-info"><span class="blink-fast"></span> 生产+预发</span>
+          <span class="mini-flag c-bad"><span class="blink-fast">⚠</span> 离线 {{ infraData.host.offline }}</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: 资源水位属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-          <div class="mini-metric"><span>离线主机:</span><span :class="['mm-val', infraData.host.offline === 0 ? 'c-good' : 'c-bad']">{{ infraData.host.offline }} 台</span></div>
-          <div class="mini-metric"><span>CPU Avg:</span><span :class="['mm-val', infraData.host.cpu <= 85 ? 'c-good' : infraData.host.cpu <= 95 ? 'c-warn' : 'c-bad']">{{ infraData.host.cpu }}%</span></div>
-          <div class="mini-metric"><span>RAM Avg:</span><span :class="['mm-val', infraData.host.ram <= 85 ? 'c-good' : infraData.host.ram <= 95 ? 'c-warn' : 'c-bad']">{{ infraData.host.ram }}%</span></div>
-          <div class="mini-metric"><span>磁盘 I/O:</span><span :class="['mm-val', infraData.host.disk <= 50 ? 'c-good' : infraData.host.disk <= 100 ? 'c-warn' : 'c-bad']">{{ infraData.host.disk }} MB/s</span></div>
-          <div class="mini-metric"><span>网络 IO:</span><span :class="['mm-val', infraData.host.net <= 50 ? 'c-good' : infraData.host.net <= 100 ? 'c-warn' : 'c-bad']">{{ infraData.host.net }} MB/s</span></div>
+          <div class="mini-metric"><span>CPU Avg:</span><span class="mm-val c-info">{{ infraData.host.cpu }}%</span></div>
+          <div class="mini-metric"><span>RAM Avg:</span><span class="mm-val c-warn">{{ infraData.host.ram }}%</span></div>
+          <div class="mini-metric"><span>DISK I/O:</span><span class="mm-val c-good">{{ infraData.host.disk }}%</span></div>
+          <div class="mini-metric"><span>NET IO:</span><span class="mm-val c-warn">{{ infraData.host.net }}%</span></div>
         </div>
-
+        <!-- 底部资源水位雷达图: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-host"></div>
       </div>
 
       <!-- 原生数据库 -->
@@ -1225,21 +1440,22 @@ onUnmounted(() => {
         <div class="card-header">
           <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4m0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2M6 7.51c.88.49 2.51.99 4.5 1.19L12 9c1.33 0 4.5-.5 6-1.5V11c0 .5-2.13 2-6 2s-6-1.5-6-2m0 4c.88.49 2.51 1 4.5 1.19L12 13c1.33 0 4.5-.5 6-1.5v3c0 .5-2.13 2-6 2s-6-1.5-6-2m0 4c.88.49 2.51 1 4.5 1.19L12 17c1.33 0 4.5-.5 6-1.5v2c0 .5-2.13 2-6 2s-6-1.5-6-2z"/></svg>
           <span>原生数据库</span>
-          <span :class="['header-tag', infraData.db.health >= 99.9 ? 'c-good' : 'c-bad']">{{ infraData.db.health }}% 在线</span>
+          <span class="header-tag c-good">{{ infraData.db.health }}</span>
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ infraData.db.total }}</span>
-          <span class="mini-flag c-info">Oracle/Mysql/PG/DM</span>
+          <span class="mini-flag c-info">MySQL/PG</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: 数据库关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-          <div class="mini-metric"><span>连接池占用:</span><span :class="['mm-val', infraData.db.pool >= 80 ? 'c-warn' : 'c-good']">{{ infraData.db.pool }}%</span></div>
-          <div class="mini-metric"><span>慢查询 QPS:</span><span :class="['mm-val', infraData.db.slow >= 50 ? 'c-warn' : 'c-good']">{{ infraData.db.slow }} ops</span></div>
-          <div class="mini-metric"><span>主从延时:</span><span :class="['mm-val', infraData.db.replica < 0.1 ? 'c-good' : 'c-warn']">&lt; {{ infraData.db.replica }} s</span></div>
-          <div class="mini-metric"><span>活跃会话:</span><span :class="['mm-val', parseInt(infraData.db.sessions.replace(/,/g, ''),10) >= 1000 ? 'c-warn' : 'c-good']">{{ infraData.db.sessions }} 个</span></div>
-          <div class="mini-metric"><span>QPS 峰值:</span><span :class="['mm-val', infraData.db.qpsPeak >= 10.0 ? 'c-warn' : 'c-good']">{{ infraData.db.qpsPeak }} K</span></div>
+          <div class="mini-metric"><span>连接池占用:</span><span class="mm-val c-warn">{{ infraData.db.pool }}</span></div>
+          <div class="mini-metric"><span>慢查询 QPS:</span><span class="mm-val c-good">{{ infraData.db.slow }}</span></div>
+          <div class="mini-metric"><span>主从延时:</span><span class="mm-val c-good">{{ infraData.db.replica }}</span></div>
+          <div class="mini-metric"><span>活跃会话:</span><span class="mm-val c-info">{{ infraData.db.sessions }}</span></div>
+          <div class="mini-metric"><span>QPS 峰值:</span><span class="mm-val c-info">{{ infraData.db.qpsPeak }}</span></div>
         </div>
-
+        <!-- 底部连接池水位仪表: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-db"></div>
       </div>
 
       <!-- 中间件节点 -->
@@ -1247,21 +1463,22 @@ onUnmounted(() => {
         <div class="card-header">
           <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M22 7v6H9V7h13M2 14v2h6v-2H2m0-7v2h6V7H2m10 7v2h10v-2H12m-10 7v2h6v-2H2m10 0v2h10v-2H12z"/></svg>
           <span>中间件节点</span>
-          <span class="header-tag c-info">{{ infraData.middleware.total }} Nodes</span>
+          <span class="header-tag">{{ infraData.middleware.total }} Nodes</span>
         </div>
         <div class="mini-main">
-          <span class="mini-value">{{ infraData.middleware.total }}</span>
-          <span class="mini-flag c-info">缓存、消息、ES</span>
+          <span class="mini-value">{{ infraData.middleware.kafkaLag }}</span>
+          <span class="mini-flag">Kafka Lag</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: 中间件关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-          <div class="mini-metric"><span>Redis 命中率:</span><span :class="['mm-val', infraData.middleware.redisHit >= 90 ? 'c-good' : 'c-warn']">{{ infraData.middleware.redisHit }}%</span></div>
-          <div class="mini-metric"><span>RocketMQ TPS:</span><span :class="['mm-val', parseInt(infraData.middleware.rocket.replace(/,/g, ''),10) >= 5000 ? 'c-warn' : 'c-good']">{{ infraData.middleware.rocket }}/s</span></div>
-          <div class="mini-metric"><span>ZooKeeper 连接:</span><span :class="['mm-val', infraData.middleware.zk >= 130 ? 'c-warn' : 'c-good']">{{ infraData.middleware.zk }} 会话</span></div>
-          <div class="mini-metric"><span>ES 集群状态:</span><span :class="['mm-val', infraData.middleware.es === 'Green' ? 'c-good' : 'c-bad']">{{ infraData.middleware.es }}</span></div>
-          <div class="mini-metric"><span>消息重试队列:</span><span :class="['mm-val', infraData.middleware.retry >= 0 ? 'c-warn' : 'c-good']">{{ infraData.middleware.retry }} 个</span></div>
+          <div class="mini-metric"><span>Redis 命中率:</span><span class="mm-val c-good">{{ infraData.middleware.redisHit }}</span></div>
+          <div class="mini-metric"><span>RocketMQ TPS:</span><span class="mm-val c-info">{{ infraData.middleware.rocket }}</span></div>
+          <div class="mini-metric"><span>ZooKeeper 连接:</span><span class="mm-val c-info">{{ infraData.middleware.zk }}</span></div>
+          <div class="mini-metric"><span>ES 集群状态:</span><span class="mm-val c-good">{{ infraData.middleware.es }}</span></div>
+          <div class="mini-metric"><span>消息重试队列:</span><span class="mm-val c-good">{{ infraData.middleware.retry }}</span></div>
         </div>
-
+        <!-- 底部 Kafka 积压走势图: 每 3 秒推入一帧,窗口 72 秒回看 -->
+        <div class="mini-chart" id="mini-chart-mid"></div>
       </div>
 
       <!-- K8s集群 -->
@@ -1269,21 +1486,45 @@ onUnmounted(() => {
         <div class="card-header">
           <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3m0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
           <span>K8s集群</span>
-          <span class="header-tag c-info">{{ infraData.k8s.clusters }} Clusters</span>
+          <span class="header-tag">{{ infraData.k8s.clusters }}</span>
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ infraData.k8s.pods }}</span>
-          <span class="mini-flag c-info">POD 数</span>
+          <span class="mini-flag c-warn">重启 {{ infraData.k8s.restarts }}</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: K8s 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-          <div class="mini-metric"><span>Node 节点:</span><span :class="['mm-val', infraData.k8s.nodes >= 84 ? 'c-good' : 'c-bad']">{{ infraData.k8s.nodes }}/84 Ready</span></div>
-          <div class="mini-metric"><span>异常 Pod:</span><span :class="['mm-val', infraData.k8s.pending >= 1 ? 'c-warn' : 'c-good']">{{ infraData.k8s.pending }} Pending</span></div>
-          <div class="mini-metric"><span>ECTD 状态:</span><span :class="['mm-val', infraData.k8s.etcd === 'Green' ? 'c-good' : 'c-bad']">{{ infraData.k8s.etcd }}</span></div>
-          <div class="mini-metric"><span>CPU 水位:</span><span :class="['mm-val', infraData.k8s.cpuPct <= 25 ? 'c-good' : 'c-warn']">{{ infraData.k8s.cpuPct }}%</span></div>
-          <div class="mini-metric"><span>内存水位:</span><span :class="['mm-val', infraData.k8s.memPct <= 25 ? 'c-good' : 'c-warn']">{{ infraData.k8s.memPct }}</span></div>
+          <div class="mini-metric"><span>Node 节点:</span><span class="mm-val c-good">{{ infraData.k8s.nodes }}</span></div>
+          <div class="mini-metric"><span>异常 Pod:</span><span class="mm-val c-warn">{{ infraData.k8s.pending }}</span></div>
+          <div class="mini-metric"><span>HPA 频次:</span><span class="mm-val c-info">{{ infraData.k8s.hpa }}</span></div>
+          <div class="mini-metric"><span>CPU 水位:</span><span class="mm-val c-info">{{ infraData.k8s.cpuPct }}</span></div>
+          <div class="mini-metric"><span>内存水位:</span><span class="mm-val c-warn">{{ infraData.k8s.memPct }}</span></div>
         </div>
+        <!-- 底部 CPU/内存水位双环: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-k8s"></div>
+      </div>
 
+      <!-- Docker容器 -->
+      <div class="metric-card mini-card">
+        <div class="card-header">
+          <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M20 10c-.5 0-1 .2-1.4.5l-.5-.5C17.7 9.6 17 9 16 9c-.5 0-1 .2-1.4.5l-.5-.5C13.7 8.6 13 8 12 8c-.5 0-1 .2-1.4.5L10 8c-.7-.7-1.6-1-2.5-1C5 7 3 9 3 11.5V13h16c1.1 0 2-.9 2-2s-.9-1-1-1M3 16h2v3H3m3 0h2v-3H6m3 0h2v3H9m3 0h2v-3h-2m3 0h2v3h-2m3 0h2v-3h-2z"/></svg>
+          <span>Docker容器</span>
+          <span class="header-tag c-good">{{ infraData.docker.health }}</span>
+        </div>
+        <div class="mini-main">
+          <span class="mini-value">{{ infraData.docker.total }}</span>
+          <span class="mini-flag">Containers</span>
+        </div>
+        <!-- 图表上方: Docker 关键属性+值(30s 状态抖动实时刷新) -->
+        <div class="mini-metrics">
+          <div class="mini-metric"><span>停止 / 休眠:</span><span class="mm-val">{{ infraData.docker.stopped }} 个</span></div>
+          <div class="mini-metric"><span>OOM-Killer:</span><span class="mm-val c-good">{{ infraData.docker.oom }}</span></div>
+          <div class="mini-metric"><span>镜像扫描:</span><span class="mm-val c-good">{{ infraData.docker.scan }}</span></div>
+          <div class="mini-metric"><span>健康检查:</span><span class="mm-val c-good">{{ infraData.docker.healthChk }}</span></div>
+          <div class="mini-metric"><span>日志增速:</span><span class="mm-val c-info">{{ infraData.docker.logRate }}</span></div>
+        </div>
+        <!-- 底部日志增速走势图: 每 3 秒推入一帧,窗口 72 秒回看 -->
+        <div class="mini-chart" id="mini-chart-docker"></div>
       </div>
 
       <!-- JVM运行时 -->
@@ -1291,28 +1532,52 @@ onUnmounted(() => {
         <div class="card-header">
           <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93m6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
           <span>JVM运行时</span>
-          <span class="header-tag c-info">{{ infraData.jvm.jdk }}</span>
+          <span class="header-tag">JDK 17</span>
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ infraData.jvm.threads }}</span>
-          <span class="mini-flag c-info">活跃线程</span>
+          <span class="mini-flag">活跃线程</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: JVM 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-          <div class="mini-metric"><span>堆内存分配:</span><span :class="['mm-val', infraData.jvm.heap >= 85 ? 'c-warn' : 'c-good']">{{ infraData.jvm.heap }}%</span></div>
-          <div class="mini-metric"><span>Young GC:</span><span :class="['mm-val', infraData.jvm.youngGc >= 10 ? 'c-warn' : 'c-good']">{{ infraData.jvm.youngGc }} ms/次</span></div>
-          <div class="mini-metric"><span>Full GC 频次:</span><span :class="['mm-val', infraData.jvm.fullGc >= 1 ? 'c-warn' : infraData.jvm.fullGc >= 2 ? 'c-bad' : 'c-good']">{{ infraData.jvm.fullGc }} 次/1h</span></div>
-          <div class="mini-metric"><span>类加载总数:</span><span :class="['mm-val', infraData.jvm.classes >= 1000 ? 'c-info' : 'c-good']">{{ infraData.jvm.classes }} K</span></div>
-          <div class="mini-metric"><span>死锁线程:</span><span :class="['mm-val', infraData.jvm.deadlock >= 1 ? 'c-bad' : 'c-good']">{{ infraData.jvm.deadlock }} 个</span></div>
+          <div class="mini-metric"><span>堆内存分配:</span><span class="mm-val c-warn">{{ infraData.jvm.heap }}</span></div>
+          <div class="mini-metric"><span>Young GC:</span><span class="mm-val c-info">{{ infraData.jvm.youngGc }}</span></div>
+          <div class="mini-metric"><span>Full GC 频次:</span><span class="mm-val c-bad">{{ infraData.jvm.fullGc }}</span></div>
+          <div class="mini-metric"><span>类加载总数:</span><span class="mm-val c-info">{{ infraData.jvm.classes }}</span></div>
+          <div class="mini-metric"><span>死锁线程:</span><span class="mm-val c-good">{{ infraData.jvm.deadlock }}</span></div>
         </div>
+        <!-- 底部堆内存水位环: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-jvm"></div>
+      </div>
 
+      <!-- 核心API链路 -->
+      <div class="metric-card mini-card">
+        <div class="card-header">
+          <svg class="card-icon" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2m-5.15 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56M14.34 14H9.66c-.1-.66-.16-1.32-.16-2 0-.68.06-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2M12 19.96c-.83-1.2-1.5-2.53-1.91-3.96h3.82c-.41 1.43-1.08 2.76-1.91 3.96M8 8H5.08A7.923 7.923 0 0 1 9.4 4.44C8.8 5.55 8.35 6.75 8 8m-2.92 8H8c.35 1.25.8 2.45 1.4 3.56A8.008 8.008 0 0 1 5.08 16m-.82-2C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2M12 4.04c.83 1.2 1.5 2.54 1.91 3.96h-3.82c.41-1.42 1.08-2.76 1.91-3.96M18.92 8h-2.95a15.65 15.65 0 0 0-1.38-3.56c1.84.63 3.37 1.9 4.33 3.56M12 2C6.47 2 2 6.5 2 12s4.47 10 10 10 10-4.5 10-10S17.53 2 12 2z"/></svg>
+          <span>接口/URL监控</span>
+          <span class="header-tag c-good">{{ infraData.api.health }}</span>
+        </div>
+        <div class="mini-main">
+          <span class="mini-value">{{ infraData.api.total }}</span>
+          <span class="mini-flag c-info">PROD-APIs</span>
+        </div>
+        <!-- 图表上方: 链路关键属性+值(30s 状态抖动实时刷新) -->
+        <div class="mini-metrics">
+          <div class="mini-metric"><span>往返耗时:</span><span class="mm-val c-good">{{ infraData.api.rtt }} ms</span></div>
+          <div class="mini-metric"><span>4xx 错误率:</span><span class="mm-val c-warn">{{ infraData.api.err4xx }}</span></div>
+          <div class="mini-metric"><span>5xx 错误率:</span><span class="mm-val c-good">{{ infraData.api.err5xx }}</span></div>
+          <div class="mini-metric"><span>P99 长尾耗时:</span><span class="mm-val c-info">{{ infraData.api.p99 }}</span></div>
+          <div class="mini-metric"><span>熔断端点:</span><span class="mm-val c-good">{{ infraData.api.breaker }}</span></div>
+        </div>
+        <!-- 底部 RTT/P99 双线走势图: 每 3 秒推入一帧,窗口 72 秒回看 -->
+        <div class="mini-chart" id="mini-chart-api"></div>
       </div>
     </div>
 
     <!-- 第三层: 阿里云专有云企业套件监控 -->
     <div class="section-bar cloud">
-      <span class="section-title"><svg class="card-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96M19 18H6a4 4 0 0 1-4-4c0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95A5.469 5.469 0 0 1 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11A2.98 2.98 0 0 1 22 15c0 1.65-1.35 3-3 3z"/></svg> 云资源与安全防护监控</span>
-      <span class="section-meta"><span>ZONE: 合肥-北京 REGION</span><span class="c-good">● 异地容灾</span></span>
+      <span class="section-title"><svg class="card-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96M19 18H6a4 4 0 0 1-4-4c0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95A5.469 5.469 0 0 1 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11A2.98 2.98 0 0 1 22 15c0 1.65-1.35 3-3 3z"/></svg> 阿里云专有云企业套件监控 (APSARA STACK ENTERPRISE)</span>
+      <span class="section-meta"><span>ZONE: 华东-金融专有区</span><span class="c-good">● 冗余双活专线</span></span>
     </div>
     <div class="cloud-grid">
       <!-- ECS云服务器 -->
@@ -1324,17 +1589,18 @@ onUnmounted(() => {
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ cloudData.ecs.count }}</span>
-          <span class="mini-flag c-info">台实例</span>
+          <span class="mini-flag">台实例</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: ECS 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
           <div class="mini-metric"><span>平均 CPU:</span><span class="mm-val c-info">{{ cloudData.ecs.cpu }}</span></div>
           <div class="mini-metric"><span>平均内存:</span><span class="mm-val c-info">{{ cloudData.ecs.mem }}</span></div>
-          <div class="mini-metric"><span>IOPS / 吞吐:</span><span class="mm-val c-warn">{{ cloudData.ecs.iops }}</span></div>
+          <div class="mini-metric"><span>IOPS / 吞吐:</span><span class="mm-val">{{ cloudData.ecs.iops }}</span></div>
           <div class="mini-metric"><span>云盘使用率:</span><span class="mm-val c-good">{{ cloudData.ecs.disk }}</span></div>
           <div class="mini-metric"><span>ESS 伸缩组:</span><span class="mm-val c-good">{{ cloudData.ecs.ess }}</span></div>
         </div>
-
+        <!-- 底部 CPU/内存水位双环: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-ecs"></div>
       </div>
 
       <!-- VPC虚拟专网 -->
@@ -1346,17 +1612,18 @@ onUnmounted(() => {
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ cloudData.vpc.routes }}</span>
-          <span class="mini-flag c-info">条路由表</span>
+          <span class="mini-flag">条路由表</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: VPC 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-<!--          <div class="mini-metric"><span>高速通道 VBR:</span><span class="mm-val c-good">{{ cloudData.vpc.vbr }}</span></div>-->
-<!--          <div class="mini-metric"><span>NAT 网关:</span><span class="mm-val c-info">{{ cloudData.vpc.nat }}</span></div>-->
+          <div class="mini-metric"><span>高速通道 VBR:</span><span class="mm-val c-good">{{ cloudData.vpc.vbr }}</span></div>
+          <div class="mini-metric"><span>NAT 网关:</span><span class="mm-val c-info">{{ cloudData.vpc.nat }}</span></div>
           <div class="mini-metric"><span>EIP 弹性IP:</span><span class="mm-val">{{ cloudData.vpc.eip }}</span></div>
           <div class="mini-metric"><span>子网 vSwitch:</span><span class="mm-val c-info">{{ cloudData.vpc.vsw }}</span></div>
           <div class="mini-metric"><span>流日志:</span><span class="mm-val c-good">{{ cloudData.vpc.flowlog }}</span></div>
         </div>
-
+        <!-- 底部 EIP 分配率水位环: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-vpc"></div>
       </div>
 
       <!-- SLB负载均衡 -->
@@ -1368,9 +1635,9 @@ onUnmounted(() => {
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ cloudData.slb.count }}</span>
-          <span class="mini-flag c-info">ALB / CLB</span>
+          <span class="mini-flag">ALB / CLB</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: SLB 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
           <div class="mini-metric"><span>入口总 QPS:</span><span class="mm-val c-info">{{ cloudData.slb.qps.toLocaleString() }}</span></div>
           <div class="mini-metric"><span>新建连接:</span><span class="mm-val c-info">{{ cloudData.slb.newConn }}</span></div>
@@ -1378,7 +1645,8 @@ onUnmounted(() => {
           <div class="mini-metric"><span>SSL 卸载:</span><span class="mm-val c-good">{{ cloudData.slb.ssl }}</span></div>
           <div class="mini-metric"><span>健康检查:</span><span class="mm-val c-good">{{ cloudData.slb.healthChk }}</span></div>
         </div>
-
+        <!-- 底部入口 QPS 走势图: 每 3 秒推入一帧,窗口 72 秒回看 -->
+        <div class="mini-chart" id="mini-chart-slb"></div>
       </div>
 
       <!-- 安全组与威胁防护 -->
@@ -1392,15 +1660,16 @@ onUnmounted(() => {
           <span class="mini-value">{{ cloudData.security.blocks }}</span>
           <span class="mini-flag c-bad">今日恶意拦截</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: 安全关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
-          <div class="mini-metric"><span>今日告警:</span><span class="mm-val c-info">{{ cloudData.security.rules }} 条</span></div>
-          <div class="mini-metric"><span>威胁检测策略:</span><span class="mm-val c-good">{{ cloudData.security.policyCount }}</span></div>
-          <div class="mini-metric"><span>威胁分诊率:</span><span class="mm-val">{{ cloudData.security.triageRate }}</span></div>
+          <div class="mini-metric"><span>生效策略:</span><span class="mm-val c-info">{{ cloudData.security.rules }} 条</span></div>
+          <div class="mini-metric"><span>违规端口审计:</span><span class="mm-val c-good">{{ cloudData.security.audit }}</span></div>
+          <div class="mini-metric"><span>DDoS 清洗:</span><span class="mm-val">{{ cloudData.security.ddos }}</span></div>
           <div class="mini-metric"><span>暴力破解拦截:</span><span class="mm-val c-warn">{{ cloudData.security.brute }}</span></div>
-          <div class="mini-metric"><span>高危漏洞未修复:</span><span class="mm-val c-bad">{{ cloudData.security.vulnCount }}</span></div>
+          <div class="mini-metric"><span>高危漏洞未修复:</span><span class="mm-val c-good">{{ cloudData.security.vuln }}</span></div>
         </div>
-
+        <!-- 底部 DDoS 清洗走势图: 每 3 秒推入一帧,窗口 72 秒回看 -->
+        <div class="mini-chart" id="mini-chart-security"></div>
       </div>
 
       <!-- RDS专有实例 -->
@@ -1412,9 +1681,9 @@ onUnmounted(() => {
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ cloudData.rds.instances }}</span>
-          <span class="mini-flag c-info">热备集群</span>
+          <span class="mini-flag">热备集群</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: RDS 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
           <div class="mini-metric"><span>只读延时:</span><span class="mm-val c-good">{{ cloudData.rds.replica }}</span></div>
           <div class="mini-metric"><span>存储空间:</span><span class="mm-val c-warn">{{ cloudData.rds.storage }}</span></div>
@@ -1422,7 +1691,8 @@ onUnmounted(() => {
           <div class="mini-metric"><span>平均 CPU:</span><span class="mm-val c-info">{{ cloudData.rds.cpu }}</span></div>
           <div class="mini-metric"><span>活跃连接:</span><span class="mm-val c-info">{{ cloudData.rds.conns }}</span></div>
         </div>
-
+        <!-- 底部平均 CPU 水位环: 每 3 秒围绕基线微幅脉动 -->
+        <div class="mini-chart" id="mini-chart-rds"></div>
       </div>
 
       <!-- OSS对象存储 -->
@@ -1434,9 +1704,9 @@ onUnmounted(() => {
         </div>
         <div class="mini-main">
           <span class="mini-value">{{ cloudData.oss.size }}</span>
-          <span class="mini-flag c-info">TB 存储</span>
+          <span class="mini-flag">TB 存储</span>
         </div>
-        <!-- 属性明细: 贴卡底自底部向上排布,数值随 30s 接口轮询整组刷新 -->
+        <!-- 图表上方: OSS 关键属性+值(30s 状态抖动实时刷新) -->
         <div class="mini-metrics">
           <div class="mini-metric"><span>流出带宽:</span><span class="mm-val c-info">{{ cloudData.oss.bandwidth }}</span></div>
           <div class="mini-metric"><span>请求 QPS:</span><span class="mm-val c-info">{{ cloudData.oss.reqQps }}</span></div>
@@ -1444,7 +1714,8 @@ onUnmounted(() => {
           <div class="mini-metric"><span>对象总数:</span><span class="mm-val">{{ cloudData.oss.objects }}</span></div>
           <div class="mini-metric"><span>跨域容灾:</span><span class="mm-val c-good">{{ cloudData.oss.dr }}</span></div>
         </div>
-
+        <!-- 底部流出带宽走势图: 每 3 秒推入一帧,窗口 72 秒回看 -->
+        <div class="mini-chart" id="mini-chart-oss"></div>
       </div>
     </div>
     </div>
@@ -1453,35 +1724,24 @@ onUnmounted(() => {
 
       <!-- 第2屏: ITSM流程大屏(工单/SLA 数据与首页 ITSM 待办同源接口,知识库/图表区待接入) -->
       <div class="carousel-slide">
-        <el-scrollbar class="-scrollbar" view-class="-viewport">
-          <div class="-dashboard dashboard-itsm">
+        <el-scrollbar class="monitor-scrollbar" view-class="monitor-viewport">
+          <div class="monitor-dashboard dashboard-itsm">
             <div class="metrics-grid">
               <!-- SLA达成率(首位,数据来自 getOrderData 返回的 sla 统计) -->
               <div class="metric-card">
                 <div class="card-header">
                   <svg class="card-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                  <span>工单SLA达成率</span>
+                  <span>SLA达成率</span>
                   <span class="header-tag c-info">基线 {{ itsmData.sla.baseline }}%</span>
                 </div>
                 <div class="mini-main">
                   <span class="mini-value c-good">{{ itsmData.sla.total > 0 ? Number(itsmData.sla.rate).toFixed(2) : '--' }}</span>
-                  <span class="mini-flag c-info">{{ itsmData.sla.total > 0 ? '% 整体达成率' : '整体达成率' }}</span>
+                  <span class="mini-flag c-good">{{ itsmData.sla.total > 0 ? '% 整体达成率' : '整体达成率' }}</span>
                 </div>
-                <!-- 周期工单/达标/超时 → 内嵌占比条(周期行满量作基线,达标绿/超时红随占比伸缩) -->
                 <div class="mini-list">
-                  <div
-                    v-for="row in slaOverviewRows"
-                    :key="row.label"
-                    class="itsm-bar-row"
-                    :title="row.tip"
-                  >
-                    <i class="itsm-bar-dot" :style="{ background: row.color }"></i>
-                    <span class="itsm-bar-label">{{ row.label }}</span>
-                    <div class="itsm-bar-track">
-                      <i class="itsm-bar-fill" :style="{ width: row.pct + '%', background: row.color }"></i>
-                    </div>
-                    <span class="mini-list-value" :class="row.valClass">{{ row.count }}</span>
-                  </div>
+                  <div class="mini-list-item"><span>周期工单</span><span class="mini-list-value c-info">{{ itsmData.sla.total }}</span></div>
+                  <div class="mini-list-item"><span>达标工单</span><span class="mini-list-value c-good">{{ itsmData.sla.achieved }}</span></div>
+                  <div class="mini-list-item"><span>超时工单</span><span class="mini-list-value c-bad">{{ itsmData.sla.overtime }}</span></div>
                 </div>
               </div>
 
@@ -1494,23 +1754,14 @@ onUnmounted(() => {
                 </div>
                 <div class="mini-main">
                   <span class="mini-value">{{ itsmTodoTotal }}</span>
-                  <span class="mini-flag c-info">条待办工单</span>
+                  <span class="mini-flag">条待办工单</span>
                 </div>
-                <!-- 五类待办数量 → 内嵌占比条(条宽 = 该类数量 / 待办总量,色板与五类一致),悬停显占比 -->
                 <div class="mini-list">
-                  <div
-                    v-for="row in itsmOverviewRows"
-                    :key="row.label"
-                    class="itsm-bar-row"
-                    :title="row.pct > 0 ? ('占待办总量 ' + row.pct + '%') : '暂无该类待办'"
-                  >
-                    <i class="itsm-bar-dot" :style="{ background: row.color }"></i>
-                    <span class="itsm-bar-label">{{ row.label }}</span>
-                    <div class="itsm-bar-track">
-                      <i class="itsm-bar-fill" :style="{ width: row.pct + '%', background: row.color }"></i>
-                    </div>
-                    <span class="mini-list-value c-info">{{ row.count }}</span>
-                  </div>
+                  <div class="mini-list-item"><span>请求</span><span class="mini-list-value c-info">{{ itsmData.request.length }}</span></div>
+                  <div class="mini-list-item"><span>发布</span><span class="mini-list-value c-info">{{ itsmData.publish.length }}</span></div>
+                  <div class="mini-list-item"><span>事件</span><span class="mini-list-value c-info">{{ itsmData.event.length }}</span></div>
+                  <div class="mini-list-item"><span>变更</span><span class="mini-list-value c-info">{{ itsmData.change.length }}</span></div>
+                  <div class="mini-list-item"><span>问题</span><span class="mini-list-value c-info">{{ itsmData.problem.length }}</span></div>
                 </div>
               </div>
 
@@ -1609,36 +1860,14 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- 知识库: 五类条目统计(与后端 getMonitoKnowledgeData 接口同源,30s 刷新;条宽 = 分类条数 / 总条数) -->
+              <!-- 知识库(占位,数据源待接入) -->
               <div class="metric-card">
                 <div class="card-header">
                   <svg class="card-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
                   <span>知识库</span>
-                  <span class="header-tag c-info">KNOWLEDGE</span>
+                  <span class="header-tag">KNOWLEDGE</span>
                 </div>
-                <template v-if="knowledgeRows.length">
-                  <div class="mini-main">
-                    <span class="mini-value">{{ knowledgeData.total }}</span>
-                    <span class="mini-flag c-info">条知识条目</span>
-                  </div>
-                  <!-- 五类知识条目 → 内嵌占比条(条宽 = 该类条数 / 总条数,色随分类;新增亮红高亮) -->
-                  <div class="mini-list">
-                    <div
-                      v-for="row in knowledgeRows"
-                      :key="row.name"
-                      class="itsm-bar-row"
-                      :title="row.pct > 0 ? (row.name + ' ' + row.count + ' 条 · 占 ' + row.pct + '%') : '暂无该类条目'"
-                    >
-                      <i class="itsm-bar-dot" :style="{ background: row.color }"></i>
-                      <span class="itsm-bar-label">{{ row.name }}</span>
-                      <div class="itsm-bar-track">
-                        <i class="itsm-bar-fill" :style="{ width: row.pct + '%', background: row.color }"></i>
-                      </div>
-                      <span class="mini-list-value">{{ row.count }}</span>
-                    </div>
-                  </div>
-                </template>
-                <div v-else class="card-body">
+                <div class="card-body">
                   <!-- 数据源未接入: 整槽显示紫色雷达空态动画 -->
                   <div class="placeholder-area de-violet">
                     <div class="de-scene"><i class="de-wave"></i><i class="de-wave w2"></i><i class="de-ring"></i><i class="de-core"></i></div>
@@ -1681,7 +1910,7 @@ onUnmounted(() => {
               <div class="chart-card">
                 <div class="card-header">
                   <svg class="card-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                  <span>工单SLA达成趋势</span>
+                  <span>SLA达成趋势</span>
                   <span class="header-tag c-good">基线 {{ itsmData.sla.baseline }}%</span>
                 </div>
                 <div class="chart-slot">
@@ -1715,9 +1944,9 @@ onUnmounted(() => {
                       </div>
                       <div class="ticker-title" :title="row.title">{{ row.title || '-' }}</div>
                       <div class="ticker-card-attrs">
-                        <div class="ticker-attr"><span class="ticker-attr-label"><svg class="ticker-attr-icon ta-apl" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>申请人</span><span class="ticker-attr-value"><span class="ticker-chip">{{ row.applicant || '-' }}</span></span></div>
-                        <div class="ticker-attr"><span class="ticker-attr-label"><svg class="ticker-attr-icon ta-cur" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>当前处理人</span><span class="ticker-attr-value"><span class="ticker-chip handler">{{ row.currentHandler || '-' }}</span></span></div>
-                        <div class="ticker-attr"><span class="ticker-attr-label"><svg class="ticker-attr-icon ta-prev" viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>上一步处理人</span><span class="ticker-attr-value"><span class="ticker-chip prev">{{ row.previousHandler || '-' }}</span></span></div>
+                        <div class="ticker-attr"><span class="ticker-attr-label">申请人</span><span class="ticker-attr-value"><span class="ticker-chip">{{ row.applicant || '-' }}</span></span></div>
+                        <div class="ticker-attr"><span class="ticker-attr-label">当前处理人</span><span class="ticker-attr-value"><span class="ticker-chip handler">{{ row.currentHandler || '-' }}</span></span></div>
+                        <div class="ticker-attr"><span class="ticker-attr-label">上一步处理人</span><span class="ticker-attr-value"><span class="ticker-chip prev">{{ row.previousHandler || '-' }}</span></span></div>
                       </div>
                       <div class="ticker-card-foot">
                         <span class="ticker-id">{{ row.id || '-' }}</span>
@@ -1747,7 +1976,7 @@ onUnmounted(() => {
 
 <style scoped>
 /* ==================== 全局 ==================== */
-.-carousel-wrapper {
+.monitor-carousel-wrapper {
   /* 视口锚定: 不依赖祖先链高度(100%逐级传递易断裂),非全屏 = 100vh - 顶栏40px - 主区上下padding32px */
   height: calc(100vh - 72px);
   display: flex;
@@ -1757,31 +1986,31 @@ onUnmounted(() => {
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
 }
 
-.-scrollbar {
+.monitor-scrollbar {
   height: 100%;
 }
 
 /* 滚动视图撑满容器并纵向排布,配合 dashboard-fill 精确适配可视区 */
-.-scrollbar :deep(.el-scrollbar__view) {
+.monitor-scrollbar :deep(.el-scrollbar__view) {
   min-height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-.-scrollbar :deep(.el-scrollbar__bar) {
+.monitor-scrollbar :deep(.el-scrollbar__bar) {
   z-index: 100;
 }
 
-.-scrollbar :deep(.el-scrollbar__thumb) {
+.monitor-scrollbar :deep(.el-scrollbar__thumb) {
   background: rgba(0, 212, 255, 0.3);
   border-radius: 4px;
 }
 
-.-scrollbar :deep(.el-scrollbar__thumb:hover) {
+.monitor-scrollbar :deep(.el-scrollbar__thumb:hover) {
   background: rgba(0, 212, 255, 0.5);
 }
 
-.-dashboard {
+.monitor-dashboard {
   padding: 16px 20px;
   color: #e0e6ed;
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
@@ -1789,9 +2018,9 @@ onUnmounted(() => {
 }
 
 /* 统一盒模型: flex 百分比/calc 宽度计算包含内边距,避免溢出换行 */
-.-dashboard *,
-.-dashboard *::before,
-.-dashboard *::after {
+.monitor-dashboard *,
+.monitor-dashboard *::before,
+.monitor-dashboard *::after {
   box-sizing: border-box;
 }
 
@@ -2245,7 +2474,7 @@ onUnmounted(() => {
 
 .header-tag {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 11px;
   color: #7b8ca8;
   font-family: 'Courier New', monospace;
   background: rgba(10, 25, 50, 0.6);
@@ -2314,10 +2543,11 @@ onUnmounted(() => {
 .alert-row.info { color: #4dd8ff; border-color: rgba(0, 212, 255, 0.35); background: rgba(0, 212, 255, 0.06); }
 
 .alert-level {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   text-transform: uppercase;
   padding: 1px 4px;
+  font-family: 'Courier New', monospace;
   border: 1px solid currentColor;
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.35);
@@ -2325,7 +2555,7 @@ onUnmounted(() => {
 
 .alert-src {
   font-family: 'Courier New', monospace;
-  font-size: 14px;
+  font-size: 13px;
   color: #e0e6ed;
   white-space: nowrap;
 }
@@ -2335,13 +2565,14 @@ onUnmounted(() => {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: 'Courier New', monospace;
   white-space: nowrap;
   font-size: 12px;
   color: #a8b8d0;
 }
 
 .alert-time {
-  font-size: 12px;
+  font-size: 11px;
   color: #7b8ca8;
   font-family: 'Courier New', monospace;
   white-space: nowrap;
@@ -2375,7 +2606,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  font-size: 12px;
+  font-size: 14px;
   color: #7b8ca8;
   font-family: 'Courier New', monospace;
   white-space: nowrap;
@@ -2417,17 +2648,15 @@ onUnmounted(() => {
   padding-bottom: 6px;
 }
 
-/* 卡片头右侧标签略放大,与卡片内放大后的文字层级协调;
-   行高显式 18px: 标签内中文全角字形(约 1.4em)不顶出胶囊,文本垂直居中 */
-.mini-card .header-tag { font-size: 12px; line-height: 18px; padding: 1px 8px; }
+/* 卡片头右侧标签略放大,与卡片内放大后的文字层级协调 */
+.mini-card .header-tag { font-size: 12px; padding: 1px 8px; }
 
 .mini-main {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 6px;
-  /* 下间距 7px: 明细值胶囊加高后收紧此处,卡片内容总高预算维持不变 */
-  margin-bottom: 7px;
+  margin-bottom: 10px;
 }
 
 .mini-value {
@@ -2520,13 +2749,22 @@ onUnmounted(() => {
   margin-top: auto;
 }
 
-/* 属性明细列表: 大数值之下,属性+值锚定卡底、自底部向上排布(上方余量自动留白),
-   行距 8px 固定不随卡高拉伸;值语义色由 c-* 类提供,随 30s 接口轮询整组刷新 */
+/* 矩阵卡微图表槽位: 上方属性行(mini-metrics)固定占高,图表弹性吸收剩余卡高 ——
+   1080P 全屏等高下图表约 90px;极矮视口先压缩至 60px 下限,再交由 .mini-card overflow hidden 裁切 */
+.mini-chart {
+  flex: 1 1 auto;
+  min-height: 60px;
+  width: 100%;
+}
+
+/* 图表上方属性行区: 大数值之下、微图表之上列出属性+值,行距紧凑为图表预留高度;
+   值语义色由 c-* 类提供,随 30s 状态抖动实时刷新(与 tooltip 明细同源) */
 .mini-metrics {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: auto;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-bottom: 6px;
 }
 
 .mini-metric {
@@ -2534,11 +2772,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 14px;
-  /* 行高 18px 与值胶囊同款(见 .mm-val): 属性名与值同处一条 18px 文本栅格,
-     align-items:center 下整行垂直居中 */
-  line-height: 18px;
-  color: #c9cfd6;
+  font-size: 12px;
+  line-height: 17px;
+  color: #8a9bb5;
   white-space: nowrap;
 }
 
@@ -2556,8 +2792,8 @@ onUnmounted(() => {
   position: absolute;
   left: 0;
   top: 50%;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   margin-top: -2px;
   transform: rotate(45deg);
   border: 1px solid rgba(0, 212, 255, 0.55);
@@ -2565,45 +2801,14 @@ onUnmounted(() => {
   box-shadow: 0 0 4px rgba(0, 212, 255, 0.35);
 }
 
-/* 属性值标签: 圆角胶囊(与 ITSM 卡明细值同款),等宽加粗超长省略;
-   语义色规则双类后置覆盖灰底,普通行(无 c-* 类)保持浅灰标签 */
+/* 属性值: 等宽加粗、超长省略;语义色由 c-* 类上色,普通行继承行内灰色 */
 .mini-metric .mm-val {
   flex-shrink: 0;
   max-width: 58%;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* 垂直居中方案与工单处理明细流 ticker-chip 同款:
-     line-height 18px + 垂直 padding 1px(盒高 18+1*2+1px边框*2 = 22px),
-     字体同全局(微软雅黑优先): 若混入 Courier New 等宽,数字与中文按各自字体
-     基线/字形高度混排会把中文顶偏,上下留白不对称 → 胶囊内文字统一雅黑 */
-  padding: 1px 8px;
-  border-radius: 999px;
-  line-height: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
-  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-family: 'Courier New', monospace;
   font-weight: 600;
-}
-/* 值标签语义色: 边框/底色/文字跟随健康度(与 .mini-list-value.c-* 同配色) */
-.mini-metric .mm-val.c-good {
-  color: #00ff88;
-  border-color: rgba(0, 255, 136, 0.4);
-  background: rgba(0, 255, 136, 0.09);
-}
-.mini-metric .mm-val.c-info {
-  color: #00d4ff;
-  border-color: rgba(0, 212, 255, 0.4);
-  background: rgba(0, 212, 255, 0.09);
-}
-.mini-metric .mm-val.c-warn {
-  color: #ffa502;
-  border-color: rgba(255, 165, 2, 0.4);
-  background: rgba(255, 165, 2, 0.09);
-}
-.mini-metric .mm-val.c-bad {
-  color: #ff4757;
-  border-color: rgba(255, 71, 87, 0.42);
-  background: rgba(255, 71, 87, 0.09);
 }
 
 /* 单个指标组: 文本行与进度条贴合(组内 3px),组间距离由 .mini-progress 的 gap 控制 */
@@ -2740,49 +2945,6 @@ onUnmounted(() => {
 /* 第二屏属性行: 属性名与值标签最小间距 10px(五张管理卡及 SLA/总览卡统一) */
 .metrics-grid .mini-list-item { gap: 10px; }
 
-/* 第二屏指标卡行距: 全局明细 gap 15 收紧至 12,压缩两行指标卡高度预算
-   (行高取行内最高卡,行距越紧行高越低,给图表区/走马灯留出可视区余量) */
-.metrics-grid .mini-list { gap: 12px; }
-
-/* ==================== ITSM 指标卡: 属性内嵌占比条 ==================== */
-/* 属性行内嵌占比条: 色点 + 属性名 + 轨道(条宽 = 属性值/分母总量,色随语义) + 数值胶囊 */
-.itsm-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  line-height: 18px;
-  white-space: nowrap;
-}
-
-.itsm-bar-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.itsm-bar-label {
-  flex-shrink: 0;
-  font-size: 13px;
-  color: #96a7c2;
-}
-
-.itsm-bar-track {
-  flex: 1;
-  min-width: 0;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-
-.itsm-bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s ease;
-}
-
 /* 属性值(管理卡): 外层仅做右对齐弹性容器,内层标签宽度随文本自适应;
    短值标签靠右,超长时内层标签收缩省略,左缘与属性名保持 10px 间距 */
 .itsm-row-value {
@@ -2802,8 +2964,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.05);
   font-family: 'Courier New', monospace;
   line-height: 16px;
-  /* 青色文字: 管理卡属性值统一有色字体(编号强调由 c-info 后置,同青系加边框色) */
-  color: #00d4ff;
+  color: #a8b8d0;
 }
 
 /* 编号等强调值: 青系标签(双类压过上方 chip 灰字,与底色边框一起着色) */
@@ -2867,11 +3028,10 @@ onUnmounted(() => {
 .dashboard-itsm .charts-section { flex-shrink: 0; }
 
 /* ==================== 第二屏第四排: 五类工单处理明细流 · 水平走马灯 ==================== */
-/* 弹性吸收前三排剩余高度(卡片随视口高度拉伸);min-height 仅保空态可视下限,
-   避免非全屏/缩放视口不足时整屏出现滚动条 */
+/* 第四排弹性吸收前三排之后的全部剩余高度,卡片随视口高度拉伸 */
 .itsm-event-ticker {
   flex: 1 1 auto;
-  min-height: 135px;
+  min-height: 150px;
   margin-top: 16px;
   display: flex;
   flex-direction: column;
@@ -3066,24 +3226,10 @@ onUnmounted(() => {
 .ticker-attr-label {
   flex-shrink: 0;
   min-width: 6.5em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 13px;
   color: #5f7290;
   letter-spacing: 1px;
 }
-
-/* 属性名前语义小图标: 随标签字号等大(1em),不参与 min-width 对齐;
-   颜色由 ta-* 彩类提供(链路语义: 发起青 / 处理中金 / 上一步蓝) */
-.ticker-attr-label svg {
-  width: 1em;
-  height: 1em;
-  flex-shrink: 0;
-}
-.ticker-attr-label .ta-apl { color: #00d4ff; }
-.ticker-attr-label .ta-cur { color: #ffb020; }
-.ticker-attr-label .ta-prev { color: #7fb3ff; }
 
 /* 属性值: 右对齐弹性容器,标签宽度随文本自适应;超长截断后左缘与属性名保持 10px */
 .ticker-attr-value {
@@ -3097,28 +3243,25 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 1px 9px;
+  padding: 2px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 212, 255, 0.35);
-  background: rgba(0, 212, 255, 0.07);
-  /* 与属性名同级字号(13px),加粗胶囊作值强调;三行语义色与行首图标同色
-     (发起青/处理中金/上一步蓝),属性值不使用白/近白文本 */
-  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 15px;
   font-weight: 600;
-  line-height: 18px;
-  color: #00d4ff;
+  line-height: 20px;
+  color: #d7deea;
 }
-/* 当前处理人: 处理中金(与行首图标 ta-cur 同色) */
+/* 当前处理人淡青 / 上一步处理人灰蓝标签 */
 .ticker-chip.handler {
-  color: #ffb020;
-  border-color: rgba(255, 176, 32, 0.45);
-  background: rgba(255, 176, 32, 0.1);
+  color: #4dd8ff;
+  border-color: rgba(77, 216, 255, 0.4);
+  background: rgba(77, 216, 255, 0.09);
 }
-/* 上一步处理人: 流转蓝(与行首图标 ta-prev 同色) */
 .ticker-chip.prev {
-  color: #7fb3ff;
-  border-color: rgba(127, 179, 255, 0.4);
-  background: rgba(127, 179, 255, 0.09);
+  color: #9db4d8;
+  border-color: rgba(157, 180, 216, 0.32);
+  background: rgba(157, 180, 216, 0.08);
 }
 
 /* 底行: 编号 + 时间(等宽字体) */
@@ -3750,7 +3893,7 @@ onUnmounted(() => {
 
 .chart-container {
   width: 100%;
-  height: 188px;
+  height: 200px;
 }
 
 /* ==================== 炫酷空态: 全息雷达扫描动画 ==================== */
@@ -3882,6 +4025,8 @@ onUnmounted(() => {
   .infra-grid > .mini-card { flex: none; width: calc((100% - 54px) / 4); }
   .cloud-grid { flex-wrap: wrap; }
   .cloud-grid > .mini-card { flex: none; width: calc((100% - 36px) / 3); }
+  /* 换行后卡片高度由内容撑开,图表固定高度不再弹性拉伸 */
+  .mini-chart { flex: none; height: 96px; min-height: 0; }
 }
 
 @media (max-width: 1200px) {
@@ -3922,26 +4067,25 @@ html, body {
 }
 
 /* 监控大屏全屏模式(F11): 隐藏侧边栏/顶栏,去除主区域留白,完全铺满屏幕 */
-body.-fullscreen {
+body.monitor-fullscreen {
   background: #050a1a;
 }
-body.-fullscreen .el-aside {
+body.monitor-fullscreen .el-aside {
   display: none !important;
 }
-body.-fullscreen .el-header {
+body.monitor-fullscreen .el-header {
   display: none !important;
 }
-body.-fullscreen .el-main {
+body.monitor-fullscreen .el-main {
   padding: 0 !important;
   background: #050a1a !important;
 }
-body.-fullscreen .-carousel-wrapper .dashboard-header {
+body.monitor-fullscreen .monitor-carousel-wrapper .dashboard-header {
   margin: 0;
   border-radius: 0;
 }
 /* 全屏模式下顶栏/主区留白已移除,容器高度直接取满视口 */
-body.-fullscreen .-carousel-wrapper {
+body.monitor-fullscreen .monitor-carousel-wrapper {
   height: 100vh;
 }
 </style>
-
