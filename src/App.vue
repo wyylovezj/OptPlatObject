@@ -1085,6 +1085,11 @@ body {
   font-size: 14px;
   color: #303133;
   line-height: 1.8;
+  /* 保留原始格式文本（换行、制表符、空格），与发布端预览一致 */
+  white-space: pre-wrap;
+  tab-size: 2em;
+  -moz-tab-size: 2em;
+  word-break: break-word;
 }
 .notif-dialog-content p {
   margin: 0 0 10px;
