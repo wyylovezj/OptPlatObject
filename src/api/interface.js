@@ -8,6 +8,7 @@
  */
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { processSpeechQueue, dataDictionary, serverIp, orderModel, tableData } from '@/utils/publicData.js'
+import { rbacIp } from '@/api/userPermisssion.js'
 import axios from 'axios'
 import { exportIp } from '@/utils/publicDataTools.js'
 
@@ -97,6 +98,29 @@ export const loginAuthentication = async (username, password) => {
   } catch (error) {
     // 如果发生错误，抛出一个新的错误对象
     // 优先使用服务器返回的错误信息，否则使用默认的'登录失败'
+    throw new Error(error.response?.data?.message || '服务器连接失败')
+  }
+}
+
+/**
+ * 登录成功后同步用户：sys_user 中不存在该用户时自动添加（后端接口位于 rolePermission.py）
+ * @param {string} username - 用户名
+ * @param {string} nickname - 中文名称（loginAuthentication 返回数据中的 nickname 字段）
+ * @returns {Promise<Object>} - 返回同步结果，data 中包含 nickname 中文名称字段
+ * @throws {Error} - 同步失败时抛出错误
+ */
+export const syncLoginUser = async (username, nickname) => {
+  try {
+    // 发送POST请求到RBAC服务同步用户信息
+    const response = await axios.post(`${rbacIp.value}/syncLoginUser`, {
+      username,
+      nickname,
+    })
+    console.log('syncLoginUser', response.data)
+    return response.data
+  } catch (error) {
+    // 如果发生错误，抛出一个新的错误对象
+    // 优先使用服务器返回的错误信息，否则使用默认错误信息
     throw new Error(error.response?.data?.message || '服务器连接失败')
   }
 }

@@ -621,7 +621,8 @@ router.beforeEach(async (to, from, next) => {
               } else {
                 next({
                   name: 'NotFound',
-                  replace: true
+                  replace: true,
+                  query: { noPermission: '1' }
                 })
               }
               return
@@ -636,11 +637,12 @@ router.beforeEach(async (to, from, next) => {
         if (checkRoutePermission(to, permissionStore)) {
           next()
         } else {
-          // 无权限访问，重定向到 403 页面或首页
+          // 无权限访问，重定向到 404 页面（携带标识，由页面提示联系管理员）
           console.warn('无权限访问:', to.path)
           next({
             name: 'NotFound',
-            replace: true
+            replace: true,
+            query: { noPermission: '1' }
           })
         }
       } else {

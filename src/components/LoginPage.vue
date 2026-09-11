@@ -7,7 +7,7 @@
  * @lastModifiedBy： 魏阳阳
  * @lastModifiedTime： 2026-01-28 09:29:26
  */
-import { loginAuthentication } from '@/api/interface.js'
+import { loginAuthentication, syncLoginUser } from '@/api/interface.js'
 import { ref,onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authInfoStore.js'
@@ -106,6 +106,10 @@ const handleLogin = async () => {
   try {
     // 调用登录接口进行登录验证
     const userData = await loginAuthentication(loginForm.value.username, loginForm.value.password)
+
+    // 登录验证成功：若 sys_user 中不存在该用户则自动添加（携带昵称，后端接口位于 rolePermission.py）
+    // 登录成功不代表已有系统权限，访问权限由后续权限加载与路由守卫校验
+    await syncLoginUser(userData.username, userData.nickname)
 
     // 处理"记住我"功能
     if (rememberMe.value) {

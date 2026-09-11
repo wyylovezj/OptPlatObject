@@ -1,8 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
+
+// 是否为无权限访问（路由守卫拦截无权限用户时携带 noPermission 标识重定向到本页）
+const isNoPermission = computed(() => route.query.noPermission === '1')
 
 // 生成星星样式
 const stars = ref([])
@@ -39,7 +43,14 @@ const goHome = () => {
 }
 
 const goBack = () => {
-  router.go(-1)
+  // 获取浏览历史上一页（路由守卫拦截登录用户时，上一页往往就是登录页）
+  const backPath = window.history.state?.back
+  // 上一页为登录页或无有效浏览历史时，改为返回首页，避免退回登录页
+  if (backPath && !String(backPath).includes('/login')) {
+    router.go(-1)
+  } else {
+    router.push('/home')
+  }
 }
 
 // 初始化星星
@@ -61,10 +72,10 @@ onMounted(() => {
         <span>4</span>
       </div>
 
-      <h1 class="error-title">页面未找到</h1>
+      <h1 class="error-title">{{ isNoPermission ? '暂无访问权限' : '页面未找到' }}</h1>
 
       <p class="error-message">
-        您访问的页面可能已被移除、重命名或暂时不可用。
+        {{ isNoPermission ? '您暂无该页面的访问权限，请联系管理员为您分配权限。' : '您访问的页面可能已被移除、重命名或暂时不可用。' }}
       </p>
 
       <div class="action-buttons">
