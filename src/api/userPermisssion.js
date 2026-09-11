@@ -28,6 +28,48 @@ export const getUserInfo = async (username) => {
   }
 }
 /**
+ * 获取用户告警语音播报配置
+ * @param {string} username - 用户名
+ * @returns {Promise<number>} - 0-关闭播报，1-开启播报（默认）
+ */
+export const getAlarmConfig = async (username) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/getAlarmConfig`, {
+      username,
+      currentUser: getCurrentUser(),
+    })
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '获取告警播报配置失败')
+    }
+    const value = Number(response.data.data?.configAlarmStatus)
+    return Number.isNaN(value) ? 1 : value
+  } catch (error) {
+    throw new Error(error.response?.data?.message || error.message || '获取告警播报配置失败')
+  }
+}
+/**
+ * 更新用户告警语音播报配置
+ * @param {string} username - 用户名
+ * @param {number} configAlarmStatus - 0-关闭播报，1-开启播报
+ * @returns {Promise<number>} - 更新后的配置值
+ */
+export const updateAlarmConfig = async (username, configAlarmStatus) => {
+  try {
+    const response = await axios.post(`${rbacIp.value}/updateAlarmConfig`, {
+      username,
+      configAlarmStatus,
+      currentUser: getCurrentUser(),
+    })
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || '保存告警播报配置失败')
+    }
+    const value = Number(response.data.data?.configAlarmStatus)
+    return Number.isNaN(value) ? Number(configAlarmStatus) : value
+  } catch (error) {
+    throw new Error(error.response?.data?.message || error.message || '保存告警播报配置失败')
+  }
+}
+/**
  * 禁用用户
  * @param {string} username - 用户名
  * @returns {Promise<Object>} - 返回用户信息对象

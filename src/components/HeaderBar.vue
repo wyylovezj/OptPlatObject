@@ -16,11 +16,14 @@ import { useAuthStore } from '@/stores/authInfoStore.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { getSystemNotifications, getUserNotificationHistory, markUserNotificationsRead, getUserUnreadCount } from '@/api/systemNotificationApi.js'
 import { getTodoList, createTodo, updateTodo, deleteTodo, toggleTodoStatus } from '@/api/todoApi.js'
+import { updateAlarmConfig } from '@/api/userPermisssion.js'
 import {
   messageInstance,
   stopSpeak,
   isSpeaking,
   stopSpeaking,
+  applyAlarmConfig,
+  silentSpeakApply,
   user, isSsoLogin
 } from '@/utils/publicData.js'
 
@@ -511,17 +514,42 @@ const breadcrumbList = computed(() => {
   // 过滤掉没有breadcrumb的路由记录
   return route.matched.filter(item => item.meta && item.meta.breadcrumb)
 })
+// 快捷切换语音播报开关：先修改数据库配置（sys_user.config_alarm_status），再重新读取并应用
+const toggleAlarmConfig = async () => {
+  const username = sessionStorage.getItem('user')
+  if (!username) return
+  // 当前为开启状态时切换为关闭（0），当前为关闭状态时切换为开启（1）
+  const nextValue = stopSpeaking.value ? 1 : 0
+  try {
+    await updateAlarmConfig(username, nextValue)
+    // 保存成功后立即重新读取配置并应用（非静默，由 watch 弹出状态提示）
+    await applyAlarmConfig(username, false)
+  } catch (e) {
+    ElMessage.error('语音播报配置修改失败：' + e.message)
+  }
+}
+
 // 侦听开启/关闭语音播报状态的更新
 watch( stopSpeaking, async (newVal) => {
+  // 更新喇叭图标悬浮提示文案，并同步清理正在进行的播报
   if (newVal === false) {
     content.value = '点击关闭语音播报'
-    // 如果已有提示框在显示，先关闭它
-    if (messageInstance.value) {
-      // 关闭所有消息
-      ElMessage.closeAll()
-      // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
+  } else {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel() // 清除之前的播报
     }
+    content.value = '点击开启语音播报'
+  }
+  // 按服务端配置静默同步时（登录/刷新/保存配置），不弹出状态提示
+  if (silentSpeakApply.value) return
+  // 如果已有提示框在显示，先关闭它
+  if (messageInstance.value) {
+    // 关闭所有消息
+    ElMessage.closeAll()
+    // 等待消息关闭动画完成
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  if (newVal === false) {
     messageInstance.value = ElMessage.success({
       message: '已开启语音播报',
       duration: 1000,
@@ -530,17 +558,6 @@ watch( stopSpeaking, async (newVal) => {
       }
     })
   } else {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel() // 清除之前的播报
-    }
-    // 如果已有提示框在显示，先关闭它
-    if (messageInstance.value) {
-      // 关闭所有消息
-      ElMessage.closeAll()
-      // 等待消息关闭动画完成
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
-    content.value = '点击开启语音播报'
     messageInstance.value = ElMessage.warning({
       message: '已关闭语音播报',
       duration: 1000,
@@ -931,7 +948,7 @@ const logout = async () =>{
     <el-tooltip :visible="alarmVisible" popper-class="header-icon-tooltip"
                 :content="content"
     >
-      <el-icon class="speak" @click="stopSpeaking = !stopSpeaking" @mouseenter="alarmVisible = true" @mouseleave="alarmVisible = false">
+      <el-icon class="speak" @click="toggleAlarmConfig" @mouseenter="alarmVisible = true" @mouseleave="alarmVisible = false">
         <svg class="icon" aria-hidden="true" style="pointer-events: none">
           <use v-show="!stopSpeaking" xlink:href="#icon-lingdang_mian"></use>
           <use v-show="stopSpeaking" xlink:href="#icon-lingdang-jingyin_mian"></use>

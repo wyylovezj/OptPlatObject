@@ -14,7 +14,7 @@ import IndexPage from '@/components/IndexPage.vue'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { useAuthStore } from '@/stores/authInfoStore.js'
 import { itsmTodoData } from '@/utils/homePageData.js'
-import { isSsoLogin, messageInstance, refresh, stopSpeaking, user } from '@/utils/publicData.js'
+import { isSsoLogin, messageInstance, refresh, stopSpeaking, user, applyAlarmConfig } from '@/utils/publicData.js'
 import { WorkOrderDataModel } from '@/utils/publicDataTools.js'
 import { ElMessage, ElMessageBox, ElNotification, ElScrollbar } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, watch, h, ref } from 'vue'
@@ -557,6 +557,54 @@ const checkCalendarUpdatePrompt = () => {
   )
 }
 
+// 从服务端读取并应用告警语音播报配置（登录、刷新时）
+// silent=true 时静默应用，不弹出“已开启/已关闭语音播报”提示
+const applyAlarmConfigFromServer = async (silent = true) => {
+  const username = sessionStorage.getItem('user')
+  if (!username) return 1
+  try {
+    return await applyAlarmConfig(username, silent)
+  } catch (e) {
+    console.warn('读取告警播报配置失败，按默认开启处理：', e.message)
+    return 1
+  }
+}
+
+// 告警数据页面刷新：先读取用户播报配置，
+// 已关闭播报（config_alarm_status=0）时不弹提示框；开启播报时提示点击“知道了”继续播报
+const handleAlarmPageRefresh = async () => {
+  const configValue = await applyAlarmConfigFromServer()
+  if (configValue === 0) return
+  ElMessageBox.alert('页面刷新会终止语音播报，请点击知道了继续语音播报', '提示', {
+    showClose: false,
+    closeOnClickModal: false,
+    closeOnPressEscape: false,
+    confirmButtonText: '知道了',
+    type: 'success',
+    customClass: 'custom-message-box',
+  })
+    .then(async () => {
+      stopSpeaking.value = false
+      // 如果已有提示框在显示，先关闭它
+      if (messageInstance.value) {
+        // 关闭所有消息
+        ElMessage.closeAll()
+        // 等待消息关闭动画完成
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      messageInstance.value = ElMessage.success({
+        message: '已开启语音播报',
+        duration: 1000,
+        onClose: () => {
+          messageInstance.value = null
+        },
+      })
+    })
+    .catch((e) => {
+      console.log('页面刷新提示框已关闭：', e)
+    })
+}
+
 // 在 onMounted 中添加 watch, 每60s 刷新一次数据并播报告警信息
 onMounted(() => {
   // 初始化用户信息
@@ -585,33 +633,11 @@ onMounted(() => {
         const isAlarmPage = window.location.pathname.startsWith('/alarmManagement')
 
         if (isRefresh && !wasLoginRedirect && isAlarmPage) {
-          ElMessageBox.confirm('页面刷新会终止语音播报，请点击开启或关闭语音播报！', '提示', {
-            showClose: false,
-            confirmButtonText: '开启',
-            cancelButtonText: '关闭',
-            type: 'success',
-            customClass: 'custom-message-box',
-          })
-            .then(async () => {
-              stopSpeaking.value = false
-              // 如果已有提示框在显示，先关闭它
-              if (messageInstance.value) {
-                // 关闭所有消息
-                ElMessage.closeAll()
-                // 等待消息关闭动画完成
-                await new Promise((resolve) => setTimeout(resolve, 0))
-              }
-              messageInstance.value = ElMessage.success({
-                message: '已开启语音播报',
-                duration: 1000,
-                onClose: () => {
-                  messageInstance.value = null
-                },
-              })
-            })
-            .catch(() => {
-              stopSpeaking.value = true
-            })
+          // 告警数据页面刷新：按用户播报配置决定是否弹出提示框
+          handleAlarmPageRefresh()
+        } else {
+          // 登录或非告警页面刷新：读取并应用告警播报配置
+          applyAlarmConfigFromServer()
         }
         // 判断是否是首次登录（在清除标记之前判断）
         const isFirstLogin = !isRefresh && wasLoginRedirect

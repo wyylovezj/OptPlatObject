@@ -294,6 +294,17 @@ const router = createRouter({
             permission: 'system:todo',
           },
         },
+        {
+          path: 'systemConfig',
+          name: 'SystemConfig',
+          component: () => import('@/components/systemManage/SystemConfigPage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '系统配置',
+            breadcrumb: '系统配置',
+            permission: 'system:config',
+          },
+        },
       ],
     },
     /**

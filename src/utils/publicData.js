@@ -1,4 +1,5 @@
 import { searchData } from '@/api/interface.js'
+import { getAlarmConfig } from '@/api/userPermisssion.js'
 import { useSpeakStore } from '@/stores/alarmSpeakStore.js'
 import { convertAlarmDataToTreeOptimized, loadLazyChildren } from '@/utils/treeData.js'
 import { ref, computed,nextTick } from 'vue'
@@ -110,6 +111,26 @@ export const stopSpeaking = ref(false)
 
 // 语音播报状态：用于喇叭状态和语音播报顺序控制
 export const isSpeaking = ref(false)
+
+// 是否正在按服务端配置同步告警播报开关：为 true 时静默应用，不弹出“已开启/已关闭语音播报”提示
+export const silentSpeakApply = ref(false)
+
+/**
+ * 从服务端读取用户告警语音播报配置（sys_user.config_alarm_status）并应用到播报开关
+ * @param {string} username - 用户名
+ * @param {boolean} silent - 是否静默应用（true 时不弹出状态提示，由调用方自行提示）
+ * @returns {Promise<number>} - 0-关闭播报，1-开启播报
+ */
+export const applyAlarmConfig = async (username, silent = true) => {
+  const configValue = Number(await getAlarmConfig(username))
+  const shouldStop = configValue === 0
+  if (stopSpeaking.value !== shouldStop) {
+    silentSpeakApply.value = silent
+    stopSpeaking.value = shouldStop
+    silentSpeakApply.value = false
+  }
+  return configValue
+}
 
 
 // 修改 src/utils/publicData.js 中的 serverIp 定义
