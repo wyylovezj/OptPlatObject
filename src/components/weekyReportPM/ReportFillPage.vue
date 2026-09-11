@@ -1514,7 +1514,19 @@ const onEditableInput = (idx, e) => {
     el.textContent = '\u200B'
   }
 }
-const cancelInlineEdit = () => { destroySortable(); editRecordId.value = null; editingLineIdx.value = null; editLines.value = []; editingTemplateInfo.value = null; document.removeEventListener('keydown', handleKeydownSave); document.removeEventListener('mousedown', handleOutsideClick) }
+const cancelInlineEdit = async () => {
+  const recordId = editRecordId.value
+  // 编辑内容全为空时，取消同样删除该空草稿，避免留下空内容记录
+  const isEmpty = editLines.value.every(l => !l.text.trim())
+  destroySortable(); editRecordId.value = null; editingLineIdx.value = null; editLines.value = []; editingTemplateInfo.value = null; document.removeEventListener('keydown', handleKeydownSave); document.removeEventListener('mousedown', handleOutsideClick)
+  if (recordId && isEmpty) {
+    try {
+      await deleteReport(recordId)
+      msg('success', '内容为空，已删除')
+      await loadFillData(true)
+    } catch (e) { msg('error', e.message || '删除失败') }
+  }
+}
 
 const parseLines = (content) => {
   if (!content || !content.trim()) return []
