@@ -44,6 +44,7 @@ const cardRenderState = ref({
   emailManage: false,
   passwordModify: false, // 主机密码修改卡片渲染状态
   linuxTool: false, // Linux系统工具卡片渲染状态
+  onlineDoc: false, // 在线文档卡片渲染状态
 })
 
 // 新增：实时统计实际渲染的卡片数量（不依赖任何数据，只统计实际 DOM）
@@ -1307,6 +1308,11 @@ const fileUploadRules = ref({
 
 // 处理堡垒机账号解锁按钮点击事件
 const handleUnlock = () => {
+  window.open('https://www.baidu.com', '_blank')
+}
+// 处理在线文档卡片跳转链接点击事件
+const handleOnlineDoc = () => {
+  // TODO: 替换为真实的在线文档地址
   window.open('https://www.baidu.com', '_blank')
 }
 // 邮箱账号管理重命名表单实例
@@ -3202,6 +3208,41 @@ onBeforeUnmount(() => {
               <div style="flex: 1; display: flex; justify-content: flex-end">
                 <el-button type="danger" @click="openLinuxToolHistory">历史任务</el-button>
                 <el-button type="primary" :disabled="exportDisabled.linuxTool" @click="() => {dialogVisible.linuxToolConsole = true}"> 控制台 </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
+        <!-- 在线文档卡片 -->
+        <el-card
+          v-if="containsLabel('在线文档') && permissionStore.hasPermission('tool:onlineDoc')"
+          shadow="hover"
+          body-style="background-color: #F5F7FA;height: 100%;box-sizing: border-box;"
+          :ref="(el) => { cardRenderState.onlineDoc = !!el; }"
+        >
+          <!-- 卡片主体内容 -->
+          <div class="card-content">
+            <!-- 上部分：2:1 比例 -->
+            <div class="top-section">
+              <!-- 左侧：1:2 比例 -->
+              <div class="left-part">
+                <div class="circle-image">
+                  <!-- 圆形框内显示 SVG 图片 -->
+                  <svg class="icon" aria-hidden="true">
+                    <use xlink:href="#icon-zaixianwendang"></use>
+                  </svg>
+                </div>
+              </div>
+              <!-- 右侧：1:2 比例 -->
+              <div class="right-part">
+                <p>在线文档</p>
+              </div>
+            </div>
+            <!-- 下部分：按钮 -->
+            <div class="bottom-section">
+              <div style="flex: 1; display: flex; justify-content: flex-end">
+                <el-button type="primary" @click="handleOnlineDoc">
+                  前往使用
+                </el-button>
               </div>
             </div>
           </div>
