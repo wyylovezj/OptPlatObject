@@ -6,6 +6,20 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "39584150",
+      "name": "在线文档",
+      "font_class": "zaixianwendang",
+      "unicode": "e818",
+      "unicode_decimal": 59416
+    },
+    {
+      "icon_id": "1881414",
+      "name": "资源管理",
+      "font_class": "ziyuanguanli",
+      "unicode": "e65d",
+      "unicode_decimal": 58973
+    },
+    {
       "icon_id": "5695925",
       "name": "周报管理",
       "font_class": "zhoubaoguanli1",
