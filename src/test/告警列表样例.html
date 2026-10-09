@@ -1,0 +1,871 @@
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信维通 · 告警管理平台</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --primary: #2563eb;
+    --primary-light: #3b82f6;
+    --primary-bg: #eff6ff;
+    --primary-border: #bfdbfe;
+    --critical: #dc2626;
+    --critical-bg: #fef2f2;
+    --critical-border: #fecaca;
+    --major: #ea580c;
+    --major-bg: #fff7ed;
+    --major-border: #fed7aa;
+    --warning: #f59e0b;
+    --warning-bg: #fffbeb;
+    --warning-border: #fde68a;
+    --info: #0ea5e9;
+    --info-bg: #f0f9ff;
+    --info-border: #bae6fd;
+    --normal: #6b7280;
+    --normal-bg: #f9fafb;
+    --normal-border: #e5e7eb;
+    --stat-major: #ea580c;
+    --stat-major-bg: #fff7ed;
+    --status-pending: #f59e0b;
+    --status-pending-bg: #fffbeb;
+    --status-processing: #2563eb;
+    --status-processing-bg: #eff6ff;
+    --status-resolved: #16a34a;
+    --status-resolved-bg: #f0fdf4;
+    --status-closed: #6b7280;
+    --status-closed-bg: #f9fafb;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-tertiary: #94a3b8;
+    --bg-page: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-sidebar: #0f172a;
+    --bg-sidebar-active: #1e3a5f;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg-page); color: var(--text-primary);
+    line-height: 1.5; font-size: 14px; display: flex; min-height: 100vh;
+  }
+
+  /* ══════════ SIDEBAR ══════════ */
+  .sidebar {
+    width: 220px; min-height: 100vh; background: var(--bg-sidebar);
+    display: flex; flex-direction: column; flex-shrink: 0;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .sidebar-brand { padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .sidebar-brand h1 { color: #fff; font-size: 18px; font-weight: 700; }
+  .sidebar-brand span { color: var(--text-tertiary); font-size: 11px; display: block; margin-top: 2px; }
+  .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .nav-group { margin-bottom: 4px; }
+  .nav-item {
+    display: flex; align-items: center; padding: 10px 20px;
+    color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s;
+    font-size: 14px; gap: 10px; position: relative;
+  }
+  .nav-item:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.04); }
+  .nav-item.active { color: #fff; background: var(--bg-sidebar-active); }
+  .nav-item.active::before {
+    content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+    width: 3px; background: var(--primary-light); border-radius: 0 3px 3px 0;
+  }
+  .nav-children { background: rgba(0,0,0,0.15); }
+  .nav-children .nav-item { padding-left: 48px; font-size: 13px; }
+  .nav-children .nav-item.active { background: transparent; color: var(--primary-light); }
+  .nav-children .nav-item.active::before { display: none; }
+
+  /* ══════════ MAIN ══════════ */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* ══════════ HEADER ══════════ */
+  .header {
+    height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0;
+  }
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-secondary); }
+  .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--primary); }
+  .breadcrumb .sep { color: var(--text-tertiary); }
+  .breadcrumb .current { color: var(--text-primary); font-weight: 500; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-btn {
+    width: 36px; height: 36px; border-radius: var(--radius-md); border: none;
+    background: transparent; color: var(--text-secondary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .header-btn:hover { background: var(--border-light); color: var(--text-primary); }
+  .header-btn .badge {
+    position: absolute; top: 4px; right: 4px; width: 8px; height: 8px;
+    background: var(--critical); border-radius: 50%; border: 2px solid var(--bg-card);
+  }
+  .user-info { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: var(--radius-md); cursor: pointer; }
+  .user-info:hover { background: var(--border-light); }
+  .user-avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--primary-bg);
+    color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;
+  }
+  .user-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+
+  .content { flex: 1; padding: 20px 24px; overflow-y: auto; }
+
+  /* ══════════ STATS BAR ══════════ */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--bg-card); border-radius: var(--radius-lg); padding: 16px 20px;
+    border: 1px solid var(--border); display: flex; align-items: center; gap: 14px;
+  }
+  .stat-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-color: transparent; }
+  .stat-icon {
+    width: 44px; height: 44px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .stat-icon.critical { background: var(--critical-bg); color: var(--critical); }
+  .stat-icon.major    { background: var(--stat-major-bg); color: var(--stat-major); }
+  .stat-icon.pending  { background: var(--status-pending-bg); color: var(--status-pending); }
+  .stat-icon.total    { background: var(--primary-bg); color: var(--primary); }
+  .stat-info { flex: 1; }
+  .stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 2px; }
+  .stat-value { font-size: 24px; font-weight: 700; line-height: 1.2; }
+  .stat-value.critical { color: var(--critical); }
+  .stat-value.major    { color: var(--stat-major); }
+  .stat-value.pending  { color: var(--status-pending); }
+  .stat-value.total    { color: var(--text-primary); }
+
+  /* ══════════ FILTER BAR ══════════ */
+  .filter-bar {
+    background: var(--bg-card); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); margin-bottom: 16px;
+    padding: 14px 18px; display: flex; align-items: center;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .filter-item { flex: 0 0 auto; }
+  .filter-item input,
+  .filter-item select {
+    height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 0 8px; font-size: 13px; color: var(--text-primary);
+    background: var(--bg-card); outline: none; min-width: 100px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .filter-item input:focus,
+  .filter-item select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .filter-item input::placeholder { color: var(--text-tertiary); }
+  .filter-item select {
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px;
+  }
+
+  /* Multi-select dropdown */
+  .multi-select-wrapper { position: relative; display: inline-block; }
+  .multi-select-trigger {
+    height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 0 24px 0 10px; font-size: 13px; color: var(--text-primary);
+    background: var(--bg-card); cursor: pointer; display: flex; align-items: center;
+    gap: 4px; min-width: 110px; max-width: 180px; user-select: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .multi-select-trigger:hover { border-color: var(--primary-border); }
+  .multi-select-trigger.open { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .multi-select-trigger .placeholder { color: var(--text-tertiary); }
+  .multi-select-trigger .selected-count {
+    background: var(--primary-bg); color: var(--primary); font-size: 11px;
+    padding: 1px 6px; border-radius: 8px; font-weight: 600;
+  }
+  .multi-select-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; min-width: 200px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 9999; display: none;
+    max-height: 260px; overflow-y: auto; padding: 4px 0;
+  }
+  .multi-select-dropdown.show { display: block; }
+  .multi-select-option {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    cursor: pointer; font-size: 13px; color: var(--text-primary); transition: background 0.15s;
+  }
+  .multi-select-option:hover { background: var(--primary-bg); }
+  .multi-select-option .ms-checkbox {
+    width: 16px; height: 16px; border: 1.5px solid var(--border); border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .multi-select-option.selected .ms-checkbox {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+  }
+
+  .filter-date-range { display: flex; align-items: center; gap: 6px; }
+  .filter-date-range span { font-size: 12px; color: var(--text-tertiary); }
+  .filter-date-range input[type="date"] { min-width: 115px; }
+  .filter-date-label {
+    font-size: 12px; color: var(--text-secondary); font-weight: 500;
+    white-space: nowrap; padding-right: 2px;
+  }
+
+  .filter-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+  .filter-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ══════════ BUTTONS ══════════ */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    height: 32px; padding: 0 14px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; border: none; cursor: pointer;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-light); box-shadow: 0 2px 6px rgba(37,99,235,0.3); }
+  .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--border-light); border-color: var(--text-tertiary); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); }
+  .btn-ghost:hover { background: var(--border-light); color: var(--text-primary); }
+  .btn-danger { background: var(--critical); color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-icon { width: 32px; padding: 0; }
+
+  /* ══════════ TABLE PANEL ══════════ */
+  .table-panel { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border); }
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border-light); }
+  .table-toolbar-left { display: flex; align-items: center; gap: 12px; }
+  .table-toolbar-right { display: flex; align-items: center; gap: 8px; }
+  .table-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .table-count { font-size: 12px; color: var(--text-secondary); background: var(--border-light); padding: 2px 8px; border-radius: 10px; }
+  .table-scroll { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+  thead { background: var(--border-light); position: sticky; top: 0; z-index: 1; }
+  th {
+    padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    text-align: left; white-space: nowrap; text-transform: uppercase;
+    letter-spacing: 0.3px; border-bottom: 1px solid var(--border); user-select: none;
+  }
+  td {
+    padding: 12px 14px; font-size: 13px; color: var(--text-primary);
+    border-bottom: 1px solid var(--border-light); white-space: nowrap;
+  }
+  tbody tr { transition: background 0.15s; position: relative; }
+  tbody tr:hover { background: var(--primary-bg); }
+  tbody tr:nth-child(even) { background: rgba(248,250,252,0.5); }
+  tbody tr:nth-child(even):hover { background: var(--primary-bg); }
+
+  .checkbox {
+    width: 16px; height: 16px; border: 1.5px solid var(--border); border-radius: 4px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .checkbox:hover { border-color: var(--primary); }
+  .checkbox.checked { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  /* Level badges — 4 levels */
+  .level-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; line-height: 1;
+  }
+  .level-badge .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .level-critical { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-border); }
+  .level-critical .dot { background: var(--critical); }
+  .level-major { background: var(--major-bg); color: #9a3412; border: 1px solid var(--major-border); }
+  .level-major .dot { background: var(--major); }
+  .level-warning { background: var(--warning-bg); color: #b45309; border: 1px solid var(--warning-border); }
+  .level-warning .dot { background: var(--warning); }
+  .level-info { background: var(--info-bg); color: #0369a1; border: 1px solid var(--info-border); }
+  .level-info .dot { background: var(--info); }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-flex; align-items: center; padding: 3px 10px;
+    border-radius: 20px; font-size: 12px; font-weight: 500; line-height: 1;
+  }
+  .status-pending { background: var(--status-pending-bg); color: #92400e; border: 1px solid var(--warning-border); }
+  .status-processing { background: var(--status-processing-bg); color: var(--primary); border: 1px solid var(--primary-border); }
+  .status-resolved { background: var(--status-resolved-bg); color: #15803d; border: 1px solid #bbf7d0; }
+  .status-closed { background: var(--status-closed-bg); color: var(--text-secondary); border: 1px solid var(--border); }
+
+  .cell-link { color: var(--primary); cursor: pointer; }
+  .cell-link:hover { text-decoration: underline; }
+  .cell-ip {
+    font-family: "SF Mono", "Fira Code", monospace; font-size: 12px;
+    color: var(--text-secondary); background: var(--border-light);
+    padding: 2px 8px; border-radius: 4px; display: inline-block;
+  }
+  .cell-desc { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell-desc[title]:hover { color: var(--primary); }
+  .cell-time { font-size: 12px; color: var(--text-secondary); font-family: "SF Mono", "Fira Code", monospace; }
+
+  /* ══════════ ACTION DROPDOWN ══════════ */
+  .action-menu-wrapper { position: relative; display: inline-block; }
+  .action-trigger {
+    width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .action-trigger:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary-border); }
+  .action-trigger.open { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
+
+  .action-dropdown {
+    position: fixed; top: 0; left: 0;
+    min-width: 140px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 9999;
+    display: none; padding: 4px 0;
+  }
+  .action-dropdown.show { display: block; }
+  .action-dropdown-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; font-size: 13px; color: var(--text-primary);
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .action-dropdown-item:hover { background: var(--primary-bg); color: var(--primary); }
+  .action-dropdown-item.danger:hover { background: var(--critical-bg); color: var(--critical); }
+  .action-dropdown-item.warn:hover { background: var(--major-bg); color: #9a3412; }
+  .action-dropdown-item svg { flex-shrink: 0; }
+  .action-dropdown-divider { height: 1px; background: var(--border-light); margin: 4px 0; }
+
+  /* ══════════ CRITICAL ROW BLINK ══════════ */
+  @keyframes criticalBlink {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: rgba(220, 38, 38, 0.06); }
+  }
+  @keyframes criticalPulse {
+    0%, 100% { box-shadow: inset 0 0 0 0 rgba(220,38,38,0); }
+    50% { box-shadow: inset 0 0 8px 0 rgba(220,38,38,0.08); }
+  }
+  tbody tr.row-critical {
+    border-left: 3px solid var(--critical);
+    animation: criticalBlink 2s ease-in-out infinite, criticalPulse 2s ease-in-out infinite;
+  }
+  tbody tr.row-critical:hover { animation: none; background: var(--critical-bg) !important; }
+  tbody tr.row-major { border-left: 3px solid var(--major); }
+  tbody tr.row-warning { border-left: 3px solid var(--warning); }
+  tbody tr.row-info { border-left: 3px solid var(--info); }
+
+  .level-critical .dot { animation: dotBlink 1s ease-in-out infinite; }
+  @keyframes dotBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+  /* ══════════ SVG ICONS ══════════ */
+  .icon-svg {
+    width: 16px; height: 16px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .icon-svg.sm { width: 14px; height: 14px; }
+  .icon-svg.lg { width: 18px; height: 18px; }
+
+  /* ══════════ TOOLTIP ══════════ */
+  [data-tooltip] { position: relative; }
+  [data-tooltip]:hover::after {
+    content: attr(data-tooltip); position: absolute;
+    bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    padding: 4px 10px; background: var(--text-primary); color: #fff;
+    font-size: 12px; border-radius: var(--radius-sm); white-space: nowrap;
+    z-index: 9999; pointer-events: none;
+  }
+
+  /* ══════════ PAGINATION ══════════ */
+  .pagination-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-top: 1px solid var(--border-light); }
+  .pagination-info { font-size: 13px; color: var(--text-secondary); }
+  .pagination-info strong { color: var(--text-primary); font-weight: 600; }
+  .pagination-controls { display: flex; align-items: center; gap: 4px; }
+  .page-btn {
+    min-width: 32px; height: 32px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-primary); cursor: pointer; display: flex;
+    align-items: center; justify-content: center; font-size: 13px;
+    transition: all 0.2s; padding: 0 8px;
+  }
+  .page-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .page-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .page-size { display: flex; align-items: center; gap: 6px; margin-left: 12px; font-size: 13px; color: var(--text-secondary); }
+  .page-size select { height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 8px; font-size: 13px; background: var(--bg-card); cursor: pointer; outline: none; }
+
+  @media (max-width: 1200px) { .stats-bar { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .stats-bar { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h1>信维通</h1>
+    <span>智能运维平台 v2.6</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-item">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        首页
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-item active">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        告警管理
+      </div>
+      <div class="nav-children">
+        <div class="nav-item active">告警数据</div>
+        <div class="nav-item">告警规则</div>
+        <div class="nav-item">通知策略</div>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-item">
+        <svg class="icon-svg" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        工具管理
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-item">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        权限管理
+      </div>
+    </div>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <header class="header">
+    <div class="breadcrumb">
+      <a href="#">告警管理</a>
+      <span class="sep">/</span>
+      <span class="current">告警数据</span>
+    </div>
+    <div class="header-right">
+      <button class="header-btn" data-tooltip="通知">
+        <svg class="icon-svg lg" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="badge"></span>
+      </button>
+      <div class="user-info">
+        <div class="user-avatar">W</div>
+        <span class="user-name">weiyangyang</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="content">
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-icon critical">
+          <svg class="icon-svg lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">严重告警</div>
+          <div class="stat-value critical">23</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon major">
+          <svg class="icon-svg lg" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">重要告警</div>
+          <div class="stat-value major">156</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon pending">
+          <svg class="icon-svg lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">待处理</div>
+          <div class="stat-value pending">89</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon total">
+          <svg class="icon-svg lg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="stat-info">
+          <div class="stat-label">告警总数</div>
+          <div class="stat-value total">1,000</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-item">
+        <select>
+          <option value="">全部级别</option>
+          <option>严重</option>
+          <option>重要</option>
+          <option>一般</option>
+          <option>普通</option>
+        </select>
+      </div>
+
+      <!-- 告警分类 多选 -->
+      <div class="filter-item">
+        <div class="multi-select-wrapper" id="categorySelect">
+          <div class="multi-select-trigger" onclick="toggleMultiDropdown('categorySelect')">
+            <span class="placeholder">告警分类</span>
+          </div>
+          <div class="multi-select-dropdown" id="categoryDropdown">
+            <div class="multi-select-option" data-value="系统" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>系统</div>
+            <div class="multi-select-option" data-value="网络" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>网络</div>
+            <div class="multi-select-option" data-value="云平台" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>云平台</div>
+            <div class="multi-select-option" data-value="NBU备份" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>NBU备份</div>
+            <div class="multi-select-option" data-value="硬件服务器" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>硬件服务器</div>
+            <div class="multi-select-option" data-value="中间件" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>中间件</div>
+            <div class="multi-select-option" data-value="K8S" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>K8S</div>
+            <div class="multi-select-option" data-value="应用链路" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>应用链路</div>
+            <div class="multi-select-option" data-value="大数据" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>大数据</div>
+            <div class="multi-select-option" data-value="数据库" onclick="toggleMultiOption(this, 'categorySelect')"><div class="ms-checkbox"></div>数据库</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-item">
+        <select id="statusFilter" onchange="applyStatusFilter()">
+          <option value="">全部状态</option>
+          <option value="pending" selected>未处理</option>
+          <option value="processing">处理中</option>
+          <option value="resolved">已解决</option>
+          <option value="closed">已关闭</option>
+        </select>
+      </div>
+
+      <!-- 业务系统 多选 -->
+      <div class="filter-item">
+        <div class="multi-select-wrapper" id="systemSelect">
+          <div class="multi-select-trigger" onclick="toggleMultiDropdown('systemSelect')">
+            <span class="placeholder">业务系统</span>
+          </div>
+          <div class="multi-select-dropdown" id="systemDropdown">
+            <div class="multi-select-option" data-value="新核心" onclick="toggleMultiOption(this, 'systemSelect')"><div class="ms-checkbox"></div>新核心</div>
+            <div class="multi-select-option" data-value="支付系统" onclick="toggleMultiOption(this, 'systemSelect')"><div class="ms-checkbox"></div>支付系统</div>
+            <div class="multi-select-option" data-value="风控平台" onclick="toggleMultiOption(this, 'systemSelect')"><div class="ms-checkbox"></div>风控平台</div>
+            <div class="multi-select-option" data-value="数据中台" onclick="toggleMultiOption(this, 'systemSelect')"><div class="ms-checkbox"></div>数据中台</div>
+            <div class="multi-select-option" data-value="用户中心" onclick="toggleMultiOption(this, 'systemSelect')"><div class="ms-checkbox"></div>用户中心</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-item">
+        <input type="text" placeholder="IP 地址" style="min-width:80px;width:100px">
+      </div>
+      <div class="filter-item">
+        <input type="text" placeholder="主机名" style="min-width:80px;width:100px">
+      </div>
+
+      <!-- 发生时间 区间 -->
+      <div class="filter-item">
+        <div class="filter-date-range">
+          <span class="filter-date-label">发生时间</span>
+          <input type="date">
+          <span>~</span>
+          <input type="date">
+        </div>
+      </div>
+
+      <!-- 处理时间 区间 -->
+      <div class="filter-item">
+        <div class="filter-date-range">
+          <span class="filter-date-label">处理时间</span>
+          <input type="date">
+          <span>~</span>
+          <input type="date">
+        </div>
+      </div>
+
+      <span class="filter-sep"></span>
+      <div class="filter-actions">
+        <button class="btn btn-ghost" onclick="resetFilters()">
+          <svg class="icon-svg sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          重置
+        </button>
+        <button class="btn btn-primary" onclick="doSearch()">
+          <svg class="icon-svg sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          查询
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-panel">
+      <div class="table-toolbar">
+        <div class="table-toolbar-left">
+          <span class="table-title">告警列表</span>
+          <span class="table-count">共 1,000 条</span>
+        </div>
+        <div class="table-toolbar-right">
+          <button class="btn btn-secondary btn-icon" data-tooltip="刷新" onclick="doRefresh()">
+            <svg class="icon-svg" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+          <button class="btn btn-secondary" onclick="doExport()">
+            <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            导出
+          </button>
+          <button class="btn btn-danger" onclick="batchClose()">
+            <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            批量关闭
+          </button>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px"><div class="checkbox" onclick="toggleAll(this)"></div></th>
+              <th style="width:50px">#</th>
+              <th>告警内容</th>
+              <th style="width:90px">级别</th>
+              <th style="width:80px">状态</th>
+              <th>业务系统</th>
+              <th>分类</th>
+              <th>主机名</th>
+              <th>IP 地址</th>
+              <th>发生时间</th>
+              <th>处理时间</th>
+              <th style="width:60px">操作</th>
+            </tr>
+          </thead>
+          <tbody id="alertTableBody">
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination-bar">
+        <div class="pagination-info">
+          显示 <strong>1-10</strong> 条，共 <strong>1,000</strong> 条
+        </div>
+        <div class="pagination-controls">
+          <button class="page-btn" disabled>&lt;</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn">4</button>
+          <button class="page-btn">5</button>
+          <button class="page-btn">...</button>
+          <button class="page-btn">100</button>
+          <button class="page-btn">&gt;</button>
+          <div class="page-size">
+            <span>每页</span>
+            <select><option>10</option><option>20</option><option>50</option><option>100</option></select>
+            <span>条</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 模拟数据 — 4级：严重(critical) > 重要(major) > 一般(warning) > 普通(info)
+const mockData = [
+  { level: 'critical', status: 'pending', system: '新核心', category: '中间件', host: 'zcddfsjg01', ip: '10.39.12.1', desc: 'Redis 主节点连接超时，集群状态异常', time: '2026-03-25 09:28:00', processTime: '-' },
+  { level: 'critical', status: 'processing', system: '支付系统', category: '数据库', host: 'zcddfsjg02', ip: '10.39.12.2', desc: 'MySQL 主从复制延迟超过 60s', time: '2026-03-25 09:25:00', processTime: '2026-03-25 09:30:00' },
+  { level: 'critical', status: 'pending', system: '支付系统', category: '存储', host: 'zcddfsjg10', ip: '10.39.12.10', desc: 'Ceph OSD 节点离线，数据健康度降级', time: '2026-03-25 08:45:00', processTime: '-' },
+  { level: 'major', status: 'pending', system: '新核心', category: '中间件', host: 'zcddfsjg06', ip: '10.39.12.6', desc: 'Kafka 消费者组 Lag 持续增长', time: '2026-03-25 09:05:00', processTime: '-' },
+  { level: 'major', status: 'processing', system: '新核心', category: '数据库', host: 'zcddfsjg07', ip: '10.39.12.7', desc: 'Oracle 表空间使用率超过 85%', time: '2026-03-25 09:00:00', processTime: '2026-03-25 09:20:00' },
+  { level: 'major', status: 'pending', system: '风控平台', category: '网络', host: 'zcddfsjg04', ip: '10.39.12.4', desc: '核心交换机端口丢包率 > 0.1%', time: '2026-03-25 09:15:00', processTime: '-' },
+  { level: 'warning', status: 'pending', system: '新核心', category: '中间件', host: 'zcddfsjg03', ip: '10.39.12.3', desc: 'Nginx 上游响应时间 P99 > 2s', time: '2026-03-25 09:20:00', processTime: '-' },
+  { level: 'warning', status: 'resolved', system: '新核心', category: '中间件', host: 'zcddfsjg09', ip: '10.39.12.9', desc: 'Tomcat 线程池使用率超过 90%', time: '2026-03-25 08:50:00', processTime: '2026-03-25 09:05:00' },
+  { level: 'info', status: 'closed', system: '新核心', category: '存储', host: 'zcddfsjg05', ip: '10.39.12.5', desc: '磁盘使用率超过 80% 阈值', time: '2026-03-25 09:10:00', processTime: '2026-03-25 09:40:00' },
+  { level: 'info', status: 'resolved', system: '风控平台', category: '网络', host: 'zcddfsjg08', ip: '10.39.12.8', desc: 'DNS 解析延迟超过 500ms', time: '2026-03-25 08:55:00', processTime: '2026-03-25 09:10:00' },
+];
+
+const levelOrder = { critical: 0, major: 1, warning: 2, info: 3 };
+mockData.sort((a, b) => levelOrder[a.level] - levelOrder[b.level]);
+
+const levelLabels = { critical: '严重', major: '重要', warning: '一般', info: '普通' };
+const statusLabels = { pending: '未处理', processing: '处理中', resolved: '已解决', closed: '已关闭' };
+
+// Status filter
+function getFilteredData() {
+  const statusVal = document.getElementById('statusFilter').value;
+  if (!statusVal) return mockData;
+  return mockData.filter(r => r.status === statusVal);
+}
+
+function applyStatusFilter() {
+  renderTable();
+}
+
+// Render table
+function renderTable() {
+  const filtered = getFilteredData();
+  const tbody = document.getElementById('alertTableBody');
+  tbody.innerHTML = filtered.map((row, fi) => {
+    const i = mockData.indexOf(row);
+    return `
+    <tr class="row-${row.level}">
+      <td><div class="checkbox" onclick="toggleRow(this)"></div></td>
+      <td style="color:var(--text-tertiary);font-size:12px">${fi + 1}</td>
+      <td><div class="cell-desc" title="${row.desc}" style="max-width:240px;font-weight:${row.level==='critical'||row.level==='major'?'600':'400'};color:${row.level==='critical'?'var(--critical)':row.level==='major'?'#9a3412':'inherit'}">${row.desc}</div></td>
+      <td><span class="level-badge level-${row.level}"><span class="dot"></span>${levelLabels[row.level]}</span></td>
+      <td><span class="status-badge status-${row.status}">${statusLabels[row.status]}</span></td>
+      <td>${row.system}</td>
+      <td>${row.category}</td>
+      <td><span class="cell-link">${row.host}</span></td>
+      <td><span class="cell-ip">${row.ip}</span></td>
+      <td><span class="cell-time">${row.time}</span></td>
+      <td><span class="cell-time">${row.processTime}</span></td>
+      <td>
+        <div class="action-menu-wrapper" id="actionMenu${i}">
+          <button class="action-trigger" onclick="toggleActionMenu('actionMenu${i}')">
+            <svg class="icon-svg sm" viewBox="0 0 24 24">
+              <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+          <div class="action-dropdown">
+            <div class="action-dropdown-item" onclick="viewAlert(${i})">
+              <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              查看
+            </div>
+            <div class="action-dropdown-item" onclick="handleAlert(${i})">
+              <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              处理
+            </div>
+            <div class="action-dropdown-item" onclick="createTicket(${i})">
+              <svg class="icon-svg sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              触发工单
+            </div>
+            <div class="action-dropdown-divider"></div>
+            <div class="action-dropdown-item warn" onclick="suspendAlert(${i})">
+              <svg class="icon-svg sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              挂起
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Update counts
+  document.querySelector('.table-count').textContent = `共 ${filtered.length} 条`;
+  document.querySelector('.pagination-info').innerHTML = `显示 <strong>1-${filtered.length}</strong> 条，共 <strong>${filtered.length}</strong> 条`;
+}
+
+// Checkbox
+function toggleAll(el) {
+  el.classList.toggle('checked');
+  document.querySelectorAll('#alertTableBody .checkbox').forEach(b =>
+    el.classList.contains('checked') ? b.classList.add('checked') : b.classList.remove('checked')
+  );
+}
+function toggleRow(el) { el.classList.toggle('checked'); }
+
+// Action menu dropdown
+function toggleActionMenu(id) {
+  const wrapper = document.getElementById(id);
+  const dropdown = wrapper.querySelector('.action-dropdown');
+  const trigger = wrapper.querySelector('.action-trigger');
+  const isOpen = dropdown.classList.contains('show');
+  // Close all first
+  document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.action-trigger.open').forEach(t => t.classList.remove('open'));
+  if (!isOpen) {
+    // Position using fixed coordinates
+    const rect = trigger.getBoundingClientRect();
+    dropdown.style.top = (rect.bottom + 4) + 'px';
+    dropdown.style.right = 'auto';
+    dropdown.style.left = (rect.right - 140) + 'px'; // align right edge with trigger
+    dropdown.classList.add('show');
+    trigger.classList.add('open');
+  }
+}
+
+// Multi-select dropdown
+function toggleMultiDropdown(wrapperId) {
+  const wrapper = document.getElementById(wrapperId);
+  const dropdown = wrapper.querySelector('.multi-select-dropdown');
+  const trigger = wrapper.querySelector('.multi-select-trigger');
+  const isOpen = dropdown.classList.contains('show');
+  // Close all multi-select dropdowns first
+  document.querySelectorAll('.multi-select-dropdown.show').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.multi-select-trigger.open').forEach(t => t.classList.remove('open'));
+  if (!isOpen) {
+    dropdown.classList.add('show');
+    trigger.classList.add('open');
+  }
+}
+
+function toggleMultiOption(optionEl, wrapperId) {
+  optionEl.classList.toggle('selected');
+  updateMultiSelectDisplay(wrapperId);
+}
+
+function updateMultiSelectDisplay(wrapperId) {
+  const wrapper = document.getElementById(wrapperId);
+  const selected = wrapper.querySelectorAll('.multi-select-option.selected');
+  const trigger = wrapper.querySelector('.multi-select-trigger');
+  const placeholder = trigger.querySelector('.placeholder');
+  const existingCount = trigger.querySelector('.selected-count');
+
+  if (existingCount) existingCount.remove();
+
+  if (selected.length === 0) {
+    if (placeholder) placeholder.style.display = '';
+  } else {
+    if (placeholder) placeholder.style.display = 'none';
+    const countEl = document.createElement('span');
+    countEl.className = 'selected-count';
+    const names = Array.from(selected).map(el => el.dataset.value);
+    if (names.length <= 2) {
+      countEl.textContent = names.join('、');
+    } else {
+      countEl.textContent = names[0] + ' +' + (names.length - 1);
+    }
+    trigger.insertBefore(countEl, trigger.firstChild);
+  }
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', function(e) {
+  // Close action menus
+  if (!e.target.closest('.action-menu-wrapper')) {
+    document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
+    document.querySelectorAll('.action-trigger.open').forEach(t => t.classList.remove('open'));
+  }
+  // Close multi-select
+  if (!e.target.closest('.multi-select-wrapper')) {
+    document.querySelectorAll('.multi-select-dropdown.show').forEach(d => d.classList.remove('show'));
+    document.querySelectorAll('.multi-select-trigger.open').forEach(t => t.classList.remove('open'));
+  }
+});
+
+// Actions
+function resetFilters() {
+  document.querySelectorAll('.filter-bar select').forEach(el => el.selectedIndex = 0);
+  document.querySelectorAll('.filter-bar input').forEach(el => el.value = '');
+  document.querySelectorAll('.multi-select-option.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.multi-select-wrapper').forEach(w => updateMultiSelectDisplay(w.id));
+  // Reset status to "未处理"
+  document.getElementById('statusFilter').value = 'pending';
+  renderTable();
+}
+function doSearch() { console.log('搜索...'); }
+function doRefresh() { console.log('刷新...'); }
+function doExport() { console.log('导出...'); }
+function batchClose() { console.log('批量关闭...'); }
+function viewAlert(i) { console.log('查看:', mockData[i].desc); closeAllMenus(); }
+function handleAlert(i) { console.log('处理:', mockData[i].desc); closeAllMenus(); }
+function createTicket(i) { console.log('触发工单:', mockData[i].desc); closeAllMenus(); }
+function suspendAlert(i) { console.log('挂起:', mockData[i].desc); closeAllMenus(); }
+function closeAllMenus() {
+  document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.action-trigger.open').forEach(t => t.classList.remove('open'));
+}
+
+renderTable();
+</script>
+</body>
+</html>

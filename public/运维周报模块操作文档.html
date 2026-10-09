@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运维周报模块操作指南</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        html { scroll-behavior: smooth; }
+        body {
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+            color: #333;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8ecf1 100%);
+            line-height: 1.7;
+        }
+
+        header {
+            flex-shrink: 0;
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 50%, #1a237e 100%);
+            color: #fff;
+            padding: 28px 0 20px;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(13,71,161,0.3);
+        }
+        header h1 { font-size: 28px; font-weight: 700; letter-spacing: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        header p { margin-top: 6px; font-size: 14px; opacity: 0.85; letter-spacing: 1px; }
+
+        .layout { display: flex; max-width: 1440px; margin: 0 auto; width: 100%; flex: 1; overflow: hidden; min-height: 0; }
+
+        .sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            background: #fff;
+            border-right: 1px solid #e4e7ed;
+            padding: 24px 0 40px;
+            overflow-y: auto;
+            z-index: 10;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+        }
+        /* ===== el-scrollbar 风格滚动条（sidebar / content 共用） ===== */
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(144,147,153,0.3);
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover { background: rgba(144,147,153,0.5); }
+        .sidebar { scrollbar-width: thin; scrollbar-color: rgba(144,147,153,0.3) transparent; }
+
+        .content::-webkit-scrollbar { width: 6px; }
+        .content::-webkit-scrollbar-track { background: transparent; }
+        .content::-webkit-scrollbar-thumb {
+            background: rgba(144,147,153,0.3);
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+        .content::-webkit-scrollbar-thumb:hover { background: rgba(144,147,153,0.5); }
+        .content { scrollbar-width: thin; scrollbar-color: rgba(144,147,153,0.3) transparent; }
+        .sidebar h2 {
+            font-size: 14px; color: #1a73e8;
+            padding: 0 20px 12px;
+            border-bottom: 2px solid #e8f0fe;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+        .sidebar ol { list-style: none; padding: 0; }
+        .sidebar ol li { }
+        .sidebar ol li a {
+            display: block; padding: 10px 20px;
+            font-size: 13px; color: #444;
+            text-decoration: none;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            position: relative;
+        }
+        .sidebar ol li a::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 20px; right: 20px;
+            height: 1px;
+            background: #f0f2f5;
+        }
+        .sidebar ol li:last-child a::after { display: none; }
+        .sidebar ol li a:hover, .sidebar ol li a.active {
+            background: linear-gradient(90deg, #e8f0fe, transparent);
+            color: #1a73e8;
+            border-left-color: #1a73e8;
+            font-weight: 600;
+        }
+        .sidebar ol li a small {
+            display: block; font-size: 11px; color: #999; margin-top: 2px;
+            font-weight: 400;
+        }
+        .sidebar ol li a:hover small { color: #666; }
+
+        .content { flex: 1; padding: 28px 36px 80px; min-width: 0; overflow-y: auto; }
+        section {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+            padding: 32px 36px;
+            margin-bottom: 24px;
+            transition: box-shadow 0.2s;
+        }
+        section:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        section h2 {
+            font-size: 22px; color: #1a73e8;
+            margin-bottom: 18px; padding-bottom: 12px;
+            border-bottom: 3px solid #e8f0fe;
+            display: flex; align-items: center; gap: 10px;
+        }
+        section h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px; height: 22px;
+            background: #1a73e8;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+        section h3 {
+            font-size: 17px; color: #2c3e50;
+            margin: 24px 0 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        section h3:first-child { margin-top: 0; }
+        section h4 {
+            font-size: 15px; color: #555;
+            margin: 18px 0 10px;
+            padding-left: 12px;
+            border-left: 3px solid #1a73e8;
+        }
+        section p { margin-bottom: 12px; color: #444; }
+        section ul, section ol { margin: 8px 0 16px 24px; }
+        section li { margin-bottom: 6px; color: #444; }
+        section li strong { color: #2c3e50; }
+
+        .steps { counter-reset: step; }
+        .step-item {
+            position: relative;
+            padding: 16px 20px 16px 56px;
+            margin-bottom: 12px;
+            background: #f8f9fc;
+            border-radius: 8px;
+            border-left: 4px solid #1a73e8;
+            transition: background 0.2s;
+        }
+        .step-item:hover { background: #f0f4ff; }
+        .step-item::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute; left: 14px; top: 16px;
+            width: 28px; height: 28px;
+            font-size: 13px; font-weight: 700; color: #fff;
+            background: #1a73e8;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            line-height: 28px;
+        }
+        .step-item strong { display: block; margin-bottom: 4px; color: #2c3e50; font-size: 15px; }
+        .step-item p { margin-bottom: 0; font-size: 14px; }
+        .step-item ul { margin: 6px 0 0 16px; }
+        .step-item li { font-size: 14px; }
+
+        table {
+            width: 100%; border-collapse: separate;
+            border-spacing: 0;
+            margin: 12px 0 20px;
+            font-size: 14px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        table th, table td {
+            border: 1px solid #e8eaed;
+            padding: 10px 14px;
+            text-align: left;
+        }
+        table th {
+            background: #f0f6ff;
+            font-weight: 600;
+            color: #1a73e8;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+        table tr:nth-child(even) { background: #fafbfc; }
+
+        .tip {
+            background: linear-gradient(90deg, #e8f0fe, #f5f8ff);
+            border-left: 4px solid #1a73e8;
+            padding: 14px 18px;
+            margin: 12px 0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .warn {
+            background: linear-gradient(90deg, #fffbe6, #fffdf5);
+            border-left: 4px solid #faad14;
+            padding: 14px 18px;
+            margin: 12px 0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .danger {
+            background: linear-gradient(90deg, #fff1f0, #fff8f7);
+            border-left: 4px solid #f5222d;
+            padding: 14px 18px;
+            margin: 12px 0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .tip > strong:first-of-type, .warn > strong:first-of-type, .danger > strong:first-of-type { display: block; margin-bottom: 2px; font-size: 15px; }
+
+        .tag {
+            display: inline-block; padding: 2px 14px; border-radius: 12px;
+            font-size: 12px; font-weight: 600; white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+        .tag-green  { background: #e6f7e6; color: #389e0d; border: 1px solid #b7eb8f; }
+        .tag-orange { background: #fff7e6; color: #d48806; border: 1px solid #ffe58f; }
+        .tag-gray   { background: #f5f5f5; color: #8c8c8c; border: 1px solid #d9d9d9; }
+        .tag-red    { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+        .tag-blue   { background: #e6f7ff; color: #096dd9; border: 1px solid #91d5ff; }
+        .tag-group { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+
+        .priority {
+            background: linear-gradient(90deg, #f5f7ff, #fafbff);
+            border-left: 4px solid #1a73e8;
+            padding: 12px 18px;
+            margin: 12px 0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        @media (max-width: 1000px) {
+            .sidebar { width: 180px; min-width: 180px; }
+            .sidebar ol li a { padding: 8px 14px; font-size: 12px; }
+            .content { padding: 20px; }
+            section { padding: 24px 20px; }
+        }
+        @media (max-width: 768px) {
+            html, body { height: auto; overflow: auto; }
+            body { display: block; }
+            .layout { flex-direction: column; overflow: visible; flex: none; }
+            .sidebar {
+                width: 100%;
+                height: auto; border-right: none; border-bottom: 1px solid #e4e7ed;
+                padding: 12px 0; box-shadow: none; overflow: visible;
+            }
+            .content { overflow: visible; }
+            .sidebar ol { display: flex; flex-wrap: wrap; padding: 0 12px; }
+            .sidebar ol li { border: none; }
+            .sidebar ol li a { padding: 6px 12px; font-size: 12px; }
+            .sidebar ol li a::after { display: none; }
+            section { padding: 20px 16px; }
+            section h2 { font-size: 19px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>运维周报操作指南</h1>
+    <p>业务人员使用手册 · 点击左侧目录跳转对应章节</p>
+</header>
+
+<div class="layout">
+
+    <nav class="sidebar">
+        <h2>目录</h2>
+        <ol>
+            <li><a href="#s1">一、运维周报填写<small>填写、保存、提交、历史</small></a></li>
+            <li><a href="#s2">二、周报汇总<small>查看/编辑/打回/提醒</small></a></li>
+            <li><a href="#s3">三、模块管理<small>模块/子模块增删改</small></a></li>
+            <li><a href="#s4">四、人员管理<small>增删周报人员</small></a></li>
+            <li><a href="#s5">五、导出周报<small>MD/HTML/DOCX</small></a></li>
+            <li><a href="#s6">六、周管理<small>自定义周日期范围</small></a></li>
+            <li><a href="#s7">七、综述开关<small>控制综述编辑权限</small></a></li>
+            <li><a href="#s8">八、常见问题<small>使用中遇到的问题</small></a></li>
+        </ol>
+    </nav>
+
+    <div class="content">
+
+        <!-- ============================================================ -->
+        <!-- 一、填写我的周报 -->
+        <!-- ============================================================ -->
+        <section id="s1">
+            <h2>一、运维周报填写</h2>
+            <p>每个周报成员最常用的功能。每周在这个页面填写负责的运维模块工作内容，可先存草稿，确认无误后正式提交。</p>
+
+            <h3>1.1 进入填写页面</h3>
+            <p>在系统左侧菜单「报表管理」下点击 <strong>「运维周报填写」</strong>，进入周报填写页面。</p>
+
+            <h3>1.2 选择周次</h3>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>查看当前周</strong>
+                    <p>页面顶部默认显示本周，标签上显示周次和日期范围（如 <span class="tag tag-blue">第 29 周（7月13日 — 7月19日）</span>）。</p>
+                </div>
+                <div class="step-item">
+                    <strong>切换周次（可选）</strong>
+                    <p>支持切换到「本周」或「自定义」选择任意一周，查看或补填历史周报。历史周的记录只读显示。</p>
+                </div>
+            </div>
+            <div class="tip"><strong>📌 提示</strong>周次的日期范围由系统自动计算（考虑法定节假日），如与实际工作周不符，可联系管理员通过「周管理」功能调整。</div>
+
+            <h3>1.3 填写工作内容</h3>
+            <p>页面左侧是目录（左侧栏），右侧展示所有已启用的运维模块，按模块分组填写。目录色点显示各模块/子模块的状态：<span class="tag tag-green">绿色</span>=已提交，<span class="tag tag-orange">橙色</span>=已退回，<span class="tag tag-gray">灰色</span>=草稿，无色=无数据。悬停色点可查看详细状态分布。</p>
+
+            <h4>▶ 有子模块的模块</h4>
+            <ul>
+                <li>模块下方展示「模块综述」和各子模块的「详细内容」</li>
+                <li>综述用于归纳该模块本周总体情况，详细内容逐条填写工作事项</li>
+                <li>行末显示最后修改时间（编辑态显示修改人姓名）</li>
+                <li>切换到历史周时内容只读查看</li>
+            </ul>
+
+            <h4>▶ 无子模块的模块</h4>
+            <ul>
+                <li>同样分「模块综述」和「详细内容」两个区域</li>
+                <li>直接在编辑框中填写</li>
+            </ul>
+
+            <h3>1.4 新增周报条目</h3>
+            <p>如果某个模块尚未填写，可点击「新增周报」按钮打开新增弹窗，选择要填写的父模块和子模块（可选）。</p>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击「新增周报」按钮</strong>
+                    <p>按钮位于筛选栏右侧，仅在「本周」且非编辑态时可点击。</p>
+                </div>
+                <div class="step-item">
+                    <strong>选择父模块</strong>
+                    <p>在弹窗左侧勾选想要填写的运维模块，已存在记录且完全提交的模块不可选（显示「已有」标签）。</p>
+                </div>
+                <div class="step-item">
+                    <strong>选择子模块（可选）</strong>
+                    <p>选中的父模块如有子模块，弹窗右侧显示子模块列表，可进一步勾选需要填写的子模块。</p>
+                </div>
+                <div class="step-item">
+                    <strong>确认新增</strong>
+                    <p>点击「确认新增」后，页面新增该模块（和子模块）的编辑区域，可直接开始填写。</p>
+                </div>
+            </div>
+
+            <div class="tip"><strong>📌 提示</strong>新增后系统会自动应用该模块配置的「默认模版」（如有），模版中的 <code>{变量名}</code> 占位符默认显示为 0，可手动修改。</div>
+
+            <h3>1.5 编辑操作说明</h3>
+
+            <h4>▶ 进入编辑</h4>
+            <ul>
+                <li><strong>点击"编辑"按钮</strong>：在模块标题行右侧点击编辑按钮，进入编辑态</li>
+                <li><strong>双击行进入编辑</strong>：在查看态下，直接<strong>双击任意内容行</strong>，系统自动进入编辑态，并将光标定位到你双击的那一行</li>
+            </ul>
+
+            <h4>▶ 编辑态功能</h4>
+            <ul>
+                <li>每行是一个独立的编辑框，支持 <strong>contenteditable 富文本编辑</strong></li>
+                <li>按 <kbd>Enter</kbd> 新增一行，按 <kbd>↑</kbd> <kbd>↓</kbd> 键在行间切换焦点</li>
+                <li>拖拽行首的 <span style="color:#c0c4cc;">⠿</span> 手柄可以调整行顺序</li>
+                <li>激活的行右侧显示「粘贴」「清空」「删除」操作按钮</li>
+                <li><strong>Ctrl+V 粘贴</strong>：支持粘贴纯文本，且可以用 <kbd>Ctrl+Z</kbd> 撤销粘贴操作</li>
+                <li>每行右侧显示最后修改时间（编辑态显示修改人姓名）</li>
+            </ul>
+
+            <div class="tip"><strong>📌 提示</strong>只有<strong>当前周</strong>且状态为<strong>草稿/已打回</strong>的记录才能编辑。已提交的记录不可编辑。</div>
+
+            <h3>1.6 保存与提交</h3>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击"保存"</strong>
+                    <p>保存后状态为 <span class="tag tag-gray">草稿</span>，草稿仅自己可见，汇总人员看不到。</p>
+                </div>
+                <div class="step-item">
+                    <strong>点击"提交"</strong>
+                    <p>提交后状态变为 <span class="tag tag-green">已提交</span>，汇总人员可看到内容。提交后不可再修改。</p>
+                </div>
+                <div class="step-item">
+                    <strong>一键提交所有草稿</strong>
+                    <p>点击「一键提交所有草稿」按钮，系统自动提交当前用户所有草稿和已打回的周报，空内容自动跳过。</p>
+                </div>
+            </div>
+
+            <div class="warn"><strong>⚠️ 注意</strong>已提交的周报不能编辑。如填错了需要管理员在汇总页「打回」，打回后才能重新编辑。</div>
+
+            <h3>1.7 一键删除所有草稿</h3>
+            <p>点击「一键删除所有草稿」按钮，系统删除当前用户本周的全部草稿记录（仅限草稿状态），已提交或已退回的记录不受影响。</p>
+
+            <h3>1.8 查看历史记录</h3>
+            <p>填写页支持切换到「周报记录」标签页，以时间线展示该用户所有历史周报的提交情况。</p>
+            <ul>
+                <li>顶部显示统计卡片：<strong>累计提交周数</strong>、<strong>连续提交周数</strong>、各周记录明细</li>
+                <li>按周倒序排列，每条记录显示周次、日期范围、状态标签（已提交/草稿）和记录条数</li>
+                <li>点击「查看」可跳转到对应周次的填写页面查看详情</li>
+            </ul>
+
+            <h3>1.9 状态说明</h3>
+            <table>
+                <thead><tr><th>状态</th><th>图标</th><th>含义</th><th>可执行操作</th></tr></thead>
+                <tbody>
+                    <tr><td>草稿</td><td><span class="tag tag-gray">草稿</span></td><td>未正式提交，仅自己可见</td><td>编辑、提交、删除</td></tr>
+                    <tr><td>已提交</td><td><span class="tag tag-green">已提交</span></td><td>正式提交，汇总人员可见</td><td>不可编辑，需管理员打回</td></tr>
+                    <tr><td>已打回</td><td><span class="tag tag-red">已打回</span></td><td>管理员退回，需修改后重提</td><td>重新编辑后再次提交</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 二、汇总查看周报 -->
+        <!-- ============================================================ -->
+        <section id="s2">
+            <h2>二、周报汇总</h2>
+            <p>汇总页面供管理员/汇总人员使用，查看<strong>所有人</strong>的周报提交情况，并<strong>编辑</strong>或<strong>打回</strong>周报内容。</p>
+
+            <h3>2.1 进入汇总页面</h3>
+            <p>在系统左侧菜单「报表管理」下点击 <strong>「周报汇总」</strong> 进入。</p>
+
+            <h3>2.2 选择周次</h3>
+            <ul>
+                <li>页面顶部选择要查看的周次，支持查看历史任意一周的汇总数据</li>
+                <li>历史周会展示当时已存在的模块和人员（含现已停用/删除的），确保数据完整可追溯</li>
+            </ul>
+
+            <h3>2.3 查看提交统计</h3>
+            <p>页面顶部显示统计卡片，点击卡片可查看对应状态的人员详情列表：</p>
+            <div class="tag-group">
+                <span class="tag tag-green">已提交 N 人</span>
+                <span class="tag tag-blue">部分提交 N 人</span>
+                <span class="tag tag-orange">已退回 N 人</span>
+                <span class="tag tag-gray">草稿 N 人</span>
+                <span class="tag tag-red">未提交 N 人</span>
+            </div>
+
+            <h3>2.4 查看模块内容</h3>
+            <ul>
+                <li>左侧目录按模块分组，有数据的模块可点击跳转</li>
+                <li>右侧正文展示各模块的综述和详细内容</li>
+                <li>每个条目显示<strong>填报人姓名、工作内容、修改时间</strong></li>
+                <li>模块/子模块名称旁显示 <span class="tag tag-green">已编辑</span> 标签表示汇总人员已编辑过该内容</li>
+            </ul>
+
+            <h3>2.5 编辑周报内容（当前周、汇总人员）</h3>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击"编辑"按钮或直接双击任意内容行</strong>
+                    <p>查看态下双击行可快速进入编辑态，且光标自动定位到被双击的行。</p>
+                </div>
+                <div class="step-item">
+                    <strong>编辑内容</strong>
+                    <p>编辑态支持多行编辑、拖拽排序、<kbd>Enter</kbd> 新增行、<kbd>↑</kbd> <kbd>↓</kbd> 切换行、粘贴（支持 Ctrl+Z 撤销）。</p>
+                </div>
+                <div class="step-item">
+                    <strong>查看原始提交内容参考</strong>
+                    <p>编辑时编辑器上方会显示「原始提交内容参考」面板，按提交时间排序展示各填报人提交的原始内容，供汇总人员参考。</p>
+                </div>
+                <div class="step-item">
+                    <strong>点击"保存"</strong>
+                    <p>更新后条目标记 <span class="tag tag-orange">已编辑</span>。</p>
+                </div>
+            </div>
+
+            <h3>2.6 打回周报</h3>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击模块操作区的"退回"下拉按钮</strong>
+                    <p>从下拉列表中选择要退回的人员。</p>
+                </div>
+                <div class="step-item">
+                    <strong>填报人收到通知</strong>
+                    <p>系统通过页面实时消息推送给填报人。</p>
+                </div>
+                <div class="step-item">
+                    <strong>填报人修改后重新提交</strong>
+                </div>
+            </div>
+
+            <h3>2.7 一键退回（批量退回）</h3>
+            <ul>
+                <li>点击「一键退回」按钮，弹出人员选择列表</li>
+                <li>选择要退回的人员后，系统将该人员的<strong>所有已提交和已退回</strong>周报全部退回</li>
+                <li>退回后该人员会收到合并的页面通知，内含被退回模块的表格详情</li>
+                <li>填报人刷新页面后可重新编辑并提交</li>
+            </ul>
+
+            <h3>2.8 删除条目</h3>
+            <p>点击模块操作区的「删除」下拉按钮，可删除指定人员的周报条目。删除后数据从数据库中彻底移除，对应人员的状态重新计算。</p>
+
+            <h3>2.9 提醒未提交人员</h3>
+
+            <h4>▶ 一键提醒</h4>
+            <p>点击「一键提醒」按钮，系统自动向所有未完全提交的人员（未提交、草稿、部分提交、已退回）发送通知。</p>
+            <p>通知弹窗以表格形式展示该人员缺失或需重填的模块，按模块和子模块分组展示。</p>
+
+            <h4>▶ 单独提醒</h4>
+            <p>在人员详情弹窗中，点击某个人右侧的「提醒」按钮，仅向该人员发送通知，精准告知其未提交/已退回的模块。</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 三、模块管理 -->
+        <!-- ============================================================ -->
+        <section id="s3">
+            <h2>三、模块管理</h2>
+            <p>模块是周报中的运维工作分类（如"系统运维""网络运维"等）。管理员在此<strong>新增、编辑、排序、启用/停用、删除</strong>模块和子模块。</p>
+
+            <h3>3.1 进入模块管理</h3>
+            <p>在系统左侧菜单「报表管理」下点击 <strong>「模块管理」</strong> 进入。</p>
+
+            <h3>3.2 管理模块（父模块）</h3>
+
+            <h4>▶ 新增模块</h4>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击"新增模块"按钮</strong>
+                </div>
+                <div class="step-item">
+                    <strong>填写信息</strong>
+                    <ul>
+                        <li><strong>模块名称</strong>（必填）</li>
+                        <li><strong>描述</strong>（可选）</li>
+                        <li><strong>标识颜色</strong>（必填）：在周报中用颜色区分不同模块</li>
+                        <li><strong>综述模版</strong>（可选）：设置模块综述的默认填写模版，支持 <code>{变量名}</code> 占位符和自动计算</li>
+                        <li><strong>明细模版</strong>（可选）：设置无子模块时详细内容的默认模版</li>
+                    </ul>
+                </div>
+                <div class="step-item">
+                    <strong>点击"保存"</strong>
+                </div>
+            </div>
+
+            <h4>▶ 编辑模块</h4>
+            <ul>
+                            <li>点击模块右侧的「编辑」按钮，可修改模块名称、颜色、模版等信息</li>
+            <li><strong>历史周</strong>已有该模块的"已提交"、"已退回"、"草稿"记录时<strong>不能修改模块名称</strong></li>
+            </ul>
+
+            <h4>▶ 启用/停用模块</h4>
+            <ul>
+                <li>点击「停用」按钮，该模块在填写页不再显示，历史数据保留</li>
+                <li>当前周已有"已提交"或"已退回"记录时<strong>不能停用</strong></li>
+            </ul>
+
+            <h4>▶ 删除模块</h4>
+            <ul>
+                <li>软删除，历史数据保留，本周已有提交/退回记录时禁止删除</li>
+            </ul>
+
+            <h4>▶ 调整顺序</h4>
+            <p>拖拽行首排序手柄调整模块顺序，自动保存。</p>
+
+            <h3>3.3 管理子模块</h3>
+            <p>子模块是模块下的细分分类。例如"基础设施"模块下可以有"机房巡检""电力系统"等子模块。</p>
+
+            <h4>▶ 新增子模块</h4>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击模块右侧的「管理」按钮</strong>
+                    <p>弹出子模块管理弹窗。</p>
+                </div>
+                <div class="step-item">
+                    <strong>点击"新增子模块"</strong>
+                    <p>填写子模块名称、描述、填写模版（支持变量占位符和自动计算）。</p>
+                </div>
+                <div class="step-item">
+                    <strong>保存后生效</strong>
+                </div>
+            </div>
+
+            <h4>▶ 编辑/删除子模块</h4>
+            <ul>
+                <li>编辑：可修改名称、描述、填写模版、<strong>综述模版</strong>（子模块综述的默认模版）</li>
+                <li>删除：软删除，历史数据保留，本周已有提交/退回记录时禁止删除</li>
+            </ul>
+
+            <h4>▶ 子模块排序</h4>
+            <p>在子模块管理弹窗中拖拽排序。</p>
+
+            <h4>▶ 模版变量与自动计算</h4>
+            <p>模块和子模块都支持填写模版，使用 <code>{变量名}</code> 作为占位符。</p>
+            <ul>
+                <li><strong>综述模版</strong>：模块综述和子模块综述的默认填写内容</li>
+                <li><strong>明细模版</strong>：无子模块时详细内容的默认填写内容</li>
+                <li><strong>子模块填写模版</strong>：子模块详细内容的默认填写内容</li>
+                <li><strong>子模块综述模版</strong>：子模块综述的默认填写内容</li>
+            </ul>
+            <p>在「自动计算」框中可设置计算公式，格式如 <code>A=B+C+D</code>，编辑时失焦会自动计算结果。计算公式支持加减乘除运算（<code>+-*/</code>），多个公式用分号（<code>;</code>）分隔，如 <code>A=B+C; D=E+F</code>。</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 四、人员管理 -->
+        <!-- ============================================================ -->
+        <section id="s4">
+            <h2>四、人员管理</h2>
+            <p>管理需要填写周报的人员名单。只有添加到周报人员列表中的人，才会出现在汇总统计里。</p>
+
+            <h3>4.1 进入人员管理</h3>
+            <p>在系统左侧菜单「报表管理」下点击 <strong>「周报人员」</strong> 进入。</p>
+
+            <h3>4.2 人员列表</h3>
+            <ul>
+                <li><strong>姓名</strong>、<strong>域账号</strong></li>
+                <li><strong>人员类型</strong>：<span class="tag tag-blue">普通成员</span>（需填写周报）/ <span class="tag tag-orange">领导</span>（仅查看汇总）</li>
+                <li><strong>状态</strong>：<span class="tag tag-green">启用</span> / <span class="tag tag-gray">停用</span></li>
+            </ul>
+
+            <h3>4.3 新增人员</h3>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>点击"新增人员"按钮</strong>
+                </div>
+                <div class="step-item">
+                    <strong>从候选人列表中选择</strong>
+                    <p>系统列出可添加的候选人，勾选后选择人员类型（普通成员/领导）。</p>
+                </div>
+                <div class="step-item">
+                    <strong>点击"确认添加"</strong>
+                </div>
+            </div>
+
+            <h3>4.4 启用/停用/删除</h3>
+            <ul>
+                <li><strong>停用</strong>：该人员不再出现在统计中，历史数据保留</li>
+                <li><strong>删除</strong>：软删除，历史记录仍可查看。建议优先使用停用</li>
+            </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 五、导出周报 -->
+        <!-- ============================================================ -->
+        <section id="s5">
+            <h2>五、导出周报</h2>
+            <p>将指定周的周报内容导出为 <strong>Markdown</strong>、<strong>HTML</strong> 或 <strong>DOCX</strong> 格式。</p>
+
+            <h3>5.1 进入导出页面</h3>
+            <p>在系统左侧菜单「报表管理」下点击 <strong>「周报导出」</strong>，或在周报汇总页面点击「导出周报」按钮进入。</p>
+
+            <h3>5.2 选择周次</h3>
+            <p>页面顶部下拉框选择要导出的周次。</p>
+            <div class="tip"><strong>📌 提示</strong>若某周为全假期周（无有效工作日），该周在下拉列表中显示为灰色且标注「（全周假期）」，但仍可选择。</div>
+
+            <h3>5.3 选择导出格式</h3>
+            <table>
+                <thead><tr><th>格式</th><th>适用场景</th><th>特点</th></tr></thead>
+                <tbody>
+                    <tr><td>Markdown</td><td>集成到 Wiki、Git 等平台</td><td>纯文本，支持版本对比</td></tr>
+                    <tr><td>HTML</td><td>邮件、网页展示</td><td>可直接在浏览器中查看</td></tr>
+                    <tr><td>DOCX</td><td>正式报告、汇报材料</td><td>按模板排版，禁用拼写检查，可直接打印</td></tr>
+                </tbody>
+            </table>
+            <div class="tip"><strong>📌 提示</strong>DOCX 已自动禁用拼写检查，避免中文内容出现红色波浪线。导出内容使用的数据来源为<strong>汇总编辑后的内容</strong>（summary_content），与汇总页面显示一致。</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 六、周管理 -->
+        <!-- ============================================================ -->
+        <section id="s6">
+            <h2>六、周管理</h2>
+            <p>当节假日调休导致实际工作周与系统默认周不一致时，管理员可通过「周管理」手动调整周起止日期。同时在该页面可控制「综述填写开关」。</p>
+
+            <h3>6.1 进入周管理</h3>
+            <p>在系统左侧菜单「报表管理」下点击 <strong>「周管理」</strong> 进入。</p>
+
+            <h3>6.2 查看当前周配置</h3>
+            <ul>
+                <li>页面显示<strong>有效周范围</strong>（节假日感知算法计算结果）和 ISO 标准范围（参考对照）</li>
+                <li>如有自定义配置，显示自定义起止日期</li>
+            </ul>
+
+            <h3>6.3 设置自定义周范围</h3>
+            <p>适用场景：春节/国庆调休、特殊项目周期等。</p>
+            <div class="steps">
+                <div class="step-item">
+                    <strong>选择起始日期和截止日期</strong>
+                    <p>起始日期不能早于上周结束日期的次日，避免与上一周重叠。</p>
+                </div>
+                <div class="step-item">
+                    <strong>点击"保存配置"</strong>
+                    <p>保存后所有周报功能（填写、汇总、导出）的日期标签使用自定义范围。</p>
+                </div>
+            </div>
+
+            <h3>6.4 恢复默认</h3>
+            <p>点击「恢复默认」按钮，清除自定义配置，回到有效周算法计算。</p>
+
+            <h3>6.5 日期范围优先级</h3>
+            <div class="priority">
+                <strong>①</strong> 自定义配置（WeekConfig）→
+                <strong>②</strong> 有效周算法（节假日感知）→
+                <strong>③</strong> ISO 标准周
+            </div>
+
+            <h4>有效周算法说明</h4>
+            <ol>
+                <li>统计该 ISO 周内每一天是否为工作日（基于中国法定节假日库）</li>
+                <li><strong>工作日 ≥ 4 天</strong>：该周独立成周，范围 = 首个工作日 ~ 最后一个工作日</li>
+                <li><strong>工作日 1~3 天</strong>：检查紧接着的下一周——若下一周有工作日则合并（整周合并），若下一周工作日 = 0 则放弃合并、当前周独立成周；合并后若仍不足 4 天则继续向后找有工作日的周合并</li>
+                <li><strong>工作日 = 0 天</strong>（全节假日）：跳过该周</li>
+                <li>支持跨年：ISO 周可能包含上一年 12 月的日期</li>
+            </ol>
+
+            <h3>6.6 综述填写开关</h3>
+            <p>在周管理页面下方，有一个「允许填写人编辑综述」开关：</p>
+            <ul>
+                <li><strong>开启</strong>：普通成员可在填写页编辑模块综述</li>
+                <li><strong>关闭</strong>：填写页隐藏综述区域，仅汇总人员可编辑</li>
+            </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 七、综述开关（快捷参考） -->
+        <!-- ============================================================ -->
+        <section id="s7">
+            <h2>七、综述开关</h2>
+            <p>综述开关已在"六、周管理"中说明，此处简要汇总：</p>
+            <table>
+                <thead><tr><th>开关状态</th><th>普通成员</th><th>汇总人员</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="tag tag-green">开启</span></td><td>可在填写页编辑模块综述</td><td>可在汇总页编辑综述</td></tr>
+                    <tr><td><span class="tag tag-gray">关闭</span></td><td>综述区域隐藏，只能填写明细</td><td>仅在汇总页可编辑</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- 八、常见问题 -->
+        <!-- ============================================================ -->
+        <section id="s8">
+            <h2>八、常见问题</h2>
+
+            <h3>Q1: 为什么模块无法删除/停用？</h3>
+            <div class="warn">
+                <p>当前周已有"已提交"或"已退回"的周报记录时，系统<strong>禁止删除或停用</strong>该模块。请等下周再操作，或先删除该模块当前的周报记录。</p>
+            </div>
+
+            <h3>Q2: 为什么历史周报中有些模块不显示？</h3>
+            <div class="warn">
+                <p>历史周报只展示<strong>该周结束日期之前</strong>已创建的模块。如果模块在该周之后才新增的，历史记录中不会出现。这是正常设计，确保每个历史时刻看到的是当时真实存在的模块。</p>
+            </div>
+
+            <h3>Q3: 有效周的日期范围与实际工作日不符怎么办？</h3>
+            <div class="warn">
+                <p>联系管理员通过「周管理」功能手动设置该周的起止日期，系统会优先使用手动设置。</p>
+            </div>
+
+            <h3>Q4: 提交后汇总页没有看到我的内容？</h3>
+            <div class="warn">
+                <ol>
+                    <li>确认周报状态是否为 <span class="tag tag-green">已提交</span>（而非草稿）</li>
+                    <li>请汇总人员刷新页面</li>
+                    <li>检查是否选择了同一周次</li>
+                </ol>
+            </div>
+
+            <h3>Q5: 已提交的周报填错了怎么修改？</h3>
+            <div class="warn">
+                <p>已提交的周报不可直接修改。联系汇总人员在汇总页面找到你的条目，点击「退回」，你刷新页面后修改内容并重新提交。</p>
+            </div>
+
+            <h3>Q6: 我的周报被退回了，在哪里修改？</h3>
+            <div class="warn">
+                <ol>
+                    <li>你会收到页面实时通知</li>
+                    <li>进入「运维周报填写」页面，选择正确的周次</li>
+                    <li>被退回的模块显示 <span class="tag tag-red">已打回</span> 状态</li>
+                    <li>双击内容行或点击编辑按钮修改，完成后点击「提交」</li>
+                </ol>
+            </div>
+
+            <h3>Q7: 为何我（领导角色）看不到填写区域？</h3>
+            <div class="warn">
+                <p>你的类型被设置为"领导"——仅可查看汇总页面，不需要填写周报。如需填写，联系管理员改为"普通成员"。</p>
+            </div>
+
+            <h3>Q8: 汇总页统计的人数不对？</h3>
+            <div class="warn">
+                <ol>
+                    <li>进入「周报人员」管理页，确认人员是否都在列表中且状态为"启用"</li>
+                    <li>确认人员类型为"普通成员"（领导不计入待提交人数）</li>
+                    <li>历史周只统计该周结束时已存在的人员</li>
+                </ol>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+
+<script>
+(function() {
+    const content = document.querySelector('.content');
+    const sidebar = document.querySelector('.sidebar');
+    const sections = document.querySelectorAll('section[id]');
+    const tocLinks = document.querySelectorAll('.sidebar ol li a');
+
+    if (!content || sections.length === 0) return;
+
+    // --- 构建 section id → TOC 链接映射 ---
+    const linkMap = {};
+    tocLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('#')) {
+            linkMap[href.substring(1)] = link;
+        }
+    });
+
+    let activeId = null;
+
+    // --- 滚动监听：内容区滚动时自动高亮对应目录项 ---
+    const observer = new IntersectionObserver((entries) => {
+        // 取当前视口内可见的 section，按距顶部最近排序
+        const visible = entries
+            .filter(e => e.isIntersecting)
+            .map(e => ({ el: e.target, top: e.boundingClientRect.top }))
+            .sort((a, b) => a.top - b.top);
+
+        if (visible.length === 0) return;
+
+        const id = visible[0].el.getAttribute('id');
+        if (id === activeId) return;
+
+        // 切换 active 样式
+        tocLinks.forEach(link => link.classList.remove('active'));
+        const activeLink = linkMap[id];
+        if (activeLink) {
+            activeLink.classList.add('active');
+            activeId = id;
+            // 侧边栏自动滚动使当前项可见（仅当该项不完全在可视区内时）
+            if (sidebar) {
+                const sbRect = sidebar.getBoundingClientRect();
+                const lkRect = activeLink.getBoundingClientRect();
+                if (lkRect.top < sbRect.top || lkRect.bottom > sbRect.bottom) {
+                    activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }
+        }
+    }, {
+        root: content,
+        // 只把顶部 40% 的区域作为触发区，底部 60% 不算
+        rootMargin: '0px 0px -60% 0px',
+        threshold: 0
+    });
+
+    sections.forEach(section => observer.observe(section));
+
+    // --- 点击目录项：手动滚动内容区（覆盖浏览器默认锚点行为） ---
+    tocLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').substring(1);
+            const target = document.getElementById(targetId);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    // --- 初始高亮第一个 section ---
+    if (sections.length > 0 && linkMap[sections[0].id]) {
+        linkMap[sections[0].id].classList.add('active');
+        activeId = sections[0].id;
+    }
+})();
+</script>
+
+</body>
+</html>
