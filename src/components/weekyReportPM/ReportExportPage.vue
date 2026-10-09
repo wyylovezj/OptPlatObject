@@ -169,13 +169,11 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getReportModules, getSummaryReports, getWeekConfig, exportReportDocx } from '@/api/weeklyReportApi'
-import { reportModules, getCurrentWeek, getWeekDateRange, fmtDateCN, setWeekConfig, fetchWeekDateRanges, weekDateRangesMap, weekDateRangesLoaded, weekConfigMap } from '@/utils/weeklyReportData'
+import { reportModules, currentWeek, currentYear, getWeekDateRange, fmtDateCN, setWeekConfig, fetchWeekDateRanges, fetchServerCurrentWeek, isAbsorbedWeek, getMergedIntoWeek, weekDateRangesMap, weekDateRangesLoaded, weekConfigMap } from '@/utils/weeklyReportData'
 
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
 
-const currentWeek = getCurrentWeek()
-const currentYear = new Date().getFullYear()
-const exportWeek = ref(currentWeek)
+const exportWeek = ref(0)
 const exportModule = ref('all')
 const summaryData = ref(null)
 
@@ -219,13 +217,15 @@ const onDocScroll = () => {
 
 const weekOptions = computed(() => {
   const opts = []
-  for (let w = currentWeek; w >= 1; w--) {
-    const { monday, sunday } = getWeekDateRange(currentYear, w)
+  for (let w = currentWeek.value; w >= 1; w--) {
+    if (isAbsorbedWeek(w)) continue // 被节假日合并吸收的周不独立成周，无可导出的整周数据
+    const { monday, sunday } = getWeekDateRange(currentYear.value, w)
+    const mergedInto = getMergedIntoWeek(w)
     const isHoliday = weekDateRangesLoaded.value && !weekDateRangesMap.value[w] && !weekConfigMap.value[w]
     opts.push({
       value: w,
-      label: `${currentYear}年 第${w}周 (${fmtDateCN(monday)} ~ ${fmtDateCN(sunday)})${isHoliday ? ' (全周假期)' : ''}`,
-      disabled: false,
+      label: `${currentYear.value}年 第${w}周 (${fmtDateCN(monday)} ~ ${fmtDateCN(sunday)})${isHoliday ? ' (全周假期)' : ''}${mergedInto ? ` (已并入第${mergedInto}周)` : ''}`,
+      disabled: !!mergedInto,
       isHoliday
     })
   }
@@ -235,8 +235,8 @@ const weekOptions = computed(() => {
 const activeModules = computed(() => reportModules.value.filter(m => m.active))
 
 const weekDateLabel = computed(() => {
-  const { monday, sunday } = getWeekDateRange(currentYear, exportWeek.value)
-  return `${currentYear}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)}`
+  const { monday, sunday } = getWeekDateRange(currentYear.value, exportWeek.value)
+  return `${currentYear.value}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)}`
 })
 
 const moduleColor = (id) => reportModules.value.find(m => m.id === id)?.color || '#2563eb'
@@ -438,7 +438,7 @@ const handleExportHTML = () => {
 const handleExportDocx = async () => {
   try {
     const res = await exportReportDocx(exportWeek.value)
-    const { monday, sunday } = getWeekDateRange(currentYear, exportWeek.value)
+    const { monday, sunday } = getWeekDateRange(currentYear.value, exportWeek.value)
     const fmtYMD = (d) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`
     let filename = `\u8fd0\u7ef4\u4e2d\u5fc3\u5de5\u4f5c\u5468\u62a5\uff08${fmtYMD(monday)}-${fmtYMD(sunday)}\uff09.docx`
     const disposition = res.headers['content-disposition']
@@ -460,12 +460,15 @@ const handleExportDocx = async () => {
 }
 
 onMounted(async () => {
-  await fetchWeekDateRanges(currentYear)
+  // 先拉取服务端当前周次与有效周范围（节假日感知），再以其初始化导出周次
+  await fetchServerCurrentWeek()
+  await fetchWeekDateRanges(currentYear.value)
+  exportWeek.value = currentWeek.value
   if (reportModules.value.length === 0) {
     try { reportModules.value = await getReportModules() } catch (e) { console.warn('加载模块列表失败', e) }
   }
   try {
-    for (let w = currentWeek; w >= Math.max(1, currentWeek - 4); w--) {
+    for (let w = currentWeek.value; w >= Math.max(1, currentWeek.value - 4); w--) {
       const res = await getWeekConfig(w)
       if (res.code === 200 && res.data && res.data.startDate && res.data.endDate) {
         setWeekConfig(w, res.data.startDate, res.data.endDate)

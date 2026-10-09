@@ -27,8 +27,8 @@
         <el-button size="small" :icon="ArrowLeft" circle @click="navigateWeek(-1)" :disabled="fillWeek <= 1" />
         <el-tag type="primary" effect="light" class="week-tag">{{ weekDateLabel }}</el-tag>
         <el-button size="small" :icon="ArrowRight" circle @click="navigateWeek(1)" :disabled="fillWeek >= currentWeek" />
-        <el-select v-if="fillWeekKey === 'custom'" v-model="customWeekNum" size="small" style="width:80px;margin-left:8px;" @change="handleCustomWeekChange">
-          <el-option v-for="w in currentWeek" :key="w" :label="'第' + w + '周'" :value="w" />
+        <el-select v-if="fillWeekKey === 'custom'" v-model="customWeekNum" size="small" style="width:210px;margin-left:8px;" @change="handleCustomWeekChange">
+          <el-option v-for="w in weekSelectOptions" :key="w" :label="weekOptionLabel(w)" :value="w" />
         </el-select>
         <div class="fill-status-area">
           <el-tag :type="overallStatusType" size="small" effect="light">{{ overallStatusText }}</el-tag>
@@ -667,8 +667,8 @@ import Sortable from 'sortablejs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete, Clock, CopyDocument, DocumentCopy, Select, Close, ArrowLeft, ArrowRight, Rank, Loading, Reading } from '@element-plus/icons-vue'
 import { usePermissionStore } from '@/stores/permissionStore'
-import { getReportModules, saveReport, getMyReports, updateReport, deleteReport, submitAllDrafts, getWeekConfig, getReportSubModules, getServerCurrentWeek } from '@/api/weeklyReportApi'
-import { reportModules, getCurrentWeek, getWeekDateRange, fmtDateCN, setWeekConfig, serverCurrentWeek, fetchWeekDateRanges, summaryFillerEnabled } from '@/utils/weeklyReportData'
+import { getReportModules, saveReport, getMyReports, updateReport, deleteReport, submitAllDrafts, getWeekConfig, getReportSubModules } from '@/api/weeklyReportApi'
+import { reportModules, currentWeek, currentYear, getWeekDateRange, fmtDateCN, setWeekConfig, fetchWeekDateRanges, fetchServerCurrentWeek, isAbsorbedWeek, getPrevEffectiveWeek, weekDateRangesLoaded, summaryFillerEnabled } from '@/utils/weeklyReportData'
 import { getSummaryFillerConfig } from '@/api/weeklyReportApi'
 import { onBeforeRouteLeave } from 'vue-router'
 
@@ -678,10 +678,32 @@ const permissionStore = usePermissionStore()
 const username = computed(() => permissionStore.userInfo?.username || '')
 const nickname = computed(() => permissionStore.userInfo?.nickname || '')
 
-const currentWeek = getCurrentWeek()
-const currentYear = new Date().getFullYear()
 const fillWeekKey = ref('current')
-const customWeekNum = ref(currentWeek)
+const customWeekNum = ref(0)
+
+// 周次使用响应式的 currentWeek（服务端有效周，节假日感知）；服务端值/有效周范围到达后自动重算默认值，
+// 避免在 setup 中快照本地 ISO 周导致节假日合并周的“本周”错乱
+watch([currentWeek, weekDateRangesLoaded], () => {
+  const w = currentWeek.value
+  if (!customWeekNum.value || customWeekNum.value > w || isAbsorbedWeek(customWeekNum.value)) {
+    customWeekNum.value = getPrevEffectiveWeek(w) || 1
+  }
+}, { immediate: true })
+
+// 周次下拉仅列出独立成周的有效周（跳过被节假日合并吸收的周）
+const weekSelectOptions = computed(() => {
+  const list = []
+  for (let w = currentWeek.value; w >= 1; w--) {
+    if (!isAbsorbedWeek(w)) list.push(w)
+  }
+  return list
+})
+
+// 周次选项文案：附带有效周日期范围，避免只能凭周次号选择
+const weekOptionLabel = (w) => {
+  const { monday, sunday } = getWeekDateRange(currentYear.value, w)
+  return `第${w}周 (${fmtDateCN(monday)} ~ ${fmtDateCN(sunday)})`
+}
 const activeTab = ref('fill')
 const records = ref([])
 const loading = ref(true)
@@ -924,11 +946,11 @@ const getParentModuleDetailTemplateComputed = (moduleId) => {
 }
 
 const weekDateLabel = computed(() => {
-  const weekNum = fillWeekKey.value === 'current' ? currentWeek : customWeekNum.value
-  const { monday, sunday } = getWeekDateRange(currentYear, weekNum)
-  return `${currentYear}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)}`
+  const weekNum = fillWeekKey.value === 'current' ? currentWeek.value : customWeekNum.value
+  const { monday, sunday } = getWeekDateRange(currentYear.value, weekNum)
+  return `${currentYear.value}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)}`
 })
-const fillWeek = computed(() => fillWeekKey.value === 'current' ? currentWeek : customWeekNum.value)
+const fillWeek = computed(() => fillWeekKey.value === 'current' ? currentWeek.value : customWeekNum.value)
 
 const overallStatusType = computed(() => {
   if (records.value.some(r => r.status === 'submitted')) return 'success'
@@ -948,23 +970,25 @@ const getModuleName = (mid) => { const mod = reportModules.value.find(m => m.id 
 const getModuleColor = (mid) => { const mod = reportModules.value.find(m => m.id === mid); return mod ? mod.color : '#2563eb' }
 const getModuleCategory = (mid) => { const mod = reportModules.value.find(m => m.id === mid); return mod ? mod.category : '' }
 const handleWeekChange = () => {
-  if (fillWeekKey.value === 'custom' && customWeekNum.value === currentWeek) {
-    customWeekNum.value = currentWeek - 1
+  if (fillWeekKey.value === 'custom' && customWeekNum.value === currentWeek.value) {
+    customWeekNum.value = getPrevEffectiveWeek(currentWeek.value) || 1
   }
   loadFillData()
 }
 
 const handleCustomWeekChange = (val) => {
-  if (val && val >= 1 && val <= currentWeek) {
+  if (val && val >= 1 && val <= currentWeek.value) {
     loadFillData()
   }
 }
 
 const navigateWeek = (delta) => {
   const current = fillWeek.value
-  const target = current + delta
-  if (target < 1 || target > currentWeek) return
-  if (target === currentWeek) {
+  let target = current + delta
+  // 跳过被节假日合并吸收、不独立成周的周次
+  while (target >= 1 && target <= currentWeek.value && isAbsorbedWeek(target)) target += delta
+  if (target < 1 || target > currentWeek.value) return
+  if (target === currentWeek.value) {
     fillWeekKey.value = 'current'
   } else {
     fillWeekKey.value = 'custom'
@@ -1056,7 +1080,8 @@ const loadFillData = async (silent = false) => {
     // 当前周且不是第1周时，加载上周已提交记录用于标记“上周填写”
     if (fillWeekKey.value === 'current' && weekNum > 1) {
       try {
-        const lastData = await getMyReports(weekNum - 1, username.value)
+        const lastWeek = getPrevEffectiveWeek(weekNum)
+        const lastData = lastWeek ? await getMyReports(lastWeek, username.value) : { records: [] }
         lastWeekRecords.value = lastData?.records || []
       } catch { lastWeekRecords.value = [] }
     } else {
@@ -1817,7 +1842,7 @@ const historyStats = computed(() => {
   const avg = total > 0 ? (totalRecords / total).toFixed(1) : '0'
   let streak = 0
   const weekNums = submittedWeeks.map(h => h.weekNum).sort((a, b) => b - a)
-  for (let w = currentWeek; w >= 1; w--) { if (weekNums.includes(w)) streak++; else break }
+  for (let w = currentWeek.value; w >= 1; w--) { if (weekNums.includes(w)) streak++; else break }
   return [
     { label: '累计提交', value: total, sub: '周', color: '#303133' },
     { label: '草稿', value: drafts, sub: '周', color: '#e6a23c' },
@@ -1830,12 +1855,13 @@ const loadHistory = async () => {
   if (!username.value) return
   try {
     const weekPromises = []
-    for (let w = currentWeek; w >= 1; w--) {
+    for (let w = currentWeek.value; w >= 1; w--) {
+      if (isAbsorbedWeek(w)) continue // 被合并吸收的周不独立成周，无对应周报
       weekPromises.push(
         getMyReports(w, username.value).then(data => {
           const recs = data?.records || []
           if (recs.length === 0) return null
-          const { monday, sunday } = getWeekDateRange(currentYear, w)
+          const { monday, sunday } = getWeekDateRange(currentYear.value, w)
           const hasSubmitted = recs.some(r => r.status === 'submitted')
           const latestSubmit = recs.filter(r => r.submitTime).sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime))[0]?.submitTime || ''
           return { weekNum: w, dateRange: `${fmtDateCN(monday)} 至 ${fmtDateCN(sunday)}`, records: recs, hasSubmitted, submitTime: latestSubmit }
@@ -1849,7 +1875,7 @@ const loadHistory = async () => {
 
 
 const goFillWeek = (weekNum) => {
-  if (weekNum === currentWeek) { fillWeekKey.value = 'current' }
+  if (weekNum === currentWeek.value) { fillWeekKey.value = 'current' }
   else { fillWeekKey.value = 'custom'; customWeekNum.value = weekNum }
   activeTab.value = 'fill'; loadFillData()
 }
@@ -1893,12 +1919,12 @@ const vContenteditable = {
 
 onMounted(async () => {
   // 获取服务端当前周次（防止用户修改本地时间绕过限制）
-  try { const sw = await getServerCurrentWeek(); if (sw.code === 200) serverCurrentWeek.value = sw.weekNum } catch { /* 使用本地时间兜底 */ }
+  await fetchServerCurrentWeek()
   // 获取有效周范围
-  await fetchWeekDateRanges(currentYear)
+  await fetchWeekDateRanges(currentYear.value)
   // 获取综述填写开关
   try { const res = await getSummaryFillerConfig(); if (res.code === 200) summaryFillerEnabled.value = res.enabled } catch (e) { /* */ }
-  try { const res = await getWeekConfig(currentWeek); if (res.code === 200 && res.data && res.data.startDate && res.data.endDate) setWeekConfig(currentWeek, res.data.startDate, res.data.endDate) } catch (e) { /* */ }
+  try { const res = await getWeekConfig(currentWeek.value); if (res.code === 200 && res.data && res.data.startDate && res.data.endDate) setWeekConfig(currentWeek.value, res.data.startDate, res.data.endDate) } catch (e) { /* */ }
   loadFillData()  // 内部会重新加载 reportModules、subModules 和 records
   window.addEventListener('weekly-report-returned', handleReportReturned)
   window.addEventListener('weekly-report-status-change', handleStatusChange)

@@ -2,8 +2,8 @@ import { RBAC_IP } from '@/utils/dutyPageData.js'
 import axios from 'axios'
 
 /**
- * 获取服务端当前周次，避免用户修改本地时间的绕过风险
- * @returns {Promise<{weekNum: number, year: number}>}
+ * 获取服务端当前周次（有效周周次，节假日感知），避免用户修改本地时间的绕过风险
+ * @returns {Promise<{weekNum: number, year: number, isoWeekNum: number}>}
  */
 export const getServerCurrentWeek = async () => {
   try {
@@ -429,14 +429,15 @@ export const clearWeekConfig = async (weekNum) => {
 /**
  * 获取指定年份所有有效周的日期范围（节假日感知）
  * @param {number} [year] - 年份，默认当前年
- * @returns {Promise<Array<{weekNum, startDate, endDate}>>}
+ * @returns {Promise<{ranges: Array<{weekNum, startDate, endDate}>, absorbed: Array<{weekNum, mergedInto}>}>}
+ *   absorbed 为被节假日合并吸收、不独立成周的 ISO 周及其归属有效周
  */
 export const getWeekDateRanges = async (year) => {
   try {
     const params = {}
     if (year) params.year = year
     const response = await axios.get(`${RBAC_IP.value}/weekDateRanges`, { params })
-    return response.data.data
+    return { ranges: response.data.data || [], absorbed: response.data.absorbed || [] }
   } catch (error) {
     throw new Error(error.response?.data?.message || '获取有效周范围失败')
   }

@@ -28,6 +28,10 @@
         <span class="info-label">ISO 标准范围（参考）</span>
         <span class="info-value" style="color:#909399;">{{ isoDateLabel }}</span>
       </div>
+      <div class="info-row" v-if="todayAbsorbedInto">
+        <span class="info-label">本周归属</span>
+        <span class="info-value" style="color:#e6a23c;">今日属 ISO 第{{ isoWeekOfToday }}周，已被合并纳入第{{ todayAbsorbedInto }}周</span>
+      </div>
 
       <el-divider />
 
@@ -114,7 +118,9 @@
         <li>有效周算法：按ISO周扫描每一天，去除法定节假日后，若该周剩余工作日≥4，则范围为本周首个工作日至最后一个工作日（含补班）。</li>
         <li>若某周工作日大于4天且周日为补班，则周日算入下一个有效周：本周范围为周一~周五，下一个有效周的首个工作日为该周日。</li>
         <li>若该周工作日<4且>0，则向后合并下一整周（无论是否有工作日），若仍不足4天则继续向后合并有工作日的后续周（以整周为单位合并，不逐天累加）。</li>
+        <li>被合并的后续周不独立成周（其工作日已归入前一短周），否则会出现相邻两周日期范围重叠。</li>
         <li>若该周全为节假日，则跳过该周。</li>
+        <li>“本周”按日期解析：今日若落在被合并吸收的 ISO 周内，则归到吸收它的那个有效周（如 2026/10/8 属 ISO 第41周，已并入第40周 9/28~10/10）。</li>
         <li>自定义起止范围<strong>仅对当前周（第{{currentWeek}}周）生效</strong>，覆盖自动计算的结果。</li>
         <li>起始日期不能早于上周结束日期的次日，避免与上一周重叠。</li>
         <li>修改后，周报填写页、汇总页、导出页的日期标签将使用自定义范围。</li>
@@ -130,12 +136,10 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, Check, Close, Edit, InfoFilled } from '@element-plus/icons-vue'
 import { getWeekConfig, saveWeekConfig, clearWeekConfig, getSummaryFillerConfig, updateSummaryFillerConfig } from '@/api/weeklyReportApi'
-import { getCurrentWeek, getWeekDateRange, fmtDateCN, fmtDateFull, setWeekConfig, clearWeekConfigMap, fetchWeekDateRanges, summaryFillerEnabled } from '@/utils/weeklyReportData'
+import { currentWeek, currentYear, getWeekDateRange, fmtDateCN, fmtDateFull, setWeekConfig, clearWeekConfigMap, fetchWeekDateRanges, fetchServerCurrentWeek, weekAbsorbedMap, summaryFillerEnabled } from '@/utils/weeklyReportData'
 
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
 
-const currentWeek = getCurrentWeek()
-const currentYear = new Date().getFullYear()
 const loading = ref(true)
 
 const startDate = ref('')
@@ -147,32 +151,45 @@ const summaryFillerLoading = ref(false)
 
 // 有效周日期标签（节假日感知，优先自定义配置）
 const effectiveDateLabel = computed(() => {
-  const { monday, sunday } = getWeekDateRange(currentYear, currentWeek)
-  return `${currentYear}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)}`
+  const { monday, sunday } = getWeekDateRange(currentYear.value, currentWeek.value)
+  return `${currentYear.value}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)}`
 })
+
+// 今日所属 ISO 周次（仅用于提示“今日已被合并纳入第N周”）
+const isoWeekOfToday = computed(() => {
+  const now = new Date()
+  const jan4 = new Date(now.getFullYear(), 0, 4)
+  const isoDow = jan4.getDay() || 7
+  const firstMonday = new Date(jan4)
+  firstMonday.setDate(jan4.getDate() - isoDow + 1)
+  return Math.floor((now - firstMonday) / (7 * 24 * 3600 * 1000)) + 1
+})
+
+// 今日所在 ISO 周若被合并吸收，返回其归属的有效周周次，否则返回 0
+const todayAbsorbedInto = computed(() => weekAbsorbedMap.value[isoWeekOfToday.value] || 0)
 
 // 纯 ISO 标准日期标签（仅作参考对比）
 const isoDateLabel = computed(() => {
   // 直接用 ISO 算法，不受自定义/有效周影响
-  const jan4 = new Date(currentYear, 0, 4)
+  const jan4 = new Date(currentYear.value, 0, 4)
   const isoDow = jan4.getDay() || 7  // 周一=1，周日=7
   const isoMonday = new Date(jan4)
-  isoMonday.setDate(jan4.getDate() - isoDow + 1 + (currentWeek - 1) * 7)
+  isoMonday.setDate(jan4.getDate() - isoDow + 1 + (currentWeek.value - 1) * 7)
   const isoSunday = new Date(isoMonday)
   isoSunday.setDate(isoMonday.getDate() + 6)
-  return `${currentYear}年${fmtDateCN(isoMonday)} — ${fmtDateCN(isoSunday)}`
+  return `${currentYear.value}年${fmtDateCN(isoMonday)} — ${fmtDateCN(isoSunday)}`
 })
 
 // ISO 标准字符串，用于显示最小可选日期
 const isoPrevWeekEnd = computed(() => {
-  if (currentWeek <= 1) return null
-  const { sunday } = getWeekDateRange(currentYear, currentWeek - 1)
+  if (currentWeek.value <= 1) return null
+  const { sunday } = getWeekDateRange(currentYear.value, currentWeek.value - 1)
   return sunday
 })
 
 // 计算本周第一天（周一）的ISO日期，用作起始日期默认禁用下限
 const isoMonday = computed(() => {
-  const { monday } = getWeekDateRange(currentYear, currentWeek)
+  const { monday } = getWeekDateRange(currentYear.value, currentWeek.value)
   return monday
 })
 
@@ -218,13 +235,13 @@ const disableEndDate = (date) => {
 // 加载配置
 const loadConfig = async () => {
   try {
-    const res = await getWeekConfig(currentWeek, currentYear)
+    const res = await getWeekConfig(currentWeek.value, currentYear.value)
     if (res.code === 200 && res.data) {
       startDate.value = res.data.startDate || ''
       endDate.value = res.data.endDate || ''
       hasCustomConfig.value = true
       if (startDate.value && endDate.value) {
-        setWeekConfig(currentWeek, startDate.value, endDate.value)
+        setWeekConfig(currentWeek.value, startDate.value, endDate.value)
       }
     } else {
       startDate.value = ''
@@ -259,14 +276,14 @@ const handleSave = async () => {
   saving.value = true
   try {
     await ElMessageBox.confirm(
-      `确认将第${currentWeek}周的周报范围设置为 ${startDate.value} 至 ${endDate.value}？`,
+      `确认将第${currentWeek.value}周的周报范围设置为 ${startDate.value} 至 ${endDate.value}？`,
       '保存配置确认',
       { confirmButtonText: '确认保存', cancelButtonText: '取消', type: 'warning' }
     )
-    const res = await saveWeekConfig(currentWeek, startDate.value, endDate.value)
+    const res = await saveWeekConfig(currentWeek.value, startDate.value, endDate.value)
     if (res.status === 'success') {
       hasCustomConfig.value = true
-      setWeekConfig(currentWeek, startDate.value, endDate.value)
+      setWeekConfig(currentWeek.value, startDate.value, endDate.value)
       msg('success', '周配置已保存')
     } else {
       msg('error', res.message || '保存失败')
@@ -289,12 +306,12 @@ const handleClear = async () => {
   } catch { return }
   clearing.value = true
   try {
-    const res = await clearWeekConfig(currentWeek)
+    const res = await clearWeekConfig(currentWeek.value)
     if (res.status === 'success') {
       startDate.value = ''
       endDate.value = ''
       hasCustomConfig.value = false
-      clearWeekConfigMap(currentWeek)
+      clearWeekConfigMap(currentWeek.value)
       msg('success', '已恢复默认有效周计算（节假日感知）')
     } else {
       msg('error', res.message || '清除失败')
@@ -308,8 +325,10 @@ const handleClear = async () => {
 
 onMounted(async () => {
   loading.value = true
-  // 先获取有效周范围（节假日感知），确保日期标签正确显示
-  await fetchWeekDateRanges(currentYear)
+  // 先拉取服务端当前周次（有效周，节假日感知），避免本地 ISO 周快照与后端不一致
+  await fetchServerCurrentWeek()
+  // 再获取有效周范围（节假日感知），确保日期标签正确显示
+  await fetchWeekDateRanges(currentYear.value)
   await loadConfig()
   // 加载综述填写开关
   try {

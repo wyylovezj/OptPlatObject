@@ -25,8 +25,8 @@
       <el-button size="small" :icon="ArrowLeft" circle @click="navigateSummaryWeek(-1)" :disabled="getSummaryWeek <= 1" />
       <el-tag type="primary" effect="light" class="week-tag">{{ summaryWeekLabel }}</el-tag>
       <el-button size="small" :icon="ArrowRight" circle @click="navigateSummaryWeek(1)" :disabled="getSummaryWeek >= currentWeek" />
-      <el-select v-if="summaryWeekKey === 'custom'" v-model="customSummaryWeek" size="small" style="width:80px;" @change="handleCustomSummaryWeekChange">
-        <el-option v-for="w in currentWeek" :key="w" :label="'第' + w + '周'" :value="w" />
+      <el-select v-if="summaryWeekKey === 'custom'" v-model="customSummaryWeek" size="small" style="width:210px;" @change="handleCustomSummaryWeekChange">
+        <el-option v-for="opt in summaryWeekOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
         <el-button type="warning" size="small" @click="handleRemindAll" :disabled="getSummaryWeek !== currentWeek" v-if="canEdit">
@@ -671,8 +671,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, ArrowDown, ArrowLeft, ArrowRight, Bell, Edit, Plus, Delete, CopyDocument, DocumentCopy, Select, RefreshLeft, Close, Reading, Rank, Loading } from '@element-plus/icons-vue'
 import { usePermissionStore } from '@/stores/permissionStore'
-import { getReportModules, getSummaryReports, editSummaryContent, saveReport, remindUnsubmitted, remindPerson, deleteReport, returnReport, batchReturnReports, getWeekConfig, getReportSubModules, getServerCurrentWeek } from '@/api/weeklyReportApi'
-import { reportModules, getCurrentWeek, getWeekDateRange, fmtDateCN, setWeekConfig, serverCurrentWeek, fetchWeekDateRanges } from '@/utils/weeklyReportData'
+import { getReportModules, getSummaryReports, editSummaryContent, saveReport, remindUnsubmitted, remindPerson, deleteReport, returnReport, batchReturnReports, getWeekConfig, getReportSubModules } from '@/api/weeklyReportApi'
+import { reportModules, currentWeek, currentYear, getWeekDateRange, fmtDateCN, setWeekConfig, fetchWeekDateRanges, fetchServerCurrentWeek, isAbsorbedWeek, getPrevEffectiveWeek, weekDateRangesLoaded } from '@/utils/weeklyReportData'
 
 const router = useRouter()
 const msg = (type, content) => { ElMessage.closeAll(); ElMessage[type](content) }
@@ -681,11 +681,11 @@ const permissionStore = usePermissionStore()
 const username = computed(() => permissionStore.userInfo?.username || '')
 const nickname = computed(() => permissionStore.userInfo?.nickname || '')
 
-const currentWeek = getCurrentWeek()
-const currentYear = new Date().getFullYear()
+// 周次使用响应式的 currentWeek（服务端有效周，节假日感知），避免 setup 中快照本地 ISO 周
+// 导致节假日合并周的“本周”与后端不一致
 const summaryWeekKey = ref('current')
-const customSummaryWeek = ref(currentWeek)
-const getSummaryWeek = computed(() => summaryWeekKey.value === 'current' ? currentWeek : customSummaryWeek.value)
+const customSummaryWeek = ref(0)
+const getSummaryWeek = computed(() => summaryWeekKey.value === 'current' ? currentWeek.value : customSummaryWeek.value)
 const canEdit = computed(() => summaryData.value?.canEdit === true)
 const summaryData = ref(null)
 const loaded = ref(false)
@@ -786,28 +786,49 @@ const getAllPersonEntries = (person) => {
 }
 
 const summaryWeekLabel = computed(() => {
-  const { monday, sunday } = getWeekDateRange(currentYear, getSummaryWeek.value)
-  return `${currentYear}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)} · 第${getSummaryWeek.value}周`
+  const { monday, sunday } = getWeekDateRange(currentYear.value, getSummaryWeek.value)
+  return `${currentYear.value}年${fmtDateCN(monday)} — ${fmtDateCN(sunday)} · 第${getSummaryWeek.value}周`
+})
+
+// 服务端周次/有效周范围到达后，修正自定义周次默认值（跳过被合并吸收的周）
+watch([currentWeek, weekDateRangesLoaded], () => {
+  const w = currentWeek.value
+  if (!customSummaryWeek.value || customSummaryWeek.value > w || isAbsorbedWeek(customSummaryWeek.value)) {
+    customSummaryWeek.value = getPrevEffectiveWeek(w) || 1
+  }
+}, { immediate: true })
+
+// 周次下拉仅列出独立成周的有效周，并附带日期范围
+const summaryWeekOptions = computed(() => {
+  const list = []
+  for (let w = currentWeek.value; w >= 1; w--) {
+    if (isAbsorbedWeek(w)) continue
+    const { monday, sunday } = getWeekDateRange(currentYear.value, w)
+    list.push({ value: w, label: `第${w}周 (${fmtDateCN(monday)} ~ ${fmtDateCN(sunday)})` })
+  }
+  return list
 })
 
 const handleSummaryWeekChange = () => {
-  if (summaryWeekKey.value === 'custom' && customSummaryWeek.value === currentWeek) {
-    customSummaryWeek.value = currentWeek - 1
+  if (summaryWeekKey.value === 'custom' && customSummaryWeek.value === currentWeek.value) {
+    customSummaryWeek.value = getPrevEffectiveWeek(currentWeek.value) || 1
   }
   loadSummary()
 }
 
 const handleCustomSummaryWeekChange = (val) => {
-  if (val && val >= 1 && val <= currentWeek) {
+  if (val && val >= 1 && val <= currentWeek.value) {
     loadSummary()
   }
 }
 
 const navigateSummaryWeek = (delta) => {
   const current = getSummaryWeek.value
-  const target = current + delta
-  if (target < 1 || target > currentWeek) return
-  if (target === currentWeek) {
+  let target = current + delta
+  // 跳过被节假日合并吸收、不独立成周的周次
+  while (target >= 1 && target <= currentWeek.value && isAbsorbedWeek(target)) target += delta
+  if (target < 1 || target > currentWeek.value) return
+  if (target === currentWeek.value) {
     summaryWeekKey.value = 'current'
   } else {
     summaryWeekKey.value = 'custom'
@@ -1030,7 +1051,7 @@ const onDocScroll = () => {
 const summarySections = computed(() => {
   // 直接使用 summaryData.moduleGroups 作为数据源（后端已包含所有模块，含停用/已删除的）
   const dataGroups = summaryData.value?.moduleGroups || []
-  const isCurrentWeek = getSummaryWeek.value === currentWeek
+  const isCurrentWeek = getSummaryWeek.value === currentWeek.value
   return dataGroups
     .filter(g => {
       // 历史周：显示所有模块（包括已停用、已删除的），确保历史数据完整可见
@@ -1397,7 +1418,7 @@ const onLineContentClick = (idx, e) => {
 
 // 双击查看态行，进入编辑态并定位光标到该行
 const onViewLineDblClick = (entries, moduleId, subIdx, lineIdx) => {
-  if (getSummaryWeek.value !== currentWeek) return
+  if (getSummaryWeek.value !== currentWeek.value) return
   if (!canEdit.value) return
   if (!entries || entries.length === 0) return
   startBatchEdit(entries, moduleId, subIdx, lineIdx)
@@ -1780,10 +1801,10 @@ const handleSummaryModuleChange = () => {
 }
 
 onMounted(async () => {
-  // 获取服务端当前周次（防止用户修改本地时间绕过限制）
-  try { const sw = await getServerCurrentWeek(); if (sw.code === 200) serverCurrentWeek.value = sw.weekNum } catch { /* 使用本地时间兜底 */ }
+  // 获取服务端当前周次（有效周，节假日感知；防止用户修改本地时间绕过限制）
+  await fetchServerCurrentWeek()
   // 获取有效周范围
-  await fetchWeekDateRanges(currentYear)
+  await fetchWeekDateRanges(currentYear.value)
   if (reportModules.value.length === 0) { try { reportModules.value = await getReportModules() } catch (e) { console.warn('加载模块列表失败', e) } }
   await loadSubModules()
   await loadSummary()
