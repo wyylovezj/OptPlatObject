@@ -453,6 +453,40 @@ export const mailUserView = async (userList) => {
   }
 }
 
+// 邮箱账号组同步接口
+// 用途：通知后端刷新邮箱账号组数据，无任何请求参数
+// 返回值：{ code, message, data }，message 为 'success' 表示同步成功
+// 注意：接口位于5000端口的RBAC后端服务（email_group_routes.py）
+export const mailUserGroupSync = async () => {
+  try {
+    // 发送POST请求（无请求体）
+    const response = await axios.post(`${rbacIp.value}/mailUserGroup_sync`)
+    console.log(response.data)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败')
+  }
+}
+
+// 邮箱账号组查询接口
+// 用途：查询指定邮箱账号所属的邮件组列表
+// 参数：username - 用户邮箱号（含 @cinda.com.cn 后缀）
+// 返回值：{ code, message, username, total, mail_data }
+//         mail_data 为数组，元素结构为 { mail_add: 邮件组地址, mail_true_name: 邮件地址对应名称 }
+//         无邮件组时 mail_data 为空数组
+export const mailUserGroupView = async (username) => {
+  try {
+    // 发送POST请求
+    const response = await axios.post(`${rbacIp.value}/mailUserGroup_view`, {
+      username: username,
+    })
+    console.log(response.data)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.message || '服务器连接失败')
+  }
+}
+
 // Linux主机密码修改接口
 export const linuxPasswordChange = async (formData) => {
   try {

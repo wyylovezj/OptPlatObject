@@ -148,6 +148,7 @@ export  const EmailAccount = ref(  {
   resetEmail: ''  , // 重置密码的邮箱
   groupEmail: '' , // 邮件组
   username: '', // 解锁邮箱
+  mailGroupQuery: '', // 邮箱账号组查询的邮箱账号
   reset: function() {
     this.newEmail = '';
     this.oldEmail = '';
@@ -155,6 +156,7 @@ export  const EmailAccount = ref(  {
     this.resetEmail = '';
     this.groupEmail = '';
     this.username = '';
+    this.mailGroupQuery = '';
   }
 });
 // 邮箱账号管理数据模型
@@ -171,6 +173,7 @@ export const EmailAccountDataModel = ref(
     type: '2', // 解锁类型
     emailAliasText: '', // 邮件别名文本域内容
     emailAliasArray: [], // 邮件别名数组
+    mailGroupQuery: '', // 邮箱账号组查询的邮箱账号（含域名后缀）
     reset: function() {
       this.newEmail = '';
       this.oldEmail = '';
@@ -182,6 +185,7 @@ export const EmailAccountDataModel = ref(
       this.username = '';
       this.emailAliasText = '';
       this.emailAliasArray = [];
+      this.mailGroupQuery = '';
     }
   }
 )

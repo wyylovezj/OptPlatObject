@@ -4,7 +4,7 @@ import {
   mobileTokenInterface,
   unlockAccountInterface,
   historyTask,
-  renameEmail, expiredEmail, resetPasswdEmail, downloadGroupUsers, mailUserView
+  renameEmail, expiredEmail, resetPasswdEmail, downloadGroupUsers, mailUserView, mailUserGroupSync, mailUserGroupView
 } from '@/api/interface.js'
 import { usePermissionStore } from '@/stores/permissionStore.js'
 import { currentPage, messageInstance, searchQuery, user } from '@/utils/publicData.js'
@@ -23,7 +23,7 @@ import axios from 'axios'
 import { ElMessage,ElButton,ElTableV2, ElAutoResizer,ElMessageBox, ElLoading } from 'element-plus'
 import { computed, ref,onBeforeUnmount,watch,h } from 'vue'
 import * as XLSX from 'xlsx'
-import { Search, Edit,Key,Timer,Download,Unlock } from '@element-plus/icons-vue'
+import { Search, Edit,Key,Timer,Download,Unlock,Message } from '@element-plus/icons-vue'
 import ToolItemModels from './ToolItemModels.vue'
 import LinuxToolModels from './LinuxToolModels.vue'
 
@@ -716,6 +716,16 @@ const emailAliasQueryRules = ref({
     },
   ]
 })
+// 邮箱账号组查询表单校验规则
+const mailUserGroupQueryRules = ref({
+  mailGroupQuery: [
+    {
+      required: true,
+      message: '请输入邮箱账号',
+      trigger: 'change',
+    },
+  ]
+})
 // 用户解锁模态框中确定按钮点击事件
 const unlockAccount = async () => {
   if (!unlockAccountForm.value) return
@@ -1189,6 +1199,31 @@ const unlockEmailInput = async (value) => {
   // 只允许输入英文字母和数字
   EmailAccountDataModel.value.username = cleanedValue
 }
+// 邮箱账号组查询中邮箱账号即时校验函数
+const mailGroupQueryInput = async (value) => {
+  const cleanedValue = value.replace(/\s/g, '')
+
+  // 如果过滤后的值与原值不同，说明输入了非法字符
+  if (cleanedValue !== value) {
+    if (messageInstance.value) {
+      ElMessage.closeAll()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // 显示警告消息
+    messageInstance.value = ElMessage.warning({
+      message: `只允许输入字母/数字/特殊字符`,
+      duration: 1000,
+      offset: window.innerHeight / 2 - 100,
+      onClose: () => {
+        messageInstance.value = null
+      },
+    })
+  }
+  EmailAccount.value.mailGroupQuery = cleanedValue
+  // 查询时使用拼接域名后缀的完整邮箱账号
+  EmailAccountDataModel.value.mailGroupQuery = `${cleanedValue}@cinda.com.cn`
+}
 // 脚本下发表单实例
 const fileUpload = ref(null)
 // 移动令牌表单实例
@@ -1323,6 +1358,18 @@ const resetPasswordForm = ref(null)
 const groupEmailForm = ref(null)
 const unlockEmailForm = ref(null)
 const emailAliasQueryForm = ref(null)
+// 邮箱账号组查询表单实例
+const mailUserGroupQueryForm = ref(null)
+// 邮箱账号组同步按钮加载状态（请求中禁止重复点击）
+const mailGroupSyncLoading = ref(false)
+// 邮箱账号组查询确认按钮加载状态（请求中禁止重复点击）
+const mailGroupQueryLoading = ref(false)
+// 邮箱账号组查询结果表格模态框可视状态
+const mailGroupResultVisible = ref(false)
+// 邮箱账号组查询结果表格数据（每行对应一个邮件组）
+const mailGroupResultData = ref([])
+// 当前查询的用户邮箱（含域名后缀），作为“用户邮箱”合并单元格的内容
+const mailGroupResultUsername = ref('')
 const activeEmailTab = ref('rename')
 const shortcuts = [
   {
@@ -1366,6 +1413,9 @@ const emailSubmit = async () => {
       break
     case 'emailAliasQuery':
       await handleEmailAliasQuerySubmit()
+      break
+    case 'mailUserGroupQuery':
+      await handleMailUserGroupQuerySubmit()
       break
     default:
       ElMessage.warning('未知的操作类型')
@@ -1716,6 +1766,89 @@ const handleEmailAliasQuerySubmit = async () => {
       validateTimer = setTimeout(() => {
         if (emailAliasQueryForm.value) {
           emailAliasQueryForm.value.clearValidate()
+        }
+      }, 2000)
+    }
+  })
+}
+// 获取居中于“邮箱账号管理”模态框正中间的 Message 提示纵向位置（offset 为距视口顶部的距离）
+const getMailGroupMessageOffset = () => {
+  const dialogEl = document.querySelector('.email-manage-dialog')
+  if (!dialogEl) return window.innerHeight / 2 - 20
+  const rect = dialogEl.getBoundingClientRect()
+  // 减去提示框自身高度的一半（约 20px），使提示视觉中心落在模态框中心
+  return rect.top + rect.height / 2 - 20
+}
+// 邮箱账号组同步函数：不传参数，按返回的 message 判断成功/失败
+const handleMailUserGroupSync = async () => {
+  if (mailGroupSyncLoading.value) return
+  mailGroupSyncLoading.value = true
+  try {
+    const response = await mailUserGroupSync()
+    const isSuccess = response?.message === 'success'
+    ElMessage({
+      message: isSuccess ? '同步成功' : '同步失败',
+      type: isSuccess ? 'success' : 'error',
+      center: true,
+      offset: getMailGroupMessageOffset(),
+      duration: 2000,
+    })
+  } catch (error) {
+    console.error('邮箱账号组同步失败:', error)
+    ElMessage({
+      message: '同步失败',
+      type: 'error',
+      center: true,
+      offset: getMailGroupMessageOffset(),
+      duration: 2000,
+    })
+  } finally {
+    mailGroupSyncLoading.value = false
+  }
+}
+// 邮箱账号组查询结果表格：“用户邮箱”列无论多少行均合并为一行
+const mergeMailGroupUserColumn = ({ rowIndex, columnIndex }) => {
+  if (columnIndex !== 0) return
+  if (rowIndex === 0) return { rowspan: mailGroupResultData.value.length, colspan: 1 }
+  return { rowspan: 0, colspan: 0 }
+}
+// 邮箱账号组查询函数：确认按钮触发，查询结果用表格模态框展示
+const handleMailUserGroupQuerySubmit = async () => {
+  if (!mailUserGroupQueryForm.value) return
+  await mailUserGroupQueryForm.value.validate(async (valid) => {
+    if (valid) {
+      const username = EmailAccountDataModel.value.mailGroupQuery
+      mailGroupQueryLoading.value = true
+      try {
+        const response = await mailUserGroupView(username)
+        // mail_data 为邮件组数组，元素结构：{ mail_add: 邮件组地址, mail_true_name: 邮件地址对应名称 }
+        const mailData = Array.isArray(response?.mail_data) ? response.mail_data : []
+        mailGroupResultUsername.value = username
+        mailGroupResultData.value = mailData.map((item) => ({
+          mail_add: item.mail_add || '',
+          mail_true_name: item.mail_true_name || '',
+        }))
+        // 无邮件组时同样弹出表格，由空数据提示“无数据”
+        mailGroupResultVisible.value = true
+      } catch (error) {
+        console.error('邮箱账号组查询失败:', error)
+        ElMessage({
+          message: `查询失败：${error.message || '未知错误'}`,
+          type: 'error',
+          center: true,
+          offset: getMailGroupMessageOffset(),
+          duration: 2000,
+        })
+      } finally {
+        mailGroupQueryLoading.value = false
+      }
+    } else {
+      if (validateTimer) {
+        clearTimeout(validateTimer)
+      }
+      validateTimer = setTimeout(() => {
+        if (mailUserGroupQueryForm.value) {
+          mailUserGroupQueryForm.value.clearValidate()
         }
       }, 2000)
     }
@@ -4098,9 +4231,10 @@ onBeforeUnmount(() => {
     <!--  邮箱账号管理控制台模态框  -->
     <el-dialog
       v-model="dialogVisible.emailManage"
+      class="email-manage-dialog"
       top="10%"
       title="邮箱账号管理"
-      width="900px"
+      width="960px"
       center
       destroy-on-close
       :close-on-click-modal="false"
@@ -4113,10 +4247,12 @@ onBeforeUnmount(() => {
           EmailAccountDataModel.reset()
           dialogVisible.emailManage = false
           activeEmailTab = 'rename'
+          mailGroupResultVisible = false
+          mailGroupResultData = []
         }
       "
     >
-      <el-tabs v-model="activeEmailTab" type="border-card" class="demo-tabs" @tab-change="() => {EmailAccount.reset();EmailAccountDataModel.reset()}" stretch>
+      <el-tabs v-model="activeEmailTab" type="border-card" class="demo-tabs" @tab-change="() => {EmailAccount.reset();EmailAccountDataModel.reset(); mailGroupResultVisible = false; mailGroupResultData = []}" stretch>
         <el-tab-pane name="rename">
           <template #label>
             <span class="custom-tabs-label">
@@ -4357,9 +4493,43 @@ onBeforeUnmount(() => {
             </el-form-item>
           </el-form>
         </el-tab-pane>
+        <el-tab-pane name="mailUserGroupQuery" label="邮箱账号组查询">
+          <template #label>
+            <span class="custom-tabs-label">
+              <el-icon><Message /></el-icon>
+              <span>邮箱账号组查询</span>
+            </span>
+          </template>
+          <el-form
+            :model="EmailAccountDataModel"
+            ref="mailUserGroupQueryForm"
+            label-position="right"
+            label-width="auto"
+            :rules="mailUserGroupQueryRules"
+            style="display: flex; flex-direction: column; justify-content: center; flex-wrap: wrap; user-select: none"
+          >
+            <el-form-item label="邮箱账号" prop="mailGroupQuery">
+              <div style="display: flex; align-items: center; gap: 10px">
+                <el-input
+                  v-model="EmailAccount.mailGroupQuery"
+                  style="width: 350px"
+                  placeholder="请输入账号"
+                  maxlength="20"
+                  type="text"
+                  @input="mailGroupQueryInput"
+                  clearable
+                  spellcheck="false"
+                >
+                  <template #append>@cinda.com.cn</template>
+                </el-input>
+                <el-button type="primary" :loading="mailGroupSyncLoading" @click="handleMailUserGroupSync">同步</el-button>
+              </div>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
       </el-tabs>
       <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap;margin-top: 20px">
-        <el-button type="primary" @click="emailSubmit" :disabled="exportDisabled.renameSubmit">确认</el-button>
+        <el-button type="primary" @click="emailSubmit" :disabled="exportDisabled.renameSubmit" :loading="mailGroupQueryLoading">确认</el-button>
         <el-button
           type="primary"
           @click="() => {
@@ -4374,6 +4544,37 @@ onBeforeUnmount(() => {
         >取消</el-button
         >
       </div>
+    </el-dialog>
+    <!-- 邮箱账号组查询结果表格模态框 -->
+    <el-dialog
+      v-model="mailGroupResultVisible"
+      title="邮箱账号组查询结果"
+      width="700px"
+      center
+      destroy-on-close
+      append-to-body
+      style="user-select: none"
+      :close-on-click-modal="false"
+    >
+      <el-table
+        :data="mailGroupResultData"
+        :span-method="mergeMailGroupUserColumn"
+        border
+        empty-text="无数据"
+        style="width: 100%"
+      >
+        <!-- 用户邮箱：无论数据多少行均合并为一行 -->
+        <el-table-column label="用户邮箱" align="center" min-width="220">
+          <template #default="{ $index }">
+            <span>{{ $index === 0 ? mailGroupResultUsername : '' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="mail_true_name" label="邮件组名" align="center" min-width="160" />
+        <el-table-column prop="mail_add" label="邮件组地址" align="center" min-width="220" />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="mailGroupResultVisible = false">关闭</el-button>
+      </template>
     </el-dialog>
     <!-- 主机密码修改模态框 -->
     <ToolItemModels
