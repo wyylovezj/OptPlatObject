@@ -173,7 +173,7 @@ export const EmailAccountDataModel = ref(
     type: '2', // 解锁类型
     emailAliasText: '', // 邮件别名文本域内容
     emailAliasArray: [], // 邮件别名数组
-    mailGroupQuery: '', // 邮箱账号组查询的邮箱账号（含域名后缀）
+    mailGroupQuery: '', // 邮箱账号组查询的完整邮箱账号（域名后缀由用户自行填写）
     reset: function() {
       this.newEmail = '';
       this.oldEmail = '';

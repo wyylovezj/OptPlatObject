@@ -724,6 +724,12 @@ const mailUserGroupQueryRules = ref({
       message: '请输入邮箱账号',
       trigger: 'change',
     },
+    {
+      // 后缀域名由用户自行填写，这里按完整邮箱格式校验
+      pattern: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/,
+      message: '邮箱格式不正确，示例：zhangsan@cinda.com.cn',
+      trigger: 'change',
+    },
   ]
 })
 // 用户解锁模态框中确定按钮点击事件
@@ -1221,8 +1227,8 @@ const mailGroupQueryInput = async (value) => {
     })
   }
   EmailAccount.value.mailGroupQuery = cleanedValue
-  // 查询时使用拼接域名后缀的完整邮箱账号
-  EmailAccountDataModel.value.mailGroupQuery = `${cleanedValue}@cinda.com.cn`
+  // 后缀域名不再固定，用户输入的即完整邮箱账号，直接作为接口参数
+  EmailAccountDataModel.value.mailGroupQuery = cleanedValue
 }
 // 脚本下发表单实例
 const fileUpload = ref(null)
@@ -4513,15 +4519,13 @@ onBeforeUnmount(() => {
                 <el-input
                   v-model="EmailAccount.mailGroupQuery"
                   style="width: 350px"
-                  placeholder="请输入账号"
-                  maxlength="20"
+                  placeholder="请输入完整邮箱账号，如 zhangsan@cinda.com.cn"
+                  maxlength="60"
                   type="text"
                   @input="mailGroupQueryInput"
                   clearable
                   spellcheck="false"
-                >
-                  <template #append>@cinda.com.cn</template>
-                </el-input>
+                />
                 <el-button type="primary" :loading="mailGroupSyncLoading" @click="handleMailUserGroupSync">同步</el-button>
               </div>
             </el-form-item>
